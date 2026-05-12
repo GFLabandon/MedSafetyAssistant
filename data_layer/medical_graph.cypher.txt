@@ -1,0 +1,517 @@
+// ========================================================
+// 1. 初始化：清空数据库（首次导入时执行，后续更新注释此行）
+// ========================================================
+MATCH (n) DETACH DELETE n;
+
+// ========================================================
+// 2. 核心成分 (Ingredient) - 补充常见药物成分，完善别名与描述
+// ========================================================
+// 解热镇痛类
+CREATE (i_acet:Ingredient {
+    name: "对乙酰氨基酚",
+    aliases: ["扑热息痛", "Paracetamol", "Acetaminophen"],
+    desc: "解热镇痛药，通过抑制前列腺素合成发挥作用，过量可致急性肝衰竭"
+})
+CREATE (i_ibu:Ingredient {
+    name: "布洛芬",
+    aliases: ["Ibuprofen", "芬必得", "美林主要成分"],
+    desc: "非甾体抗炎药(NSAID)，解热镇痛抗炎，长期或过量服用可损伤胃黏膜、影响肾功能"
+})
+CREATE (i_asp:Ingredient {
+    name: "阿司匹林",
+    aliases: ["Aspirin", "乙酰水杨酸"],
+    desc: "非甾体抗炎药，解热镇痛+抗血小板凝聚，易致胃肠道出血、过敏反应"
+})
+
+// 抗生素类
+CREATE (i_ceph:Ingredient {
+    name: "头孢菌素",
+    aliases: ["Cephalosporin", "头孢类"],
+    desc: "β-内酰胺类抗生素，抑制细菌细胞壁合成，对革兰氏阳性菌作用显著"
+})
+CREATE (i_amox:Ingredient {
+    name: "阿莫西林",
+    aliases: ["Amoxicillin", "羟氨苄青霉素"],
+    desc: "青霉素类广谱抗生素，对呼吸道、泌尿系统感染有效，过敏体质禁用"
+})
+CREATE (i_rox:Ingredient {
+    name: "罗红霉素",
+    aliases: ["Roxithromycin"],
+    desc: "大环内酯类抗生素，抗菌谱广，适用于支原体、衣原体感染，胃肠道反应较轻"
+})
+CREATE (i_acetyl:Ingredient {
+    name: "乙酰螺旋霉素",
+    aliases: ["Acetylspiramycin"],
+    desc: "大环内酯类抗生素，对葡萄球菌、链球菌感染有效，孕妇慎用"
+})
+
+// 感冒对症类
+CREATE (i_pseudo:Ingredient {
+    name: "伪麻黄碱",
+    aliases: ["Pseudoephedrine"],
+    desc: "血管收缩剂，缓解鼻塞、流涕，升高血压，高血压患者禁用"
+})
+CREATE (i_chlor:Ingredient {
+    name: "氯苯那敏",
+    aliases: ["Chlorphenamine", "扑尔敏"],
+    desc: "一代抗组胺药，缓解打喷嚏、流清涕，强嗜睡副作用"
+})
+CREATE (i_dex:Ingredient {
+    name: "右美沙芬",
+    aliases: ["Dextromethorphan"],
+    desc: "中枢性镇咳药，无成瘾性，痰多者慎用"
+})
+CREATE (i_lora:Ingredient {
+    name: "氯雷他定",
+    aliases: ["Loratadine", "开瑞坦"],
+    desc: "二代抗组胺药，长效抗过敏，无明显嗜睡，适用于过敏性鼻炎、荨麻疹"
+})
+CREATE (i_cetirizine:Ingredient {
+    name: "西替利嗪",
+    aliases: ["Cetirizine", "仙特明"],
+    desc: "二代抗组胺药，抗过敏效果强，轻微嗜睡，儿童需减量"
+})
+
+// 中药/复方成分
+CREATE (i_lianqiao:Ingredient {
+    name: "连翘",
+    aliases: [],
+    desc: "中药成分，清热解毒、消肿散结，用于风热感冒"
+})
+CREATE (i_jinyinhua:Ingredient {
+    name: "金银花",
+    aliases: ["忍冬花"],
+    desc: "中药成分，清热解毒、疏散风热，用于上呼吸道感染"
+})
+CREATE (i_zhimahuang:Ingredient {
+    name: "炙麻黄",
+    aliases: [],
+    desc: "中药成分，发汗解表、宣肺平喘，孕妇慎用"
+})
+CREATE (i_banlangen:Ingredient {
+    name: "板蓝根",
+    aliases: [],
+    desc: "中药成分，清热解毒、凉血利咽，用于病毒性感冒"
+})
+
+// 降压/其他类
+CREATE (i_nife:Ingredient {
+    name: "硝苯地平",
+    aliases: ["Nifedipine", "心痛定"],
+    desc: "钙通道阻滞剂，扩张血管降压，适用于高血压、心绞痛"
+})
+CREATE (i_lisinopril:Ingredient {
+    name: "赖诺普利",
+    aliases: ["Lisinopril"],
+    desc: "血管紧张素转换酶抑制剂，降压作用平稳，肾功能不全者需监测"
+})
+
+// ========================================================
+// 3. 疾病/状态 (Condition) - 扩展常见场景，补充描述
+// ========================================================
+CREATE (c_alc:Condition {
+    name: "饮酒状态",
+    desc: "服药前后 72 小时内饮酒（包括白酒、啤酒、红酒、含酒精饮料）"
+})
+CREATE (c_hbp:Condition {
+    name: "高血压",
+    desc: "收缩压 ≥140mmHg 或舒张压 ≥90mmHg，含原发性/继发性高血压"
+})
+CREATE (c_preg:Condition {
+    name: "妊娠期",
+    desc: "怀孕 1-40 周，胎儿发育关键期，用药需严格遵循医嘱"
+})
+CREATE (c_lact:Condition {
+    name: "哺乳期",
+    desc: "产后哺乳阶段，药物可通过乳汁影响婴儿"
+})
+CREATE (c_child:Condition {
+    name: "儿童",
+    desc: "14 岁以下未成年人，肝肾功能未发育完全"
+})
+CREATE (c_elder:Condition {
+    name: "老年患者",
+    desc: "65 岁以上人群，肝肾功能减退，代谢能力下降"
+})
+CREATE (c_drive:Condition {
+    name: "驾驶/高空作业",
+    desc: "需要注意力高度集中的操作，避免嗜睡、头晕影响安全"
+})
+CREATE (c_stomach:Condition {
+    name: "胃溃疡",
+    desc: "胃黏膜破损，易受刺激药物加重病情"
+})
+CREATE (c_liver:Condition {
+    name: "肝功能不全",
+    desc: "肝细胞受损，药物代谢能力下降，易蓄积中毒"
+})
+CREATE (c_kidney:Condition {
+    name: "肾功能不全",
+    desc: "肾脏排泄功能下降，药物及代谢产物易蓄积"
+})
+CREATE (c_allergy_penicillin:Condition {
+    name: "青霉素过敏",
+    desc: "对青霉素类药物过敏，可能引发皮疹、休克等反应"
+})
+CREATE (c_allergy_ceph:Condition {
+    name: "头孢过敏",
+    desc: "对头孢菌素类药物过敏，交叉过敏风险高"
+})
+CREATE (c_diabetes:Condition {
+    name: "糖尿病",
+    desc: "血糖升高，部分药物可能影响血糖控制"
+})
+CREATE (c_heart:Condition {
+    name: "心脏病",
+    desc: "包括冠心病、心衰、心律失常等，用药需避免心脏负担"
+})
+
+// ========================================================
+// 4. 药品 (Drug) - 补充缺失药物，完善成分关联
+// ========================================================
+// 感冒复方制剂
+CREATE (d_taino:Drug {
+    name: "泰诺",
+    category: "感冒退热",
+    function: "缓解感冒引起的发热、头痛、鼻塞、流涕、打喷嚏等症状",
+    dosage: "成人 1-2 片/次，每 6 小时一次，24 小时不超过 8 片"
+})
+CREATE (d_taino)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_taino)-[:CONTAINS_INGREDIENT]->(i_chlor)
+
+CREATE (d_gankang:Drug {
+    name: "感康",
+    category: "感冒药",
+    function: "缓解普通感冒及流行性感冒引起的发热、头痛、四肢酸痛等症状",
+    dosage: "成人 1 片/次，一日 2 次"
+})
+CREATE (d_gankang)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_gankang)-[:CONTAINS_INGREDIENT]->(i_chlor)
+
+CREATE (d_baijiahei:Drug {
+    name: "白加黑",
+    category: "感冒药",
+    function: "日片缓解感冒症状不嗜睡，夜片助眠+缓解症状",
+    dosage: "白天服白片 1-2 片，夜晚服黑片 1-2 片，每 8 小时一次"
+})
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_pseudo)
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_chlor)
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_dex)
+
+CREATE (d_kuaike:Drug {
+    name: "快克",
+    category: "感冒药",
+    function: "缓解感冒引起的发热、头痛、鼻塞、流涕、咽痛等症状",
+    dosage: "成人 1 粒/次，一日 2 次"
+})
+CREATE (d_kuaike)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_kuaike)-[:CONTAINS_INGREDIENT]->(i_pseudo)
+
+CREATE (d_lianhua:Drug {
+    name: "连花清瘟胶囊",
+    category: "中药感冒药",
+    function: "清瘟解毒、宣肺泄热，用于治疗流行性感冒属热毒袭肺证",
+    dosage: "成人 4 粒/次，一日 3 次"
+})
+CREATE (d_lianhua)-[:CONTAINS_INGREDIENT]->(i_lianqiao)
+CREATE (d_lianhua)-[:CONTAINS_INGREDIENT]->(i_jinyinhua)
+CREATE (d_lianhua)-[:CONTAINS_INGREDIENT]->(i_zhimahuang)
+
+CREATE (d_weiganling:Drug {
+    name: "感冒灵颗粒",
+    category: "复方感冒药",
+    function: "解热镇痛，用于感冒引起的头痛、发热、鼻塞、流涕、咽痛",
+    dosage: "成人 1 袋/次，一日 3 次，开水冲服"
+})
+CREATE (d_weiganling)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_weiganling)-[:CONTAINS_INGREDIENT]->(i_chlor)
+
+CREATE (d_banlangen:Drug {
+    name: "板蓝根颗粒",
+    category: "中药感冒药",
+    function: "清热解毒、凉血利咽，用于肺胃热盛所致的咽喉肿痛、口咽干燥",
+    dosage: "成人 1-2 袋/次，一日 3-4 次，开水冲服"
+})
+CREATE (d_banlangen)-[:CONTAINS_INGREDIENT]->(i_banlangen)
+
+// 退热镇痛类
+CREATE (d_meilin:Drug {
+    name: "美林",
+    category: "儿童退热",
+    function: "儿童普通感冒或流感引起的发热，也用于缓解轻至中度疼痛",
+    dosage: "1-3 岁儿童，一次 4ml；4-6 岁，一次 5ml；7-9 岁，一次 8ml；10-12 岁，一次 10ml，每 6-8 小时一次"
+})
+CREATE (d_meilin)-[:CONTAINS_INGREDIENT]->(i_ibu)
+
+CREATE (d_ibuprofen:Drug {
+    name: "布洛芬缓释胶囊",
+    category: "退热镇痛",
+    function: "缓解轻至中度疼痛如头痛、关节痛、牙痛，也用于普通感冒发热",
+    dosage: "成人 1 粒/次，一日 2 次，早晚各一次"
+})
+CREATE (d_ibuprofen)-[:CONTAINS_INGREDIENT]->(i_ibu)
+
+CREATE (d_aspirin:Drug {
+    name: "阿司匹林肠溶片",
+    category: "抗血小板/退热",
+    function: "预防心肌梗死、脑梗死，也用于解热镇痛",
+    dosage: "抗血小板：成人 75-100mg/日；退热：成人 0.3-0.6g/次，一日 3 次"
+})
+CREATE (d_aspirin)-[:CONTAINS_INGREDIENT]->(i_asp)
+
+// 抗生素类
+CREATE (d_cefa:Drug {
+    name: "头孢拉定",
+    category: "抗生素",
+    function: "治疗敏感菌所致的呼吸道感染、泌尿生殖道感染、皮肤软组织感染等",
+    dosage: "成人 0.25-0.5g/次，一日 4 次，空腹服用"
+})
+CREATE (d_cefa)-[:CONTAINS_INGREDIENT]->(i_ceph)
+
+CREATE (d_amoxi:Drug {
+    name: "阿莫西林",
+    category: "抗生素",
+    function: "治疗敏感菌引起的呼吸道感染、泌尿系统感染、消化道感染等",
+    dosage: "成人 0.5g/次，每 6-8 小时一次，一日剂量不超过 4g"
+})
+CREATE (d_amoxi)-[:CONTAINS_INGREDIENT]->(i_amox)
+
+CREATE (d_rox:Drug {
+    name: "罗红霉素",
+    category: "抗生素",
+    function: "治疗敏感菌引起的咽炎、扁桃体炎、鼻窦炎、中耳炎等",
+    dosage: "成人 150mg/次，一日 2 次；或 300mg/次，一日 1 次"
+})
+CREATE (d_rox)-[:CONTAINS_INGREDIENT]->(i_rox)
+
+CREATE (d_acetyl:Drug {
+    name: "乙酰螺旋霉素片",
+    category: "抗生素",
+    function: "治疗敏感菌引起的扁桃体炎、支气管炎、肺炎等",
+    dosage: "成人 0.2g/次，一日 4-6 次，重症者可增至 1g/日"
+})
+CREATE (d_acetyl)-[:CONTAINS_INGREDIENT]->(i_acetyl)
+
+// 抗过敏类
+CREATE (d_loratadine:Drug {
+    name: "氯雷他定片",
+    category: "抗过敏",
+    function: "缓解过敏性鼻炎相关症状，也用于缓解慢性特发性荨麻疹症状",
+    dosage: "成人及 12 岁以上儿童 10mg/日，一日 1 次"
+})
+CREATE (d_loratadine)-[:CONTAINS_INGREDIENT]->(i_lora)
+
+CREATE (d_cetirizine:Drug {
+    name: "西替利嗪片",
+    category: "抗过敏",
+    function: "缓解过敏性鼻炎、荨麻疹、瘙痒性皮肤病等过敏症状",
+    dosage: "成人及 6 岁以上儿童 10mg/日，一日 1 次"
+})
+CREATE (d_cetirizine)-[:CONTAINS_INGREDIENT]->(i_cetirizine)
+
+// 降压类
+CREATE (d_nife:Drug {
+    name: "硝苯地平",
+    category: "降压药",
+    function: "用于高血压、心绞痛的治疗",
+    dosage: "成人初始剂量 10mg/次，一日 3 次，可根据血压调整剂量"
+})
+CREATE (d_nife)-[:CONTAINS_INGREDIENT]->(i_nife)
+
+CREATE (d_lisinopril:Drug {
+    name: "赖诺普利片",
+    category: "降压药",
+    function: "用于治疗原发性高血压、继发性高血压及心力衰竭",
+    dosage: "成人初始剂量 10mg/日，可增至 20-40mg/日"
+})
+CREATE (d_lisinopril)-[:CONTAINS_INGREDIENT]->(i_lisinopril)
+
+// ========================================================
+// 5. 禁忌关系 (CONTRAINDICATED_IN) - 补充全场景禁忌
+// ========================================================
+// 饮酒禁忌（FATAL 级）
+CREATE (i_ceph)-[:CONTRAINDICATED_IN {
+    reason: "双硫仑样反应：抑制乙醛脱氢酶，导致乙醛蓄积中毒，出现面部潮红、头痛、恶心、呕吐、心跳加快、血压下降，严重可致休克死亡",
+    severity: "FATAL",
+    source: "《中国药典 2020 版》《临床用药须知》"
+}]->(c_alc)
+CREATE (i_acet)-[:CONTRAINDICATED_IN {
+    reason: "酒精加速肝毒性代谢物 N-乙酰对苯醌亚胺产生，显著增加急性肝损伤风险，严重可致肝衰竭",
+    severity: "FATAL",
+    source: "《药物不良反应杂志》2022 年版"
+}]->(c_alc)
+CREATE (i_asp)-[:CONTRAINDICATED_IN {
+    reason: "酒精与阿司匹林联用显著增加胃肠道黏膜损伤风险，易引发胃出血、胃溃疡",
+    severity: "FATAL",
+    source: "FDA 用药安全警告"
+}]->(c_alc)
+
+// 高血压禁忌（RED 级）
+CREATE (i_pseudo)-[:CONTRAINDICATED_IN {
+    reason: "强烈收缩血管，可导致血压急剧升高，诱发高血压危象、脑出血",
+    severity: "RED",
+    source: "《中国高血压防治指南 2023 版》"
+}]->(c_hbp)
+CREATE (i_ibu)-[:CONTRAINDICATED_IN {
+    reason: "抑制前列腺素合成，影响血管舒张功能，导致血压升高，抵消降压药效果",
+    severity: "RED",
+    source: "《高血压患者用药指导规范》"
+}]->(c_hbp)
+
+// 妊娠期禁忌
+CREATE (i_pseudo)-[:CONTRAINDICATED_IN {
+    reason: "可引起子宫血管收缩，导致胎儿缺氧，增加流产、早产风险，妊娠期禁用",
+    severity: "RED",
+    source: "FDA 妊娠药物分级 D 类 & 中国药典"
+}]->(c_preg)
+CREATE (i_chlor)-[:CONTRAINDICATED_IN {
+    reason: "一代抗组胺药可通过胎盘屏障，可能影响胎儿神经系统发育，妊娠期慎用",
+    severity: "ORANGE",
+    source: "《妊娠期和哺乳期用药指南》"
+}]->(c_preg)
+CREATE (i_zhimahuang)-[:CONTRAINDICATED_IN {
+    reason: "含麻黄碱成分，可兴奋子宫平滑肌，妊娠期慎用，孕早期禁用",
+    severity: "ORANGE",
+    source: "《中药妊娠禁忌用药规范》"
+}]->(c_preg)
+CREATE (i_ceph)-[:CONTRAINDICATED_IN {
+    reason: "头孢类抗生素虽无明确致畸风险，但需在医生指导下使用，避免滥用",
+    severity: "ORANGE",
+    source: "《临床妇产科用药指南》"
+}]->(c_preg)
+
+// 哺乳期禁忌
+CREATE (i_amox)-[:CONTRAINDICATED_IN {
+    reason: "药物可通过乳汁分泌，可能导致婴儿肠道菌群紊乱、腹泻，哺乳期慎用",
+    severity: "ORANGE",
+    source: "《哺乳期用药安全手册》"
+}]->(c_lact)
+CREATE (i_lora)-[:CONTRAINDICATED_IN {
+    reason: "少量药物通过乳汁分泌，婴儿可能出现嗜睡、烦躁，哺乳期需在医生指导下使用",
+    severity: "ORANGE",
+    source: "药品说明书"
+}]->(c_lact)
+
+// 儿童禁忌
+CREATE (i_ibu)-[:CONTRAINDICATED_IN {
+    reason: "6 个月以下婴儿禁用，2 岁以下慎用，可能诱发瑞氏综合征（肝损伤+脑病）",
+    severity: "RED",
+    source: "《中国儿科用药指南 2024 版》"
+}]->(c_child)
+CREATE (i_chlor)-[:CONTRAINDICATED_IN {
+    reason: "一代抗组胺药可致严重嗜睡、中枢抑制，新生儿及早产儿禁用",
+    severity: "RED",
+    source: "《儿科药物治疗学》"
+}]->(c_child)
+CREATE (i_asp)-[:CONTRAINDICATED_IN {
+    reason: "16 岁以下儿童禁用（除风湿热治疗外），易诱发瑞氏综合征",
+    severity: "RED",
+    source: "WHO 儿童用药安全指南"
+}]->(c_child)
+
+// 驾驶/高空作业禁忌
+CREATE (i_chlor)-[:CONTRAINDICATED_IN {
+    reason: "强中枢抑制作用，导致嗜睡、注意力下降、反应迟钝，增加操作风险",
+    severity: "ORANGE",
+    source: "药品说明书 & 道路交通安全法"
+}]->(c_drive)
+CREATE (i_cetirizine)-[:CONTRAINDICATED_IN {
+    reason: "部分人群可能出现轻微嗜睡，驾驶或高空作业者慎用",
+    severity: "ORANGE",
+    source: "药品说明书"
+}]->(c_drive)
+
+// 胃溃疡禁忌
+CREATE (i_ibu)-[:CONTRAINDICATED_IN {
+    reason: "非甾体抗炎药直接刺激胃黏膜，抑制胃黏膜保护因子合成，加重溃疡损伤，甚至出血",
+    severity: "RED",
+    source: "《消化性溃疡诊疗规范》"
+}]->(c_stomach)
+CREATE (i_asp)-[:CONTRAINDICATED_IN {
+    reason: "破坏胃黏膜屏障，促进胃酸分泌，显著增加溃疡出血、穿孔风险",
+    severity: "RED",
+    source: "《胃肠病学杂志》"
+}]->(c_stomach)
+
+// 肝肾功能不全禁忌
+CREATE (i_acet)-[:CONTRAINDICATED_IN {
+    reason: "药物主要经肝脏代谢，肝功能不全者代谢减慢，易蓄积中毒，加重肝损伤",
+    severity: "RED",
+    source: "《肝功能不全患者用药指导》"
+}]->(c_liver)
+CREATE (i_ibu)-[:CONTRAINDICATED_IN {
+    reason: "药物经肾脏排泄，肾功能不全者排泄减少，易导致药物蓄积，加重肾损伤",
+    severity: "RED",
+    source: "《肾功能不全患者用药规范》"
+}]->(c_kidney)
+
+// 过敏禁忌
+CREATE (i_amox)-[:CONTRAINDICATED_IN {
+    reason: "青霉素类药物可引发速发型过敏反应，严重可致过敏性休克，青霉素过敏者禁用",
+    severity: "FATAL",
+    source: "《青霉素类药物临床应用指导原则》"
+}]->(c_allergy_penicillin)
+CREATE (i_ceph)-[:CONTRAINDICATED_IN {
+    reason: "头孢类与青霉素类存在交叉过敏风险（约 10%），头孢过敏者禁用",
+    severity: "FATAL",
+    source: "《头孢菌素类抗生素临床应用指南》"
+}]->(c_allergy_ceph)
+
+// ========================================================
+// 6. 药物相互作用 (INTERACTS_WITH) - 补充关键联用风险
+// ========================================================
+// 解热镇痛药联用风险
+CREATE (i_acet)-[:INTERACTS_WITH {
+    reason: "与布洛芬联用虽无直接禁忌，但叠加解热镇痛作用，显著增加肝肾负担，不建议同时服用（间隔至少 4-6 小时）",
+    severity: "ORANGE",
+    source: "《临床药物相互作用指导原则》"
+}]->(i_ibu)
+CREATE (i_ibu)-[:INTERACTS_WITH {
+    reason: "同属 NSAID，联用显著增加胃肠道出血、穿孔风险；布洛芬可拮抗阿司匹林的抗血小板聚集作用，降低心血管保护效果",
+    severity: "RED",
+    source: "MCDEX 药物临床信息参考 & FDA 警告"
+}]->(i_asp)
+
+// 抗过敏药联用风险
+CREATE (i_lora)-[:INTERACTS_WITH {
+    reason: "与氯苯那敏联用属于抗组胺药理重复，显著增加嗜睡、头晕、中枢抑制风险",
+    severity: "ORANGE",
+    source: "药品说明书"
+}]->(i_chlor)
+CREATE (i_cetirizine)-[:INTERACTS_WITH {
+    reason: "与氯苯那敏联用加重中枢抑制，可能导致嗜睡、乏力、注意力不集中",
+    severity: "ORANGE",
+    source: "《抗过敏药物临床应用规范》"
+}]->(i_chlor)
+
+// 降压药与感冒药联用风险
+CREATE (i_pseudo)-[:INTERACTS_WITH {
+    reason: "伪麻黄碱升压作用与硝苯地平降压作用拮抗，抵消降压效果，导致血压波动",
+    severity: "RED",
+    source: "《临床药物治疗学》"
+}]->(i_nife)
+CREATE (i_pseudo)-[:INTERACTS_WITH {
+    reason: "升压作用与赖诺普利降压作用冲突，导致血压控制不佳，增加心血管事件风险",
+    severity: "RED",
+    source: "《高血压合并感冒用药指导》"
+}]->(i_lisinopril)
+
+// 抗生素联用风险
+CREATE (i_ceph)-[:INTERACTS_WITH {
+    reason: "与阿莫西林联用属于 β-内酰胺类抗生素叠加，未增加抗菌效果，反而增加过敏风险和肠道菌群紊乱风险",
+    severity: "ORANGE",
+    source: "《抗生素临床合理应用指南》"
+}]->(i_amox)
+CREATE (i_rox)-[:INTERACTS_WITH {
+    reason: "与阿莫西林联用可能影响肠道吸收，降低阿莫西林血药浓度，建议间隔 2 小时以上服用",
+    severity: "ORANGE",
+    source: "《大环内酯类抗生素临床应用规范》"
+}]->(i_amox)
+
+// 抗血小板与 NSAID 联用风险
+CREATE (i_asp)-[:INTERACTS_WITH {
+    reason: "阿司匹林抗血小板作用与布洛芬胃肠道刺激作用叠加，显著增加胃出血风险",
+    severity: "RED",
+    source: "《抗血小板治疗专家共识》"
+}]->(i_ibu)

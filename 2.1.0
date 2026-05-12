@@ -1,0 +1,8 @@
+Defaulting to user installation because normal site-packages is not writeable
+Looking in indexes: https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+Requirement already satisfied: pandas in c:\users\lenovo\appdata\roaming\python\python38\site-packages (2.0.3)
+Requirement already satisfied: python-dateutil>=2.8.2 in c:\program files\python\lib\site-packages (from pandas) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in c:\program files\python\lib\site-packages (from pandas) (2020.1)
+Requirement already satisfied: tzdata>=2022.1 in c:\users\lenovo\appdata\roaming\python\python38\site-packages (from pandas) (2025.2)
+Requirement already satisfied: numpy>=1.20.3 in c:\users\lenovo\appdata\roaming\python\python38\site-packages (from pandas) (1.24.4)
+Requirement already satisfied: six>=1.5 in c:\program files\python\lib\site-packages (from python-dateutil>=2.8.2->pandas) (1.15.0)

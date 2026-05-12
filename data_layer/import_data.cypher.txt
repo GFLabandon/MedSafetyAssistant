@@ -1,0 +1,199 @@
+// ========================================================
+// 1. 初始化：清空数据库
+// ========================================================
+MATCH (n) DETACH DELETE n;
+
+// ========================================================
+// 2. 建立核心成分 (Ingredient)
+// ========================================================
+CREATE (i_acet:Ingredient {
+    name: "对乙酰氨基酚",
+    aliases: ["扑热息痛", "Paracetamol", "Acetaminophen"],
+    desc: "解热镇痛药，过量可致肝衰竭"
+})
+
+CREATE (i_ibu:Ingredient {
+    name: "布洛芬",
+    aliases: ["Ibuprofen", "芬必得"],
+    desc: "非甾体抗炎药(NSAID)，可损伤胃黏膜"
+})
+
+CREATE (i_asp:Ingredient {
+    name: "阿司匹林",
+    aliases: ["Aspirin", "乙酰水杨酸"],
+    desc: "抗血小板凝聚，易致出血"
+})
+
+CREATE (i_ceph:Ingredient {
+    name: "头孢菌素",
+    aliases: ["Cephalosporin"],
+    desc: "β-内酰胺类抗生素，抑制细菌细胞壁合成"
+})
+
+CREATE (i_amox:Ingredient {
+    name: "阿莫西林",
+    aliases: ["Amoxicillin"],
+    desc: "青霉素类抗生素"
+})
+
+CREATE (i_rox:Ingredient {
+    name: "罗红霉素",
+    aliases: ["Roxithromycin"],
+    desc: "大环内酯类抗生素"
+})
+
+CREATE (i_pseudo:Ingredient {
+    name: "伪麻黄碱",
+    aliases: ["Pseudoephedrine"],
+    desc: "血管收缩剂，缓解鼻塞"
+})
+
+CREATE (i_chlor:Ingredient {
+    name: "氯苯那敏",
+    aliases: ["Chlorphenamine", "扑尔敏"],
+    desc: "一代抗组胺药，强嗜睡"
+})
+
+CREATE (i_dex:Ingredient {
+    name: "右美沙芬",
+    aliases: ["Dextromethorphan"],
+    desc: "中枢镇咳药"
+})
+
+CREATE (i_lora:Ingredient {
+    name: "氯雷他定",
+    aliases: ["Loratadine", "开瑞坦"],
+    desc: "二代抗组胺药，无明显嗜睡"
+})
+
+CREATE (i_nife:Ingredient {
+    name: "硝苯地平",
+    aliases: ["Nifedipine"],
+    desc: "钙通道阻滞剂，降压"
+});
+
+// ========================================================
+// 3. 建立条件 (Condition)
+// ========================================================
+CREATE (c_alc:Condition {name: "饮酒状态"})
+CREATE (c_hbp:Condition {name: "高血压"})
+CREATE (c_preg:Condition {name: "妊娠期"})
+CREATE (c_child:Condition {name: "儿童"})
+CREATE (c_drive:Condition {name: "驾驶/高空作业"});
+
+// ========================================================
+// 4. 建立药品 (Drug) 并链接成分
+// ========================================================
+
+// 感冒复方制剂
+CREATE (d_taino:Drug {name: "泰诺", category: "感冒退热", function: "缓解感冒症状、退热镇痛", dosage: "成人1-2片/次"})
+CREATE (d_taino)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_taino)-[:CONTAINS_INGREDIENT]->(i_chlor)
+
+CREATE (d_gankang:Drug {name: "感康", category: "感冒药", function: "缓解感冒症状", dosage: "成人1-2片/次"})
+CREATE (d_gankang)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_gankang)-[:CONTAINS_INGREDIENT]->(i_chlor)
+
+CREATE (d_baijiahei:Drug {name: "白加黑", category: "感冒药", function: "日片不嗜睡、夜片助眠", dosage: "白天白片，夜晚黑片"})
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_pseudo)
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_chlor)
+CREATE (d_baijiahei)-[:CONTAINS_INGREDIENT]->(i_dex)
+
+CREATE (d_kuaike:Drug {name: "快克", category: "感冒药", function: "缓解感冒鼻塞症状", dosage: "成人1-2粒/次"})
+CREATE (d_kuaike)-[:CONTAINS_INGREDIENT]->(i_acet)
+CREATE (d_kuaike)-[:CONTAINS_INGREDIENT]->(i_pseudo)
+
+CREATE (d_meilin:Drug {name: "美林", category: "儿童退热", function: "儿童退热镇痛", dosage: "按体重计算，5-10mg/kg"})
+CREATE (d_meilin)-[:CONTAINS_INGREDIENT]->(i_ibu)
+
+CREATE (d_ibuprofen:Drug {name: "布洛芬缓释胶囊", category: "退热镇痛", function: "缓解轻中度疼痛及退烧", dosage: "成人0.3-0.6g/次"})
+CREATE (d_ibuprofen)-[:CONTAINS_INGREDIENT]->(i_ibu)
+
+CREATE (d_aspirin:Drug {name: "阿司匹林肠溶片", category: "抗血小板", function: "预防血栓、心血管保护", dosage: "成人75-100mg/日"})
+CREATE (d_aspirin)-[:CONTAINS_INGREDIENT]->(i_asp)
+
+CREATE (d_cefa:Drug {name: "头孢拉定", category: "抗生素", function: "治疗细菌感染", dosage: "成人0.25-0.5g/次"})
+CREATE (d_cefa)-[:CONTAINS_INGREDIENT]->(i_ceph)
+
+CREATE (d_amoxi:Drug {name: "阿莫西林", category: "抗生素", function: "治疗细菌感染", dosage: "成人0.5g/次"})
+CREATE (d_amoxi)-[:CONTAINS_INGREDIENT]->(i_amox)
+
+CREATE (d_loratadine:Drug {name: "氯雷他定片", category: "抗过敏", function: "缓解过敏性鼻炎、荨麻疹", dosage: "成人10mg/日"})
+CREATE (d_loratadine)-[:CONTAINS_INGREDIENT]->(i_lora)
+
+// ========================================================
+// 5. 建立禁忌关系 (CONTRAINDICATED_IN)
+// ========================================================
+
+// 饮酒禁忌
+CREATE (i_ceph)-[:CONTRAINDICATED_IN {
+    reason: "双硫仑样反应：抑制乙醛脱氢酶，导致乙醛蓄积中毒，可致休克",
+    severity: "FATAL",
+    source: "《中国药典2020版》"
+}]->(c_alc)
+
+CREATE (i_acet)-[:CONTRAINDICATED_IN {
+    reason: "酒精加速肝毒性代谢物产生，显著增加急性肝损伤风险",
+    severity: "FATAL",
+    source: "临床用药须知"
+}]->(c_alc)
+
+// 高血压
+CREATE (i_pseudo)-[:CONTRAINDICATED_IN {
+    reason: "强烈收缩血管，可导致血压急剧升高",
+    severity: "RED",
+    source: "中国高血压防治指南"
+}]->(c_hbp)
+
+// 妊娠期
+CREATE (i_pseudo)-[:CONTRAINDICATED_IN {
+    reason: "可引起子宫血管收缩，导致胎儿缺氧，妊娠期禁用",
+    severity: "RED",
+    source: "FDA妊娠药物分级 & 中国药典"
+}]->(c_preg)
+
+// 儿童
+CREATE (i_ibu)-[:CONTRAINDICATED_IN {
+    reason: "6个月以下婴儿禁用，2岁以下慎用，可能诱发瑞氏综合征",
+    severity: "RED",
+    source: "中国儿科用药指南"
+}]->(c_child)
+
+CREATE (i_chlor)-[:CONTRAINDICATED_IN {
+    reason: "一代抗组胺药可致严重嗜睡，新生儿及早产儿禁用",
+    severity: "ORANGE",
+    source: "儿科药物手册"
+}]->(c_child)
+
+// 驾驶/高空作业
+CREATE (i_chlor)-[:CONTRAINDICATED_IN {
+    reason: "强中枢抑制作用，导致嗜睡、注意力下降",
+    severity: "ORANGE",
+    source: "药品说明书"
+}]->(c_drive)
+
+// ========================================================
+// 6. 建立药物相互作用 (INTERACTS_WITH)
+// ========================================================
+
+// 布洛芬 + 阿司匹林
+CREATE (i_ibu)-[:INTERACTS_WITH {
+    reason: "同属NSAID，联用显著增加胃肠道出血风险；布洛芬可拮抗阿司匹林心血管保护作用",
+    severity: "RED",
+    source: "MCDEX药物临床信息参考 & FDA警告"
+}]->(i_asp)
+
+// 氯雷他定 + 氯苯那敏
+CREATE (i_lora)-[:INTERACTS_WITH {
+    reason: "抗组胺药理重复，联用显著增加嗜睡和中枢抑制风险",
+    severity: "ORANGE",
+    source: "药品说明书"
+}]->(i_chlor)
+
+// 伪麻黄碱 + 硝苯地平（降压药）
+CREATE (i_pseudo)-[:INTERACTS_WITH {
+    reason: "药理拮抗：伪麻黄碱升压作用抵消钙通道阻滞剂降压效果",
+    severity: "ORANGE",
+    source: "临床药物治疗学"
+}]->(i_nife)
