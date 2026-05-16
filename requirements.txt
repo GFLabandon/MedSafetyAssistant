@@ -19,7 +19,7 @@ redis>=5.0.0,<6.0.0
 # === HTTP 请求（用于 Ollama Embedding API）===
 requests>=2.31.0,<3.0.0
 
-# === LangChain Demo（面试对照）===
+# === LangChain Demo===
 langchain>=0.2.11,<0.4.0
 langchain-community>=0.2.10,<0.4.0
 langchain-text-splitters>=0.2.2,<0.4.0
