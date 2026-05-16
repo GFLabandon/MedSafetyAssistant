@@ -1,5 +1,5 @@
 """
-LangChain RAG 对照 Demo（面试用）
+LangChain RAG 对照 Demo
 目标：在不改主项目架构前提下，快速跑通标准 RAG 流程。
 
 流程：TextLoader -> OllamaEmbeddings -> FAISS -> RetrievalQA
