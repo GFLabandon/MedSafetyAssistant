@@ -6,6 +6,7 @@ Redis 向量数据库服务模块
 import json
 import redis
 from typing import List, Dict, Optional
+import ollama
 from config import Config
 from logic_layer.embedding_service import EmbeddingService
 
@@ -43,6 +44,7 @@ class VectorStore:
             print("   🤖 初始化向量化服务...")
             self.embedding_service = EmbeddingService()
             print("   ✅ 向量化服务初始化完成")
+            self.ollama_client = ollama.Client(host=Config.OLLAMA_URL)
             
             # 向量索引名称
             self.index_name = "conversation_vectors"
@@ -55,6 +57,7 @@ class VectorStore:
             print(f"⚠️ [Redis] 连接失败: {e}")
             self.redis_client = None
             self.embedding_service = None
+            self.ollama_client = None
     
     def _ensure_index(self):
         """确保 Redis 向量索引存在"""
@@ -104,6 +107,56 @@ class VectorStore:
             return 0.0
         
         return dot_product / (magnitude1 * magnitude2)
+
+    def _rerank_with_llm(self, query: str, candidates: List[Dict], top_k: int) -> List[Dict]:
+        """
+        用 LLM 对候选对话进行轻量重排。
+        失败时抛异常，由上层自动回退到余弦排序。
+        """
+        if not candidates:
+            return []
+
+        numbered = []
+        for i, c in enumerate(candidates, 1):
+            numbered.append(
+                f"{i}. role={c.get('role', '')}, similarity={c.get('similarity', 0):.4f}, text={c.get('text', '')}"
+            )
+        candidate_text = "\n".join(numbered)
+
+        prompt = f"""
+你是检索重排器。请根据“用户当前问题”，给候选历史对话按相关性从高到低排序。
+
+要求：
+1. 仅输出 JSON，格式：{{"ranked_ids": [3,1,2]}}
+2. ranked_ids 只包含候选编号（从 1 开始）
+3. 不要解释
+
+用户问题：{query}
+
+候选历史对话：
+{candidate_text}
+"""
+
+        response = self.ollama_client.generate(
+            model=Config.OLLAMA_MODEL,
+            prompt=prompt,
+            options={"temperature": 0.0},
+        )
+        content = response.get("response", "").strip()
+        content = content.replace("```json", "").replace("```", "").strip()
+        ranked_ids = json.loads(content).get("ranked_ids", [])
+
+        ranked = []
+        used = set()
+        for rid in ranked_ids:
+            if isinstance(rid, int) and 1 <= rid <= len(candidates) and rid not in used:
+                ranked.append(candidates[rid - 1])
+                used.add(rid)
+
+        for idx, item in enumerate(candidates, 1):
+            if idx not in used:
+                ranked.append(item)
+        return ranked[:top_k]
     
     def store_conversation(self, user_query: str, assistant_response: str, session_id: str = "shared"):
         """
@@ -219,10 +272,16 @@ class VectorStore:
                 return []
             print(f"      ✅ 查询向量化完成 (维度: {len(query_vector)})")
             
-            # 获取所有历史对话
-            print(f"   🔄 步骤 2/4: 从 Redis 获取历史对话键...")
+            # 获取所有历史对话（使用 SCAN 避免 KEYS 阻塞）
+            print(f"   🔄 步骤 2/4: 从 Redis 扫描历史对话键...")
             pattern = f"conv:{session_id}:*"
-            keys = self.redis_client.keys(pattern)
+            keys = []
+            cursor = 0
+            while True:
+                cursor, batch = self.redis_client.scan(cursor=cursor, match=pattern, count=200)
+                keys.extend(batch)
+                if cursor == 0:
+                    break
             print(f"      📊 找到 {len(keys)} 条历史记录")
             
             if not keys:
@@ -256,10 +315,30 @@ class VectorStore:
             
             print(f"\n      ✅ 相似度计算完成 (共 {len(similarities)} 条有效记录)")
             
-            # 按相似度排序，返回 top_k
+            # 按相似度排序，先取候选，再可选 rerank
             print(f"   🔄 步骤 4/4: 排序并筛选 Top-{top_k}...")
             similarities.sort(key=lambda x: x['similarity'], reverse=True)
-            result = similarities[:top_k]
+            candidates_k = max(top_k, getattr(Config, "RERANK_CANDIDATES", 10))
+            candidates = similarities[:candidates_k]
+
+            use_rerank = (
+                getattr(Config, "ENABLE_RERANK", True)
+                and self.ollama_client is not None
+                and len(candidates) > top_k
+            )
+            if use_rerank:
+                try:
+                    rerank_top_k = min(
+                        top_k,
+                        max(1, getattr(Config, "RERANK_TOP_K", top_k))
+                    )
+                    result = self._rerank_with_llm(query, candidates, rerank_top_k)
+                    print(f"      ✅ 已执行 LLM Rerank（候选 {len(candidates)} -> 结果 {len(result)}）")
+                except Exception as re:
+                    print(f"      ⚠️ Rerank 失败，回退余弦排序: {re}")
+                    result = candidates[:top_k]
+            else:
+                result = candidates[:top_k]
             
             if result:
                 print(f"      ✅ 找到 {len(result)} 条相似对话:")
