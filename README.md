@@ -27,15 +27,18 @@ python -m streamlit run app.py
 ```mermaid
 flowchart TD
     A[用户输入] --> B[双路 NER\n规则引擎 + LLM]
-    B --> C[Neo4j 图谱查询\n多跳推理]
-    A --> D[Redis 历史向量检索\nTop-K]
-    C --> E[Prompt 组装\n知识依据 + 历史上下文 + 当前问题]
-    D --> E
-    E --> F[Ollama LLM 生成]
-    F --> G[最终回答]
-    F --> H{LLM 异常?}
+    B --> C[Agent 路由层\nLLM 单次分类决策]
+    C -->|query_kg| D[Neo4j 图谱查询\n多跳推理]
+    C -->|search_history| E[Redis 历史向量检索\nTop-K + 可选 Rerank]
+    C -->|both| D
+    C -->|both| E
+    D --> F[Prompt 组装\n结构化事实 + 历史上下文 + 当前问题]
+    E --> F
+    F --> G[Ollama LLM 生成]
+    G --> H{LLM 异常?}
     H -->|是| I[规则模板兜底]
-    I --> G
+    H -->|否| J[最终回答]
+    I --> J
 ```
 
 ## 与标准 RAG 的区别
@@ -69,6 +72,11 @@ python examples/langchain_rag_demo.py
 - 轻量 `Rerank`：历史检索先按余弦相似度召回候选，再用 LLM 对候选重排，提升上下文相关性。
 - 最小 `Agent` 路由：由 LLM 决定本轮优先走 `query_kg`（知识图谱）、`search_history`（历史检索）或 `both`（混合）。
 - 稳定性策略：路由或 rerank 失败时自动回退到默认策略，不影响主流程可用性。
+
+## 已知局限（面向工程事实）
+
+- 当前 `Agent` 是“最小路由层”，本质是单次分类 + 固定函数调用，不是完整 ReAct 循环（缺少 observation 回传后的迭代决策）。
+- 当前 `Rerank` 主要是定性验证效果，尚未完成系统化离线评测；已通过失败回退策略保障主流程稳定。
 
 ## Redis 管理命令
 
