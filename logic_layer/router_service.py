@@ -2,6 +2,16 @@ import json
 import ollama
 from config import Config
 
+"""
+最小 Agent 路由模块（非 ReAct）。
+
+当前实现是单次分类决策：LLM 仅输出 query_kg / search_history / both，
+随后由代码执行固定函数调用，不包含 thought-action-observation 的循环迭代，
+也没有将工具 observation 回传给 LLM 继续决策。
+
+这是一个可用但简化的路由层，便于控制复杂度；上述差距属于已知局限。
+"""
+
 
 ollama_client = ollama.Client(host=Config.OLLAMA_URL)
 
