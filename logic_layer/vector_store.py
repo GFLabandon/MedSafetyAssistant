@@ -112,6 +112,10 @@ class VectorStore:
         """
         用 LLM 对候选对话进行轻量重排。
         失败时抛异常，由上层自动回退到余弦排序。
+
+        说明：当前 Rerank 结论主要来自定性验证，尚未做系统化离线评测
+        （例如 nDCG / Recall@K 或固定标注集 A/B 实验）。
+        因此工程上保留“Rerank 失败即回退余弦排序”的稳定性策略。
         """
         if not candidates:
             return []
