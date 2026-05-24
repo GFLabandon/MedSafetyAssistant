@@ -1,6 +1,6 @@
-import json
 import ollama
 from config import Config
+from logic_layer.json_utils import parse_llm_json
 
 # --- 1. Ollama 客户端配置 ---
 # 设置 Ollama 服务器地址
@@ -35,10 +35,7 @@ def extract_entities_with_llm(user_input):
         )
         content = response['response'].strip()
 
-        # 清理可能存在的 markdown 符号
-        content = content.replace("```json", "").replace("```", "").strip()
-
-        data = json.loads(content)
+        data = parse_llm_json(content)
         return data.get("drugs", []), data.get("conditions", [])
 
     except Exception as e:
@@ -66,31 +63,37 @@ def generate_safety_response(user_query, risks, drug_infos, history_context: str
         for r in risks:
             # 区分不同类型的风险描述
             if r['type'] == 'DUPLICATE_THERAPY':
-                risk_text += f"- ⚠️ 重复用药风险：{r['drug']}（均含成分：{r['ingredient']}）\n"
+                risk_text += f"- 重复用药风险：{r['drug']}（均含成分：{r.get('ingredient', '未知成分')}）→ {r['reason']}\n"
             elif r['type'] == 'INTERACTION':
-                risk_text += f"- ⛔ 药物相互作用：{r['drug']} → {r['reason']}\n"
+                risk_text += f"- 药物相互作用：{r['drug']} → {r['reason']}\n"
             else:
-                risk_text += f"- 🚫 绝对禁忌：{r['drug']} + {r['condition']} → {r['reason']}\n"
+                risk_text += f"- 禁忌/慎用：{r['drug']} + {r['condition']} → {r['reason']}\n"
     else:
-        risk_text = "✅ 系统安全扫描通过：未发现已知禁忌。\n"
+        risk_text = "【未检测到图谱内已知风险】\n- 当前知识图谱没有返回重复用药、禁忌或相互作用风险。\n"
 
     info_text = ""
     if drug_infos:
         info_text = "【药品权威档案】\n"
         for info in drug_infos:
             info_text += f"- {info['drug']}: {info['function']} (用法: {info['dosage']})\n"
+    else:
+        info_text = "【药品权威档案】\n- 当前知识图谱未返回相关药品档案。\n"
 
     # === B. 尝试使用 LLM 生成自然语言回答 ===
     try:
+        has_risk = "是" if risks else "否"
+        has_drug_info = "是" if drug_infos else "否"
+
         # 定义医生人设
         system_prompt = """
-        你是一名经验丰富的全科医生。请根据提供的【知识图谱扫描结果】回答患者问题。
+        你是家庭用药安全助手。你只能根据用户问题和下方提供的知识图谱结果回答。
 
         [回答原则]
-        1. **禁止幻觉**：不要编造知识库中不存在的副作用。
-        2. **依据充分**：引用下方的[风险数据]或[药品档案]作为解释。
-        3. **语气专业**：如果是禁忌，必须严厉警告；如果是安全，则给出温馨提示。
-       
+        1. 禁止编造：不要添加知识图谱结果中没有出现的副作用、适应症、相互作用或禁忌。
+        2. 图谱优先：如果检测到风险，第一句话必须明确“不建议/不要这样服用”，并说明图谱依据。
+        3. 谨慎表达：如果未检测到风险，只能说“当前知识图谱未发现已知禁忌”，不能说“绝对安全”。
+        4. 证据不足：如果没有药品档案，必须说明“数据库暂未收录相关药品档案，建议咨询医生或药师”。
+        5. 输出结构固定为：结论、依据、建议。每部分 1-3 句话，简洁中文。
         """
 
         # 如果有历史对话上下文，添加到提示词中
@@ -101,12 +104,16 @@ def generate_safety_response(user_query, risks, drug_infos, history_context: str
         user_prompt = f"""
         [用户问题]: {user_query}
         {history_section}
+        [结构化标记]:
+        - 是否检测到风险: {has_risk}
+        - 是否有药品档案: {has_drug_info}
+
         [知识图谱扫描结果]:
         {risk_text}
 
         {info_text}
 
-        请生成回答：
+        请严格按照“结论 / 依据 / 建议”生成回答。不要输出知识图谱之外的新医学事实。
         """
 
         # 使用 ollama 包直接调用
