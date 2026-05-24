@@ -1,6 +1,6 @@
-import json
 import ollama
 from config import Config
+from logic_layer.json_utils import parse_llm_json
 
 """
 最小 Agent 路由模块（非 ReAct）。
@@ -43,8 +43,7 @@ def decide_tools(user_query: str) -> str:
             options={"temperature": 0.0},
         )
         content = response.get("response", "").strip()
-        content = content.replace("```json", "").replace("```", "").strip()
-        route = json.loads(content).get("route", "both")
+        route = parse_llm_json(content).get("route", "both")
         if route in {"query_kg", "search_history", "both"}:
             return route
         return "both"
