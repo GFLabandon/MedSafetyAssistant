@@ -9,6 +9,7 @@ from typing import List, Dict, Optional
 import ollama
 from config import Config
 from logic_layer.embedding_service import EmbeddingService
+from logic_layer.json_utils import parse_llm_json
 
 
 class VectorStore:
@@ -147,8 +148,7 @@ class VectorStore:
             options={"temperature": 0.0},
         )
         content = response.get("response", "").strip()
-        content = content.replace("```json", "").replace("```", "").strip()
-        ranked_ids = json.loads(content).get("ranked_ids", [])
+        ranked_ids = parse_llm_json(content).get("ranked_ids", [])
 
         ranked = []
         used = set()
@@ -314,7 +314,7 @@ class VectorStore:
                     
                     if i % 10 == 0 or i == len(keys):
                         print(f"      已处理 {i}/{len(keys)} 条记录...", end='\r')
-                except Exception as e:
+                except (json.JSONDecodeError, TypeError, ValueError, KeyError):
                     continue
             
             print(f"\n      ✅ 相似度计算完成 (共 {len(similarities)} 条有效记录)")
@@ -397,6 +397,6 @@ class VectorStore:
         if self.redis_client:
             try:
                 self.redis_client.close()
-            except:
+            except Exception:
                 pass
 
