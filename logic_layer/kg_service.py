@@ -58,6 +58,9 @@ class MedicalKG:
         return info_list
 
     def check_safety(self, drug_names, user_conditions):
+        if not self.driver or not drug_names:
+            return []
+
         risks = []
         with self.driver.session() as session:
             # 1.【成分重复检测】 (Duplicate Therapy)
@@ -76,6 +79,7 @@ class MedicalKG:
                         "type": "DUPLICATE_THERAPY",
                         "drug": " + ".join(record['drugs_with_ing']),
                         "condition": "药物过量",
+                        "ingredient": record['ingredient'],
                         "reason": f"均含有成分【{record['ingredient']}】，叠加服用会导致肝肾损伤！",
                         "severity": "FATAL"  # 提高为最高警报
                     })
