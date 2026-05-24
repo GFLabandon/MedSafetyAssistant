@@ -11,8 +11,8 @@ class Config:
     NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
-    # Ollama 配置：默认 deepseek（开箱即用）；推荐 qwen2.5（效果更好）
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:7b")
+    # Ollama 配置：默认 deepseek（开箱即用）；推荐 qwen2.5-coder:14b（效果更好）
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
     
     # Redis 配置（用于向量数据库）
