@@ -43,28 +43,14 @@ def extract_entities_with_llm(user_input):
         return [], []
 
 
-# --- 3. 生成回答 (核心修复：加入兜底逻辑) ---
-def generate_safety_response(user_query, risks, drug_infos, history_context: str = ""):
-    """
-    生成最终建议。如果 LLM 报错，自动切换到"规则模板"生成，
-    确保老师永远看不到"系统繁忙"。
-    
-    Args:
-        user_query: 用户查询
-        risks: 风险列表
-        drug_infos: 药品信息列表
-        history_context: 历史对话上下文（可选）
-    """
-
-    # === A. 构建上下文数据 (Prompt Context) ===
+def _format_safety_context(risks, drug_infos):
     risk_text = ""
     if risks:
         risk_text = "【检测到严重风险】\n"
         for r in risks:
-            # 区分不同类型的风险描述
-            if r['type'] == 'DUPLICATE_THERAPY':
+            if r["type"] == "DUPLICATE_THERAPY":
                 risk_text += f"- 重复用药风险：{r['drug']}（均含成分：{r.get('ingredient', '未知成分')}）→ {r['reason']}\n"
-            elif r['type'] == 'INTERACTION':
+            elif r["type"] == "INTERACTION":
                 risk_text += f"- 药物相互作用：{r['drug']} → {r['reason']}\n"
             else:
                 risk_text += f"- 禁忌/慎用：{r['drug']} + {r['condition']} → {r['reason']}\n"
@@ -79,13 +65,39 @@ def generate_safety_response(user_query, risks, drug_infos, history_context: str
     else:
         info_text = "【药品权威档案】\n- 当前知识图谱未返回相关药品档案。\n"
 
-    # === B. 尝试使用 LLM 生成自然语言回答 ===
-    try:
-        has_risk = "是" if risks else "否"
-        has_drug_info = "是" if drug_infos else "否"
+    return risk_text, info_text
 
-        # 定义医生人设
-        system_prompt = """
+
+def _fallback_safety_response(risks, drug_infos):
+    fallback_msg = ""
+
+    if risks:
+        fallback_msg += "### 🛑 医生紧急警告\n\n"
+        fallback_msg += "**检测到严重的用药风险，请绝对不要按照当前方案服用！**\n\n"
+        fallback_msg += "**具体风险如下：**\n"
+        for r in risks:
+            fallback_msg += f"* **{r['drug']}**: {r['reason']}\n"
+        fallback_msg += "\n建议您立即停止混合服用，并咨询线下医生。"
+    elif drug_infos:
+        fallback_msg += "### ✅ 用药安全评估通过\n\n"
+        fallback_msg += "根据当前权威数据库比对，**未发现明显的用药禁忌**。\n\n"
+        fallback_msg += "**药品信息参考：**\n"
+        for info in drug_infos:
+            fallback_msg += f"* **{info['drug']}**: 主要用于{info['function']}。\n"
+        fallback_msg += "\n*温馨提示：请严格按照说明书剂量服用，症状未缓解请及时就医。*"
+    else:
+        fallback_msg += "⚠️ **无法评估风险**\n\n系统暂未收录相关药品信息，请务必咨询专业医师，不要盲目用药。"
+
+    return fallback_msg
+
+
+def build_safety_messages(user_query, risks, drug_infos, history_context: str = ""):
+    risk_text, info_text = _format_safety_context(risks, drug_infos)
+    has_risk = "是" if risks else "否"
+    has_drug_info = "是" if drug_infos else "否"
+    history_section = f"\n{history_context}\n" if history_context else ""
+
+    system_prompt = """
         你是家庭用药安全助手。你只能根据用户问题和下方提供的知识图谱结果回答。
 
         [回答原则]
@@ -96,12 +108,7 @@ def generate_safety_response(user_query, risks, drug_infos, history_context: str
         5. 输出结构固定为：结论、依据、建议。每部分 1-3 句话，简洁中文。
         """
 
-        # 如果有历史对话上下文，添加到提示词中
-        history_section = ""
-        if history_context:
-            history_section = f"\n{history_context}\n"
-        
-        user_prompt = f"""
+    user_prompt = f"""
         [用户问题]: {user_query}
         {history_section}
         [结构化标记]:
@@ -116,46 +123,55 @@ def generate_safety_response(user_query, risks, drug_infos, history_context: str
         请严格按照“结论 / 依据 / 建议”生成回答。不要输出知识图谱之外的新医学事实。
         """
 
-        # 使用 ollama 包直接调用
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+# --- 3. 生成回答 (核心修复：加入兜底逻辑) ---
+def generate_safety_response(user_query, risks, drug_infos, history_context: str = ""):
+    """
+    生成最终建议。如果 LLM 报错，自动切换到"规则模板"生成，
+    确保老师永远看不到"系统繁忙"。
+    
+    Args:
+        user_query: 用户查询
+        risks: 风险列表
+        drug_infos: 药品信息列表
+        history_context: 历史对话上下文（可选）
+    """
+    try:
         response = ollama_client.chat(
             model=Config.OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            options={
-                "temperature": 0.1
-            }
+            messages=build_safety_messages(user_query, risks, drug_infos, history_context),
+            options={"temperature": 0.1},
         )
-        return response['message']['content']
-
-    # === C. 救命的兜底逻辑 (Fallback) ===
+        return response["message"]["content"]
     except Exception as e:
         print(f"❌ LLM 生成服务异常: {e}")
         print("🔄 启动规则模板生成机制...")
+        return _fallback_safety_response(risks, drug_infos)
 
-        # 既然图谱已经查到了数据，我们直接用代码拼凑一个“像模像样”的回答
-        # 这样用户感觉不到 LLM 挂了
 
-        fallback_msg = ""
-
-        if risks:
-            fallback_msg += "### 🛑 医生紧急警告\n\n"
-            fallback_msg += "**检测到严重的用药风险，请绝对不要按照当前方案服用！**\n\n"
-            fallback_msg += "**具体风险如下：**\n"
-            for r in risks:
-                fallback_msg += f"* **{r['drug']}**: {r['reason']}\n"
-            fallback_msg += "\n建议您立即停止混合服用，并咨询线下医生。"
-
-        elif drug_infos:
-            fallback_msg += "### ✅ 用药安全评估通过\n\n"
-            fallback_msg += "根据当前权威数据库比对，**未发现明显的用药禁忌**。\n\n"
-            fallback_msg += "**药品信息参考：**\n"
-            for info in drug_infos:
-                fallback_msg += f"* **{info['drug']}**: 主要用于{info['function']}。\n"
-            fallback_msg += "\n*温馨提示：请严格按照说明书剂量服用，症状未缓解请及时就医。*"
-
-        else:
-            fallback_msg += "⚠️ **无法评估风险**\n\n系统暂未收录相关药品信息，请务必咨询专业医师，不要盲目用药。"
-
-        return fallback_msg
+def stream_safety_response(user_query, risks, drug_infos, history_context: str = ""):
+    """
+    流式生成最终建议。如果 Ollama 在输出前失败，使用同步路径相同的规则兜底回答。
+    """
+    emitted = False
+    try:
+        stream = ollama_client.chat(
+            model=Config.OLLAMA_MODEL,
+            messages=build_safety_messages(user_query, risks, drug_infos, history_context),
+            options={"temperature": 0.1},
+            stream=True,
+        )
+        for chunk in stream:
+            content = chunk.get("message", {}).get("content", "")
+            if content:
+                emitted = True
+                yield content
+    except Exception as e:
+        print(f"❌ LLM 流式生成服务异常: {e}")
+        if not emitted:
+            yield _fallback_safety_response(risks, drug_infos)

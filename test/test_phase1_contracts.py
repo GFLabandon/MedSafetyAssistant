@@ -163,6 +163,51 @@ class Phase1ContractTests(unittest.TestCase):
 
         self.assertIn("ingredient", risks[0])
 
+    def test_build_safety_messages_includes_kg_risks_and_history(self):
+        from logic_layer.llm_service import build_safety_messages
+
+        messages = build_safety_messages(
+            "泰诺和感康能一起吃吗？",
+            [
+                {
+                    "type": "DUPLICATE_THERAPY",
+                    "drug": "泰诺 + 感康",
+                    "condition": "药物过量",
+                    "ingredient": "对乙酰氨基酚",
+                    "reason": "重复成分",
+                    "severity": "FATAL",
+                }
+            ],
+            [{"drug": "泰诺", "function": "退热", "dosage": "按说明书"}],
+            "【相关历史对话】\n1. 用户: 我吃过感康",
+        )
+
+        self.assertEqual(messages[0]["role"], "system")
+        self.assertEqual(messages[1]["role"], "user")
+        self.assertIn("重复用药风险", messages[1]["content"])
+        self.assertIn("相关历史对话", messages[1]["content"])
+
+    def test_stream_safety_response_yields_ollama_chunks(self):
+        from logic_layer.llm_service import stream_safety_response
+
+        fake_chunks = [
+            {"message": {"content": "结论"}},
+            {"message": {"content": "：不要"}},
+        ]
+
+        with patch("logic_layer.llm_service.ollama_client.chat", return_value=fake_chunks):
+            chunks = list(stream_safety_response("问题", [], [], ""))
+
+        self.assertEqual(chunks, ["结论", "：不要"])
+
+    def test_stream_safety_response_falls_back_when_ollama_fails(self):
+        from logic_layer.llm_service import stream_safety_response
+
+        with patch("logic_layer.llm_service.ollama_client.chat", side_effect=RuntimeError("offline")):
+            chunks = list(stream_safety_response("未知药能吃吗？", [], [], ""))
+
+        self.assertTrue("无法评估风险" in "".join(chunks))
+
 
 if __name__ == "__main__":
     unittest.main()
