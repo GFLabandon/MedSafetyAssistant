@@ -22,23 +22,64 @@ ollama pull deepseek-r1:7b
 python -m streamlit run app.py
 ```
 
+## Full-Stack Mode
+
+原始 `app.py` Streamlit 应用仍然保留，作为原型 UI 使用。Full-Stack Mode 在同一套后端编排服务之上增加 `FastAPI` BFF 和 `React Chat UI`，用于展示更清晰的 API 合约、流式回答和结构化证据。
+
+### Backend
+
+```bash
+pip install -r requirements.txt
+uvicorn api:app --reload --port 8000
+```
+
+API endpoints:
+
+- `POST /api/query` - 非流式用药安全查询。
+- `POST /api/query/stream` - SSE 风格流式查询，先返回元数据，再返回回答 token。
+- `GET /api/health` - Neo4j、Redis、Ollama 的非阻塞配置诊断。
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打开 `http://localhost:5173`。
+
+### Demo Questions
+
+- `泰诺和感康能一起吃吗？`
+- `我喝酒了，还能吃头孢吗？`
+- `布洛芬和阿司匹林能一起吃吗？`
+- `那我之前问过的药还能继续吃吗？`
+
+## Interview Narrative
+
+This project is best described as a lightweight Agentic AI full-stack system for a high-risk medication-safety scenario.
+
+It is not a general-purpose Agent platform. The current agent layer is intentionally small and explainable: route selection over fixed backend tools, knowledge-graph retrieval, Redis memory retrieval, and evidence display in the UI.
+
+The Route B items, such as tool registry, prompt management, trace events, memory abstraction, and regression evaluation sets, are future work after the Phase A full-stack base is stable.
+
 ## 系统架构图
 
 ```mermaid
 flowchart TD
-    A[用户输入] --> B[双路 NER\n规则引擎 + LLM]
-    B --> C[Agent 路由层\nLLM 单次分类决策]
-    C -->|query_kg| D[Neo4j 图谱查询\n多跳推理]
-    C -->|search_history| E[Redis 历史向量检索\nTop-K + 可选 Rerank]
-    C -->|both| D
-    C -->|both| E
-    D --> F[Prompt 组装\n结构化事实 + 历史上下文 + 当前问题]
-    E --> F
-    F --> G[Ollama LLM 生成]
-    G --> H{LLM 异常?}
-    H -->|是| I[规则模板兜底]
-    H -->|否| J[最终回答]
-    I --> J
+    A[React Chat UI] --> B[FastAPI BFF]
+    B --> C[assistant_service]
+    C --> D[LLM Router]
+    C --> E[Hybrid NER]
+    C --> F[Neo4j Knowledge Graph]
+    C --> G[Redis Vector Memory]
+    C --> H[Ollama LLM]
+    F --> C
+    G --> C
+    H --> C
+    C --> B
+    B --> A
 ```
 
 ## 与标准 RAG 的区别
