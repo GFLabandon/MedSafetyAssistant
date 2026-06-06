@@ -71,6 +71,30 @@ class ApiContractTests(unittest.TestCase):
 
         self.assertEqual(response, fake_diagnostics)
 
+    def test_stream_query_events_emit_meta_tokens_done_and_save_status(self):
+        from api import QueryRequest, stream_query_events
+
+        context = dict(SAMPLE_RESULT)
+        context.pop("response_text")
+        context.pop("conversation_saved")
+        context.pop("save_error")
+
+        with patch("api.MedicalKG") as kg_class, \
+             patch("api.prepare_medication_context", return_value=context), \
+             patch("api.stream_safety_response", return_value=iter(["结论", "：不要"])), \
+             patch("api.save_conversation_result", return_value={"conversation_saved": True, "save_error": None}):
+            kg_class.return_value.close.return_value = None
+            events = list(stream_query_events(QueryRequest(question="问题", session_id="s1"), vector_store=None))
+
+        self.assertIn('"type": "meta"', events[0])
+        self.assertIn('"route": "both"', events[0])
+        self.assertIn('"type": "token"', events[1])
+        self.assertIn("结论", events[1])
+        self.assertIn('"type": "token"', events[2])
+        self.assertIn("：不要", events[2])
+        self.assertIn('"type": "done"', events[3])
+        self.assertIn('"conversation_saved": true', events[3])
+
 
 if __name__ == "__main__":
     unittest.main()
