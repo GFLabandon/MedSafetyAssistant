@@ -83,6 +83,59 @@ class AssistantServiceTests(unittest.TestCase):
         self.assertEqual(result["drug_infos"], [])
         self.assertEqual(result["response_text"], "历史回答")
 
+    def test_prepare_medication_context_returns_metadata_without_generating_answer(self):
+        from logic_layer.assistant_service import prepare_medication_context
+
+        kg = FakeKG()
+        vector_store = FakeVectorStore()
+
+        with patch("logic_layer.assistant_service.decide_tools", return_value="both"), \
+             patch("logic_layer.assistant_service.exact_entity_extraction", return_value=(["泰诺"], ["高血压"])), \
+             patch("logic_layer.assistant_service.extract_entities_with_llm", return_value=([], [])), \
+             patch("logic_layer.assistant_service.generate_safety_response") as generate:
+            context = prepare_medication_context(
+                "我有高血压，能吃泰诺吗？",
+                session_id="test-session",
+                vector_store=vector_store,
+                kg=kg,
+            )
+
+        generate.assert_not_called()
+        self.assertEqual(context["route"], "both")
+        self.assertEqual(context["final_drugs"], ["泰诺"])
+        self.assertEqual(context["final_conditions"], ["高血压"])
+        self.assertEqual(context["risks"][0]["reason"], "测试风险")
+        self.assertNotIn("response_text", context)
+
+    def test_save_conversation_result_records_success_and_failure(self):
+        from logic_layer.assistant_service import save_conversation_result
+
+        vector_store = FakeVectorStore()
+        success = save_conversation_result(
+            vector_store,
+            "问题",
+            "回答",
+            "test-session",
+        )
+
+        self.assertTrue(success["conversation_saved"])
+        self.assertIsNone(success["save_error"])
+        self.assertEqual(vector_store.saved, ("问题", "回答", "test-session"))
+
+        class FailingVectorStore(FakeVectorStore):
+            def store_conversation(self, user_query, assistant_response, session_id):
+                raise RuntimeError("redis offline")
+
+        failure = save_conversation_result(
+            FailingVectorStore(),
+            "问题",
+            "回答",
+            "test-session",
+        )
+
+        self.assertFalse(failure["conversation_saved"])
+        self.assertEqual(failure["save_error"], "redis offline")
+
 
 if __name__ == "__main__":
     unittest.main()
