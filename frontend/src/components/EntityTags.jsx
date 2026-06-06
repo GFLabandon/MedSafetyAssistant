@@ -1,3 +1,5 @@
+import React from 'react';
+
 function TagGroup({ title, values }) {
   const items = values || [];
   return (

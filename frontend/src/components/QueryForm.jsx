@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 export default function QueryForm({ initialQuestion, loading, onSubmit }) {
   const [question, setQuestion] = useState(initialQuestion || '');

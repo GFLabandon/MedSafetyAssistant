@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import QueryForm from './components/QueryForm.jsx';
 import ResultPanel from './components/ResultPanel.jsx';
 import { useMedicationQuery } from './hooks/useMedicationQuery.js';

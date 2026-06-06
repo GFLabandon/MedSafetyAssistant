@@ -1,3 +1,4 @@
+import React from 'react';
 import DrugInfoCard from './DrugInfoCard.jsx';
 import EntityTags from './EntityTags.jsx';
 import RiskCard from './RiskCard.jsx';

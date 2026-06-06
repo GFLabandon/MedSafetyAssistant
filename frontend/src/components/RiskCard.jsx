@@ -1,3 +1,5 @@
+import React from 'react';
+
 const TYPE_LABELS = {
   DUPLICATE_THERAPY: '重复成分',
   CONTRAINDICATION: '用药禁忌',

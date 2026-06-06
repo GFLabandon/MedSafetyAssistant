@@ -1,3 +1,5 @@
+import React from 'react';
+
 const ROUTE_LABELS = {
   query_kg: '知识图谱检索',
   search_history: '历史对话检索',
