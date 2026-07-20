@@ -14,7 +14,7 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 72 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 74 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
@@ -124,6 +124,8 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - 未知 ID、漏引、重复引用、结论篡改、额外医学字段和依赖故障均安全回退，且不向 API 暴露异常文本；
 - 非风险状态不调用 LLM；风险状态可通过 `use_llm_plan: false` 强制走确定性路径；
 - 新增 `POST /api/v1/safety/explain`，原确定性检查接口保持不变；
-- 当前只完成脚本化 planner 的护栏验证，尚未在真实 Ollama 模型上生成正式质量报告。
+- 建立 9 条脚本化对抗集和可复现 runner，保存报告记录数据集 SHA-256、代码 commit、工作树状态、数据与 prompt 版本；
+- 9/9 场景通过，结论保持、fact_id 引用覆盖、抽取式陈述和来源可追溯均为 1.000，无证据陈述率为 0.000；
+- 上述结果只证明服务端护栏，不是实际模型或临床质量报告；真实 Ollama 当前未运行。
 
-下一验收门：建立锁定的生成安全测试集与可复现 runner；在真实 Ollama 可用时固定模型摘要和参数重复运行至少 3 次，并报告无证据陈述率、引用覆盖率、回退率与失败分类。
+下一验收门：将模型摘要、固定参数、重复次数和原始计划输出纳入 runner；在真实 Ollama 可用时至少重复运行 3 次，并报告有效计划率、回退率与失败分类。

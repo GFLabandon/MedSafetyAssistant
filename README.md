@@ -85,6 +85,8 @@ curl -X POST http://localhost:8000/api/v1/safety/explain \
 
 完整威胁边界和验证方式见 [`docs/EXPLANATION_GENERATION.md`](docs/EXPLANATION_GENERATION.md)。旧 `/api/query` 仍属于 legacy 自由生成路径，不具备这套 V1 护栏。
 
+脚本化对抗基线见 [`reports/baseline-explanation-guardrails-v1.md`](reports/baseline-explanation-guardrails-v1.md)。9 个场景只验证服务端护栏，不代表真实模型或临床质量。
+
 #### Neo4j 查询投影
 
 `data/v1/` 是 V1 知识的唯一权威源。Neo4j 只作为可重建的查询投影，不允许反向覆盖 JSON 数据。配置 `NEO4J_URI`、`NEO4J_USER` 和 `NEO4J_PASSWORD` 并启动 Neo4j 后，可执行：

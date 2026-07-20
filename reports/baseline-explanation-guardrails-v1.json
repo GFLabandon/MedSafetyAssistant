@@ -1,0 +1,22 @@
+{
+  "code_commit": "a5abe1d6d032023b00fb76c9665060bf825810c3",
+  "data_version": "v1.0.0-alpha.2",
+  "dataset_cases": 9,
+  "dataset_sha256": "baf351562117144c22b40c93b7944fa169adf8b0e66a859ccea257995478b39f",
+  "failures": [],
+  "interpretation_boundary": "Scripted planner guardrail regression; not a real-model or clinical-quality result.",
+  "metrics": {
+    "case_pass_rate": 1.0,
+    "conclusion_preservation_rate": 1.0,
+    "extractive_claim_rate": 1.0,
+    "fact_reference_coverage": 1.0,
+    "fallback_reason_accuracy": 1.0,
+    "mode_accuracy": 1.0,
+    "source_traceability_rate": 1.0,
+    "unsupported_claim_rate": 0.0
+  },
+  "planner": "scripted_adversarial_fixtures",
+  "prompt_version": "evidence-order-v1",
+  "runner": "explanation_guardrails",
+  "working_tree_dirty": false
+}

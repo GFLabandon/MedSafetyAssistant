@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -100,3 +101,25 @@ def test_explanation_guardrail_dataset_passes_all_scripted_attacks():
     assert report["metrics"]["source_traceability_rate"] == 1.0
     assert report["metrics"]["unsupported_claim_rate"] == 0.0
     assert report["failures"] == []
+
+
+def test_saved_explanation_guardrail_report_matches_runner():
+    dataset_path = REPOSITORY_ROOT / "eval/explanation_guardrails_v1.jsonl"
+    cases = load_explanation_guardrail_cases(dataset_path)
+    catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
+    report = evaluate_explanation_guardrails(cases, SafetyEngine(catalog))
+    saved_report = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-explanation-guardrails-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert saved_report["code_commit"] == "a5abe1d6d032023b00fb76c9665060bf825810c3"
+    assert saved_report["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    assert saved_report["data_version"] == catalog.data_version
+    assert saved_report["dataset_cases"] == len(cases)
+    assert saved_report["prompt_version"] == report["prompt_version"]
+    assert saved_report["planner"] == report["planner"]
+    assert saved_report["metrics"] == report["metrics"]
+    assert saved_report["failures"] == report["failures"]
+    assert saved_report["working_tree_dirty"] is False
