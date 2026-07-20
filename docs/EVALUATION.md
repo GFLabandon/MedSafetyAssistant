@@ -54,6 +54,8 @@ V1 已实现 `evidence-order-v1` 的第一层护栏测试：模型只规划 fact
 
 脚本化基线保存在 `reports/baseline-explanation-guardrails-v1.{json,md}`。报告记录数据集 SHA-256、代码 commit、工作树状态、数据版本和 prompt 版本；保存结果还会由全量测试与当前 runner 指标比对。
 
+真实 Ollama 开发基线保存在 `reports/baseline-ollama-evidence-order-v1.{json,md}` 和 v2 对应文件中，15 条原始计划分别保存在 `reports/raw/`。v1 暴露了 fact_id 字符替换问题，v2 用动态 JSON Schema 修复；两者使用同一数据集和模型 digest。该对比属于开发调优证据，不能作为独立测试集结果。
+
 `current_pipeline`、`pure_llm`、`prompt_llm` 和 `full_pipeline` 必须记录模型名称、模型摘要、参数、prompt 版本和依赖健康状态。依赖不健康时不得生成正式报告。
 
 ## 5. 指标
@@ -111,4 +113,4 @@ V1 已实现 `evidence-order-v1` 的第一层护栏测试：模型只规划 fact
 - 失败样例和错误分类；
 - 已知限制。
 
-当前无正式端到端基线的原因必须如实记录：本轮执行时 Docker、Neo4j、Redis 和 Ollama 未运行。
+当前仍无正式端到端基线：真实 Ollama 只评测了 V1 Evidence Packet 解释规划，Neo4j、Redis、实体抽取和 legacy 查询链路没有在同一次受控运行中验收。

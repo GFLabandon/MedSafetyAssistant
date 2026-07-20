@@ -206,3 +206,39 @@ def test_saved_real_model_v1_baseline_and_raw_plans_are_consistent():
         for record in raw_records
     ) == report["failure_summary"]["invalid_plans"] == 6
     assert all(json.loads(record["raw_response"]) for record in raw_records)
+
+
+def test_saved_real_model_v2_baseline_improves_plan_validity_without_weakening_safety():
+    dataset_path = REPOSITORY_ROOT / "eval/explanation_model_dev_v1.jsonl"
+    v1 = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-ollama-evidence-order-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    v2 = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-ollama-evidence-order-v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    raw_records = [
+        json.loads(line)
+        for line in (
+            REPOSITORY_ROOT / "reports/raw/ollama-evidence-order-v2-plans.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert v2["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    assert v2["dataset_sha256"] == v1["dataset_sha256"]
+    assert v2["model"]["digest"] == v1["model"]["digest"]
+    assert v2["planner_attempts"] == len(raw_records) == 15
+    assert v2["metrics"]["valid_plan_rate"] > v1["metrics"]["valid_plan_rate"]
+    assert v2["metrics"]["fallback_rate"] < v1["metrics"]["fallback_rate"]
+    assert v2["metrics"]["valid_plan_rate"] == 1.0
+    assert v2["metrics"]["fallback_rate"] == 0.0
+    assert v2["metrics"]["pipeline_pass_rate"] == 1.0
+    assert v2["metrics"]["unsupported_claim_rate"] == 0.0
+    assert v2["model_failures"] == []
+    assert v2["pipeline_failures"] == []
+    assert all(record["generation_mode"] == "llm_planned" for record in raw_records)
+    assert all(json.loads(record["raw_response"]) for record in raw_records)

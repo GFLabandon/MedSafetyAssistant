@@ -41,3 +41,17 @@
 ```
 
 这是服务端护栏的对抗性回归集，不调用真实模型，也不表示模型或临床质量。
+
+`explanation_model_dev_v1.jsonl` 是真实 Ollama 开发探针。它包含 5 个实际模型规划场景和 2 个必须跳过模型的非风险场景，运行 3 次会产生 15 次模型请求：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/explanation_model_dev_v1.jsonl \
+  --runner ollama_explanation \
+  --model deepseek-r1:1.5b \
+  --repetitions 3 \
+  --timeout-seconds 120 \
+  --format json
+```
+
+该数据集已经用于 `evidence-order-v1` 到 v2 的迭代，只能作为开发集；后续不能把它改称独立测试集。

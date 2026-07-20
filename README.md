@@ -87,6 +87,8 @@ curl -X POST http://localhost:8000/api/v1/safety/explain \
 
 脚本化对抗基线见 [`reports/baseline-explanation-guardrails-v1.md`](reports/baseline-explanation-guardrails-v1.md)。9 个场景只验证服务端护栏，不代表真实模型或临床质量。
 
+真实 `deepseek-r1:1.5b` 开发基线中，普通 JSON mode 的 v1 有效计划率为 0.600；动态 JSON Schema 的 v2 在同一模型和探针上达到 1.000，同时保持无证据陈述率 0。详见 [`v1 报告`](reports/baseline-ollama-evidence-order-v1.md) 与 [`v2 报告`](reports/baseline-ollama-evidence-order-v2.md)。这是开发集调优结果，不是临床或独立测试集指标。
+
 #### Neo4j 查询投影
 
 `data/v1/` 是 V1 知识的唯一权威源。Neo4j 只作为可重建的查询投影，不允许反向覆盖 JSON 数据。配置 `NEO4J_URI`、`NEO4J_USER` 和 `NEO4J_PASSWORD` 并启动 Neo4j 后，可执行：

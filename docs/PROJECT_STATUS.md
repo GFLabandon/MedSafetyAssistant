@@ -2,7 +2,7 @@
 
 更新时间：2026-07-20
 当前阶段：V1 第 3 周——Evidence Packet 约束生成与引用校验
-状态：alpha.2 数据已冻结；`evidence-order-v1` 服务端护栏已通过离线契约验收
+状态：`evidence-order-v2` 已完成真实 Ollama 三轮开发基线，服务端护栏保持通过
 
 ## 当前目标
 
@@ -14,14 +14,14 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 74 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 80 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
-| Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
+| Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 1 passed，61 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 
-外部依赖未运行，因此本阶段只发布离线、可复现的规则实体抽取基线。不得将依赖缺失时的全链路输出称为模型或系统质量结果。
+本阶段已经真实运行 Ollama 解释规划，但没有同时运行 Neo4j、Redis 和 legacy 全链路，因此结果只能称为 V1 Evidence Packet 解释层开发基线，不能称为端到端系统质量结果。
 
 ## 当前数据快照
 
@@ -62,12 +62,12 @@
 
 ## 已知 P0 风险
 
-1. 事实来源不可直接核查。
-2. 空检索结果可能被误解为确认安全。
-3. 默认共享会话 ID 存在上下文串线风险。
-4. API 会向客户端返回 traceback。
-5. 真实依赖状态没有被健康检查验证。
-6. 缺少锁定测试集和端到端基线。
+1. V1 事实只有 `source_aligned` 状态，没有医生或药师临床审核签名。
+2. V1 仅覆盖 3 条事实，不能外推到未收录药品、剂量或人群。
+3. legacy `/api/query` 仍使用默认共享会话和自由文本生成，不具备 V1 护栏。
+4. 当前真实模型数据集已经用于 v1/v2 调优，不能再作为独立测试集。
+5. 健康检查和完整依赖故障注入仍未完成。
+6. 尚无 Neo4j、Redis、Ollama 同时在线的端到端基线。
 
 ## 下一验收门
 
@@ -126,6 +126,15 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - 新增 `POST /api/v1/safety/explain`，原确定性检查接口保持不变；
 - 建立 9 条脚本化对抗集和可复现 runner，保存报告记录数据集 SHA-256、代码 commit、工作树状态、数据与 prompt 版本；
 - 9/9 场景通过，结论保持、fact_id 引用覆盖、抽取式陈述和来源可追溯均为 1.000，无证据陈述率为 0.000；
-- 上述结果只证明服务端护栏，不是实际模型或临床质量报告；真实 Ollama 当前未运行。
+- 上述脚本化结果只证明服务端护栏，不是实际模型或临床质量报告。
 
-下一验收门：将模型摘要、固定参数、重复次数和原始计划输出纳入 runner；在真实 Ollama 可用时至少重复运行 3 次，并报告有效计划率、回退率与失败分类。
+## 真实 Ollama 开发基线
+
+- 固定模型 digest、temperature 0、seed 42、num_predict 256、think false，并保存 3 轮原始计划；
+- v1 的 15 次请求中 6 次把 fact_id 连字符改为下划线，有效计划率 0.600、回退率 0.400；
+- 所有无效 ID 均被服务端拒绝，21/21 case run 仍安全通过，无证据陈述率 0；
+- v2 使用动态 JSON Schema 固定状态、ID enum、数量、唯一性及额外字段限制；
+- v2 在相同探针和模型上 15/15 合法，有效计划率和三轮一致性均为 1.000，P50/P95 为 1085.918/1511.546 ms；
+- v1/v2 均属于同一开发集上的调优证据，不能宣称模型泛化或临床准确率。
+
+下一验收门：按 fact_id 分组建立不可用于调参的独立测试集；随后扩展实体抽取与提示注入策略评测，而不是继续在当前开发集上优化数字。
