@@ -1,0 +1,156 @@
+"""Versioned data and API-neutral contracts for evidence-grounded evaluation.
+
+These models do not replace the existing runtime yet. They define the boundary
+that new data, evaluation, and Safety Engine work must satisfy.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ReviewStatus(str, Enum):
+    DRAFT = "draft"
+    REVIEWED = "reviewed"
+    REJECTED = "rejected"
+
+
+class ConclusionStatus(str, Enum):
+    RISK_FOUND = "risk_found"
+    NO_KNOWN_RISK_IN_SCOPE = "no_known_risk_in_scope"
+    INSUFFICIENT_INFORMATION = "insufficient_information"
+    OUT_OF_SCOPE = "out_of_scope"
+    KNOWLEDGE_UNAVAILABLE = "knowledge_unavailable"
+
+
+class Severity(str, Enum):
+    INFO = "INFO"
+    ORANGE = "ORANGE"
+    RED = "RED"
+    FATAL = "FATAL"
+
+
+class RiskType(str, Enum):
+    DUPLICATE_THERAPY = "DUPLICATE_THERAPY"
+    CONTRAINDICATION = "CONTRAINDICATION"
+    INTERACTION = "INTERACTION"
+
+
+class LabelStatus(str, Enum):
+    LEGACY_UNREVIEWED = "legacy_unreviewed"
+    SOURCE_ALIGNED = "source_aligned"
+    CLINICALLY_REVIEWED = "clinically_reviewed"
+
+
+class SourceRecord(StrictModel):
+    source_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    publisher: str | None = None
+    url: str | None = None
+    published_at: date | None = None
+    version: str | None = None
+    license_note: str | None = None
+    accessed_at: date | None = None
+    review_status: ReviewStatus = ReviewStatus.DRAFT
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def reviewed_sources_are_traceable(self):
+        if self.review_status == ReviewStatus.REVIEWED:
+            required = (self.publisher, self.url, self.accessed_at, self.reviewed_by, self.reviewed_at)
+            if any(value in (None, "") for value in required):
+                raise ValueError("reviewed sources require publisher, url, access date, and reviewer metadata")
+        return self
+
+
+class FactRecord(StrictModel):
+    fact_id: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    predicate: str = Field(min_length=1)
+    object: str = Field(min_length=1)
+    risk_type: RiskType
+    severity: Severity
+    reason: str = Field(min_length=1)
+    source_ids: list[str] = Field(default_factory=list)
+    source_locator: str | None = None
+    review_status: ReviewStatus = ReviewStatus.DRAFT
+    label_status: LabelStatus = LabelStatus.LEGACY_UNREVIEWED
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    data_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def reviewed_facts_have_evidence(self):
+        if self.review_status == ReviewStatus.REVIEWED:
+            if not self.source_ids or not self.source_locator or not self.reviewed_by or not self.reviewed_at:
+                raise ValueError("reviewed facts require sources, a locator, and reviewer metadata")
+            if self.label_status == LabelStatus.LEGACY_UNREVIEWED:
+                raise ValueError("reviewed facts cannot retain a legacy_unreviewed label status")
+        return self
+
+
+class EvidenceFact(StrictModel):
+    fact_id: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    predicate: str = Field(min_length=1)
+    object: str = Field(min_length=1)
+    risk_type: RiskType
+    severity: Severity
+    reason: str = Field(min_length=1)
+    source_ids: list[str] = Field(min_length=1)
+    label_status: LabelStatus
+
+
+class EvidencePacket(StrictModel):
+    conclusion_status: ConclusionStatus
+    facts: list[EvidenceFact] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    data_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def risk_conclusions_require_facts(self):
+        if self.conclusion_status == ConclusionStatus.RISK_FOUND and not self.facts:
+            raise ValueError("risk_found requires at least one evidence fact")
+        if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.facts:
+            raise ValueError("non-risk conclusions must not contain risk facts")
+        return self
+
+
+class ConversationTurn(StrictModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(min_length=1)
+
+
+class ExpectedResult(StrictModel):
+    drugs: list[str] = Field(default_factory=list)
+    conditions: list[str] = Field(default_factory=list)
+    conclusion_status: ConclusionStatus | None = None
+    required_fact_ids: list[str] = Field(default_factory=list)
+
+
+class EvaluationCase(StrictModel):
+    case_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    split: str = Field(pattern="^(dev|test)$")
+    category: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    history: list[ConversationTurn] = Field(default_factory=list)
+    expected: ExpectedResult
+    label_status: LabelStatus = LabelStatus.LEGACY_UNREVIEWED
+    tags: list[str] = Field(default_factory=list)
+    notes: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def reviewed_labels_require_a_conclusion(self):
+        if self.label_status != LabelStatus.LEGACY_UNREVIEWED and self.expected.conclusion_status is None:
+            raise ValueError("reviewed evaluation labels require an expected conclusion")
+        return self

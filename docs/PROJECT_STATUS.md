@@ -1,0 +1,81 @@
+# MedSafetyAssistant 项目状态
+
+更新时间：2026-07-20
+当前阶段：V1 第 1 周——范围、数据与评测契约
+状态：第一批任务完成，等待仓库卫生清单确认与下一阶段指令
+
+## 当前目标
+
+将现有本地演示升级为一个范围明确、事实可追溯、结果可评测、故障可解释的 AI 应用。当前阶段不扩展 Agent 能力，先建立数据、证据和评测基础。
+
+## 已验证基线
+
+| 检查 | 结果 | 命令或依据 |
+|---|---|---|
+| Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
+| Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
+| Python 当前回归 | 33 passed，1 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| pytest warning | `test_redis_connection.py` 返回 bool，被 pytest 误收集 | 测试输出 |
+| 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
+| Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
+| Docker/Redis | Docker daemon 未运行 | `docker ps` 连接失败 |
+| Neo4j | 未发现本地 7687 监听 | 本地端口检查 |
+
+外部依赖未运行，因此本阶段只发布离线、可复现的规则实体抽取基线。不得将依赖缺失时的全链路输出称为模型或系统质量结果。
+
+## 当前数据快照
+
+依据 `data_layer/medical_graph.cypher.txt` 的创建语句：
+
+- 18 个 Drug；
+- 18 个 Ingredient；
+- 14 个 Condition；
+- 22 条 CONTRAINDICATED_IN；
+- 9 条 INTERACTS_WITH。
+
+当前关系中的 `source` 只是自由文本来源标签。它们尚未逐条核验，也普遍缺少 URL、版本定位、访问日期和审核记录。因此全部视为 `legacy_unreviewed`，不能称为临床审核数据。
+
+## 本阶段交付物
+
+- [x] 总体升级计划；
+- [x] 项目状态文档；
+- [x] 安全边界文档；
+- [x] 评测协议；
+- [x] 来源、事实、证据包、结论状态和评测样例契约；
+- [x] 现有图谱事实和来源完整性清单；
+- [x] 18 条小型开发集；
+- [x] 离线基线评测脚本和报告；
+- [x] 新增契约与评测测试；
+- [x] 全量回归和前端构建复验。
+
+## 第一份离线基线
+
+当前规则实体抽取在 18 条 `dev-v0.1` 样例上的结果：
+
+- entity micro precision：0.966；
+- entity micro recall：0.875；
+- entity micro F1：0.918；
+- whole-case exact match：0.722；
+- 失败样例：5/18。
+
+失败集中在未接入的中英文别名、`酒精消毒`子串误判和历史追问解析。该结果只评价实体工程行为，不是医学准确率。
+
+## 已知 P0 风险
+
+1. 事实来源不可直接核查。
+2. 空检索结果可能被误解为确认安全。
+3. 默认共享会话 ID 存在上下文串线风险。
+4. API 会向客户端返回 traceback。
+5. 真实依赖状态没有被健康检查验证。
+6. 缺少锁定测试集和端到端基线。
+
+## 下一验收门
+
+进入 Safety Engine 重构前必须满足：
+
+- 开发集和评测 schema 可自动校验；
+- 现有风险关系都有稳定的 legacy inventory ID；
+- 来源缺口被显式列出；
+- 当前规则实体抽取已有真实基线；
+- 新增测试和原有测试全部通过；
+- 未对现有医学内容作未经核验的修改。

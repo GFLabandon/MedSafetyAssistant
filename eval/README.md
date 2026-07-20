@@ -1,0 +1,19 @@
+# Evaluation Dataset
+
+当前数据版本：`dev-v0.1`
+标签状态：`legacy_unreviewed`
+
+`dev_cases.jsonl` 包含 18 条用于评测当前实体抽取行为的开发样例。它覆盖显式药名、中文别名、英文别名、未知实体、子串误报和历史追问。
+
+这些样例只提供实体层工程标签，没有正式医学结论或风险 fact_id。不得用它计算或宣传医学准确率。
+
+运行离线基线：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/dev_cases.jsonl \
+  --runner rule_entities \
+  --format markdown
+```
+
+校验规则由 `medsafety.contracts.EvaluationCase` 定义。正式 test split 将在来源对齐并按 fact_id 分组后建立，防止同一事实的改写跨 split 泄漏。

@@ -1,0 +1,63 @@
+{
+  "baseline_version": "v0.1",
+  "code_commit": "ee0ca68",
+  "counts": {
+    "condition": {
+      "fn": 0,
+      "fp": 1,
+      "tp": 10
+    },
+    "drug": {
+      "fn": 4,
+      "fp": 0,
+      "tp": 18
+    },
+    "failed_cases": 5
+  },
+  "dataset": "eval/dev_cases.jsonl",
+  "dataset_cases": 18,
+  "dataset_version": "dev-v0.1",
+  "dependency_state": {
+    "docker": "unavailable",
+    "neo4j": "unavailable",
+    "ollama": "unavailable",
+    "redis": "unavailable"
+  },
+  "failures": [
+    {
+      "case_id": "dev_fenbid_alias",
+      "expected_drugs": ["布洛芬缓释胶囊", "阿司匹林肠溶片"],
+      "actual_drugs": ["阿司匹林肠溶片"]
+    },
+    {
+      "case_id": "dev_english_ibuprofen",
+      "expected_drugs": ["布洛芬缓释胶囊", "阿司匹林肠溶片"],
+      "actual_drugs": ["阿司匹林肠溶片"]
+    },
+    {
+      "case_id": "dev_paracetamol_alcohol",
+      "expected_drugs": ["对乙酰氨基酚"],
+      "actual_drugs": []
+    },
+    {
+      "case_id": "dev_disinfectant_false_positive",
+      "expected_conditions": [],
+      "actual_conditions": ["饮酒状态"]
+    },
+    {
+      "case_id": "dev_followup_history",
+      "expected_drugs": ["布洛芬缓释胶囊"],
+      "actual_drugs": []
+    }
+  ],
+  "label_scope": "entity labels only; medical risk labels are legacy_unreviewed",
+  "metrics": {
+    "case_exact_match": 0.722222,
+    "condition_exact_match": 0.944444,
+    "drug_exact_match": 0.777778,
+    "entity_micro_f1": 0.918033,
+    "entity_micro_precision": 0.965517,
+    "entity_micro_recall": 0.875
+  },
+  "runner": "rule_entities"
+}

@@ -233,6 +233,9 @@ Thumbs.db
 *.json
 !frontend/package.json
 !frontend/package-lock.json
+!eval/**/*.json
+!eval/**/*.jsonl
+!reports/baseline-*.json
 *.caj
 
 
