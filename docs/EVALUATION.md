@@ -50,6 +50,8 @@
 - `safety_engine`：不调用 LLM 的确定性事实与风险基线；
 - `full_pipeline`：Evidence Packet + 受约束生成。
 
+V1 已实现 `evidence-order-v1` 的第一层护栏测试：模型只规划 fact_id 顺序，服务端检查完整引用集合并确定性渲染。该测试覆盖未知 ID、漏引、重复引用、结论篡改、额外字段和 planner 故障；它是工程契约验证，不替代真实 Ollama 的重复运行评测。
+
 `current_pipeline`、`pure_llm`、`prompt_llm` 和 `full_pipeline` 必须记录模型名称、模型摘要、参数、prompt 版本和依赖健康状态。依赖不健康时不得生成正式报告。
 
 ## 5. 指标

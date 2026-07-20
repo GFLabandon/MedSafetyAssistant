@@ -39,6 +39,7 @@ API endpoints:
 - `POST /api/query/stream` - SSE 风格流式查询，先返回元数据，再返回回答 token。
 - `GET /api/health` - Neo4j、Redis、Ollama 的非阻塞配置诊断。
 - `POST /api/v1/safety/check` - 只读取来源对齐事实的确定性 V1 风险检查。
+- `POST /api/v1/safety/explain` - 对 Evidence Packet 做可验证排序和确定性解释。
 
 ### Source-Aligned Safety Engine (V1 Alpha)
 
@@ -69,6 +70,20 @@ curl -X POST http://localhost:8000/api/v1/safety/check \
 ```
 
 当前数据是 `source_aligned`，不是 `clinically_reviewed`。9 条开发样例只用于确定性回归，不能作为临床准确率或锁定测试集结果。
+
+alpha.2 的数据范围、审核含义和 SHA-256 冻结清单见 [`docs/DATA_CARD_V1_ALPHA_2.md`](docs/DATA_CARD_V1_ALPHA_2.md)。
+
+#### Evidence-grounded explanation
+
+V1 解释接口不会让 LLM 自由生成医学内容。Ollama 只能返回结论状态和完整 `fact_id` 排序；服务端拒绝未知、遗漏、重复引用和额外字段，然后从 Evidence Packet 确定性复制陈述与来源。Ollama 不可用或输出不合约时返回 `deterministic_fallback`，不会丢失结构化证据。
+
+```bash
+curl -X POST http://localhost:8000/api/v1/safety/explain \
+  -H 'Content-Type: application/json' \
+  -d '{"medications":["泰诺","感康"],"contexts":[],"use_llm_plan":false}'
+```
+
+完整威胁边界和验证方式见 [`docs/EXPLANATION_GENERATION.md`](docs/EXPLANATION_GENERATION.md)。旧 `/api/query` 仍属于 legacy 自由生成路径，不具备这套 V1 护栏。
 
 #### Neo4j 查询投影
 

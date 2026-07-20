@@ -31,6 +31,17 @@ class ConclusionStatus(str, Enum):
     KNOWLEDGE_UNAVAILABLE = "knowledge_unavailable"
 
 
+class ExplanationGenerationMode(str, Enum):
+    DETERMINISTIC = "deterministic"
+    LLM_PLANNED = "llm_planned"
+    DETERMINISTIC_FALLBACK = "deterministic_fallback"
+
+
+class ExplanationFallbackReason(str, Enum):
+    PLANNER_UNAVAILABLE = "planner_unavailable"
+    INVALID_PLAN = "invalid_plan"
+
+
 class Severity(str, Enum):
     INFO = "INFO"
     ORANGE = "ORANGE"
@@ -189,6 +200,78 @@ class EvidencePacket(StrictModel):
             and self.data_version is None
         ):
             raise ValueError("available knowledge conclusions require a data version")
+        return self
+
+
+class ExplanationPlan(StrictModel):
+    """The complete set of decisions an LLM may make for a V1 explanation."""
+
+    conclusion_status: ConclusionStatus
+    ordered_fact_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def fact_ids_match_conclusion_shape(self):
+        if self.conclusion_status == ConclusionStatus.RISK_FOUND and not self.ordered_fact_ids:
+            raise ValueError("risk_found plans require fact IDs")
+        if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.ordered_fact_ids:
+            raise ValueError("non-risk plans must not contain fact IDs")
+        return self
+
+
+class ExplanationClaim(StrictModel):
+    """An extractive claim copied from one validated Evidence Fact."""
+
+    fact_id: str = Field(min_length=1)
+    risk_type: RiskType
+    severity: Severity
+    statement: str = Field(min_length=1)
+    severity_rationale: str = Field(min_length=1)
+    source_ids: list[str] = Field(min_length=1)
+    source_locator: str = Field(min_length=1)
+    label_status: LabelStatus
+
+
+class SafetyExplanation(StrictModel):
+    """User-facing V1 explanation with machine-checkable evidence links."""
+
+    conclusion_status: ConclusionStatus
+    summary: str = Field(min_length=1)
+    claims: list[ExplanationClaim] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    resolved_medications: list[str] = Field(default_factory=list)
+    unresolved_inputs: list[str] = Field(default_factory=list)
+    resolved_contexts: list[str] = Field(default_factory=list)
+    unresolved_contexts: list[str] = Field(default_factory=list)
+    missing_context: list[str] = Field(default_factory=list)
+    data_version: str | None = Field(default=None, min_length=1)
+    generation_mode: ExplanationGenerationMode
+    prompt_version: str = Field(min_length=1)
+    fallback_reason: ExplanationFallbackReason | None = None
+
+    @model_validator(mode="after")
+    def claims_match_conclusion(self):
+        if self.conclusion_status == ConclusionStatus.RISK_FOUND and not self.claims:
+            raise ValueError("risk_found explanations require at least one claim")
+        if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.claims:
+            raise ValueError("non-risk explanations must not contain claims")
+        if (
+            self.generation_mode == ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.fallback_reason is None
+        ):
+            raise ValueError("deterministic fallback requires a reason")
+        if (
+            self.generation_mode != ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.fallback_reason is not None
+        ):
+            raise ValueError("fallback reason is only valid for deterministic fallback")
+        claim_ids = [claim.fact_id for claim in self.claims]
+        if len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("explanations must not contain duplicate fact IDs")
+        if (
+            self.conclusion_status != ConclusionStatus.KNOWLEDGE_UNAVAILABLE
+            and self.data_version is None
+        ):
+            raise ValueError("available knowledge explanations require a data version")
         return self
 
 

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
+from config import Config
 from logic_layer.assistant_service import (
     DEFAULT_SESSION_ID,
     answer_medication_question,
@@ -20,6 +21,8 @@ from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import stream_safety_response
 from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
+from medsafety.explanation import EvidenceGroundedExplainer
+from medsafety.ollama_planner import OllamaExplanationPlanner
 from medsafety.safety_engine import SafetyEngine
 
 
@@ -64,13 +67,27 @@ class SafetyCheckRequest(BaseModel):
         return [value.strip() for value in values if value.strip()]
 
 
+class SafetyExplainRequest(SafetyCheckRequest):
+    use_llm_plan: bool = True
+
+
 def build_safety_engine():
     return SafetyEngine(KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY))
+
+
+def build_safety_explainer():
+    planner = OllamaExplanationPlanner(
+        host=Config.OLLAMA_URL,
+        model=Config.OLLAMA_MODEL,
+        timeout_seconds=Config.OLLAMA_EXPLANATION_TIMEOUT_SECONDS,
+    )
+    return EvidenceGroundedExplainer(planner)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.safety_engine = build_safety_engine()
+    app.state.safety_explainer = build_safety_explainer()
     app.state.vector_store = VectorStore()
     try:
         yield
@@ -121,6 +138,12 @@ def get_safety_engine(request: Request | None):
     if request is None:
         return build_safety_engine()
     return getattr(request.app.state, "safety_engine", None) or build_safety_engine()
+
+
+def get_safety_explainer(request: Request | None):
+    if request is None:
+        return build_safety_explainer()
+    return getattr(request.app.state, "safety_explainer", None) or build_safety_explainer()
 
 
 def sse_event(payload):
@@ -207,3 +230,13 @@ async def health():
 async def check_v1_safety(payload: SafetyCheckRequest, request: Request = None):
     result = get_safety_engine(request).assess(payload.medications, contexts=payload.contexts)
     return result.model_dump(mode="json")
+
+
+@app.post("/api/v1/safety/explain")
+async def explain_v1_safety(payload: SafetyExplainRequest, request: Request = None):
+    packet = get_safety_engine(request).assess(payload.medications, contexts=payload.contexts)
+    explanation = get_safety_explainer(request).explain(
+        packet,
+        use_llm_plan=payload.use_llm_plan,
+    )
+    return explanation.model_dump(mode="json")

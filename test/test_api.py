@@ -129,6 +129,32 @@ class ApiContractTests(unittest.TestCase):
         self.assertIsNone(response["data_version"])
         self.assertEqual(response["facts"], [])
 
+    def test_v1_safety_explain_returns_extractively_grounded_claim(self):
+        from api import SafetyExplainRequest, explain_v1_safety
+        from medsafety.explanation import EvidenceGroundedExplainer
+
+        with patch(
+            "api.get_safety_explainer",
+            return_value=EvidenceGroundedExplainer(),
+        ):
+            response = asyncio.run(
+                explain_v1_safety(
+                    SafetyExplainRequest(
+                        medications=["泰诺", "感康"],
+                        use_llm_plan=False,
+                    )
+                )
+            )
+
+        self.assertEqual(response["conclusion_status"], "risk_found")
+        self.assertEqual(response["generation_mode"], "deterministic")
+        self.assertEqual(
+            response["claims"][0]["fact_id"],
+            "fact-duplicate-acetaminophen-001",
+        )
+        self.assertIn("source-fda-acetaminophen-2025", response["claims"][0]["source_ids"])
+        self.assertNotIn("facts", response)
+
     def test_unhandled_error_does_not_expose_exception_or_traceback(self):
         from api import unhandled_exception_handler
 

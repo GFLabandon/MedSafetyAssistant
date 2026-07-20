@@ -45,13 +45,15 @@ API 和界面必须使用以下状态之一，不能只返回自由文本：
 - `risk_found` 必须至少包含一个 Evidence Fact；
 - 每个 Evidence Fact 必须包含 `fact_id` 和至少一个 `source_id`；
 - 生成回答中的风险事实必须能映射回 Evidence Fact；
+- V1 用户可见风险陈述必须逐字来自 Evidence Fact，LLM 只能调整完整 fact_id 集合的顺序；
+- 未知、遗漏、重复 fact_id，状态篡改或额外输出字段必须触发确定性回退；
 - 非风险状态不得携带虚构风险事实；
 - 来源或事实处于 `draft` 时，界面必须显示未审核状态，不能进入正式 V1 benchmark。
 
 ## 依赖故障策略
 
 - Redis 故障：禁用历史记忆，当前问题仍可继续；
-- Ollama 故障：保留结构化风险和证据，生成说明降级；
+- Ollama 故障或超时：保留全部结构化风险和证据，解释层标记 `deterministic_fallback`；
 - Neo4j 故障：返回 `knowledge_unavailable`；
 - 实体抽取不确定：返回 `insufficient_information`；
 - 任何异常都不得转换成“无风险”。

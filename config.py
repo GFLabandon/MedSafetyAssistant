@@ -14,6 +14,9 @@ class Config:
     # Ollama 配置：默认 deepseek（开箱即用）；推荐 qwen2.5-coder:14b（效果更好）
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    OLLAMA_EXPLANATION_TIMEOUT_SECONDS = float(
+        os.getenv("OLLAMA_EXPLANATION_TIMEOUT_SECONDS", "5")
+    )
     
     # Redis 配置（用于向量数据库）
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")

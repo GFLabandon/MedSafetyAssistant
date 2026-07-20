@@ -1,8 +1,8 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-20
-当前阶段：V1 第 2 周——来源对齐、确定性 Safety Engine 与 Neo4j 查询投影
-状态：V1 alpha.2 禁忌症最小闭环已通过来源、离线与真实 Neo4j 验收
+当前阶段：V1 第 3 周——Evidence Packet 约束生成与引用校验
+状态：alpha.2 数据已冻结；`evidence-order-v1` 服务端护栏已通过离线契约验收
 
 ## 当前目标
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 61 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 72 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
@@ -113,4 +113,17 @@
 - Neo4j 投影新增 2 个 `SafetyContext` 节点和 1 条 `APPLIES_IN` 关系；两次真实导入计数一致；
 - 9 条 source-aligned 开发样例确定性回归全部匹配；该结果不是临床准确率。
 
-下一验收门：冻结 alpha.2 的数据卡和可复现报告，随后进入第 3 周“Evidence Packet 约束生成与引用校验”；在此之前不继续扩张医学覆盖面。
+alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续禁止扩张医学覆盖面，以免生成护栏和评测目标同时漂移。
+
+## V1 第 3 周：约束生成第一阶段
+
+- 新增 alpha.2 数据卡和 SHA-256 清单，冻结 4 个权威 JSON 文件与 9 条开发样例；
+- 新增严格 `ExplanationPlan` 和 `SafetyExplanation` 契约，额外字段一律拒绝；
+- Ollama 只看到结论状态、fact_id、风险类型和严重度，只能返回完整 fact_id 排序；
+- 用户可见陈述、严重度说明、来源 ID 和定位全部从 Evidence Fact 确定性复制；
+- 未知 ID、漏引、重复引用、结论篡改、额外医学字段和依赖故障均安全回退，且不向 API 暴露异常文本；
+- 非风险状态不调用 LLM；风险状态可通过 `use_llm_plan: false` 强制走确定性路径；
+- 新增 `POST /api/v1/safety/explain`，原确定性检查接口保持不变；
+- 当前只完成脚本化 planner 的护栏验证，尚未在真实 Ollama 模型上生成正式质量报告。
+
+下一验收门：建立锁定的生成安全测试集与可复现 runner；在真实 Ollama 可用时固定模型摘要和参数重复运行至少 3 次，并报告无证据陈述率、引用覆盖率、回退率与失败分类。
