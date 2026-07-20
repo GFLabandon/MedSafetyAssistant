@@ -93,6 +93,7 @@ class EvidenceGroundedExplainer:
                     fallback_reason = ExplanationFallbackReason.PLANNER_UNAVAILABLE
 
         claims = [self._claim_from_fact(fact) for fact in ordered_facts]
+        prompt_version = getattr(self.planner, "prompt_version", PROMPT_VERSION)
         return SafetyExplanation(
             conclusion_status=packet.conclusion_status,
             summary=self._summary(packet, len(claims)),
@@ -105,7 +106,7 @@ class EvidenceGroundedExplainer:
             missing_context=list(packet.missing_context),
             data_version=packet.data_version,
             generation_mode=mode,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=prompt_version,
             fallback_reason=fallback_reason,
         )
 

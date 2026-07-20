@@ -8,10 +8,12 @@ from statistics import median
 from typing import Any
 
 from medsafety.contracts import EvaluationCase
-from medsafety.explanation import EvidenceGroundedExplainer, PROMPT_VERSION
+from medsafety.explanation import (
+    EvidenceGroundedExplainer,
+    PROMPT_VERSION as EXPLANATION_CONTRACT_VERSION,
+)
 from medsafety.ollama_planner import OllamaExplanationPlanner, OllamaPlanAttempt
 from medsafety.safety_engine import SafetyEngine
-
 
 class _RecordedAttemptPlanner:
     def __init__(self, attempt: OllamaPlanAttempt):
@@ -30,6 +32,43 @@ def _percentile(values: list[float], percentile: float) -> float | None:
         return None
     ordered = sorted(values)
     return round(ordered[max(0, ceil(percentile * len(ordered)) - 1)], 3)
+
+
+def _plan_failure_details(
+    attempt: OllamaPlanAttempt,
+    expected_status: str,
+    expected_fact_ids: set[str],
+) -> dict[str, Any]:
+    if attempt.error_category is not None:
+        return {"failure_category": attempt.error_category}
+    payload = attempt.parsed_payload
+    if not isinstance(payload, dict):
+        return {"failure_category": "invalid_plan_shape"}
+    extra_fields = sorted(set(payload) - {"conclusion_status", "ordered_fact_ids"})
+    if extra_fields:
+        return {"failure_category": "extra_fields", "extra_fields": extra_fields}
+    if payload.get("conclusion_status") != expected_status:
+        return {
+            "failure_category": "conclusion_mismatch",
+            "model_conclusion_status": payload.get("conclusion_status"),
+        }
+    planned_ids = payload.get("ordered_fact_ids")
+    if not isinstance(planned_ids, list) or not all(
+        isinstance(item, str) for item in planned_ids
+    ):
+        return {"failure_category": "invalid_fact_id_list"}
+    duplicates = sorted({item for item in planned_ids if planned_ids.count(item) > 1})
+    unknown = sorted(set(planned_ids) - expected_fact_ids)
+    missing = sorted(expected_fact_ids - set(planned_ids))
+    if duplicates:
+        return {"failure_category": "duplicate_fact_ids", "duplicate_fact_ids": duplicates}
+    if unknown or missing:
+        return {
+            "failure_category": "fact_id_mismatch",
+            "unknown_fact_ids": unknown,
+            "missing_fact_ids": missing,
+        }
+    return {"failure_category": "contract_validation_error"}
 
 
 def evaluate_ollama_explanations(
@@ -59,6 +98,7 @@ def evaluate_ollama_explanations(
     valid_plans = 0
     fallbacks = 0
     plans_by_case: dict[str, list[tuple[str, ...]]] = {}
+    raw_plans_by_case: dict[str, list[str]] = {}
 
     for repetition in range(1, repetitions + 1):
         for case in case_list:
@@ -88,6 +128,12 @@ def evaluate_ollama_explanations(
                 planner_attempts += 1
                 attempt = planner.generate_attempt(packet)
                 latencies.append(attempt.latency_ms)
+                raw_plan_key = (
+                    str(attempt.parsed_payload)
+                    if attempt.parsed_payload is not None
+                    else str((attempt.error_category, attempt.raw_response))
+                )
+                raw_plans_by_case.setdefault(case.case_id, []).append(raw_plan_key)
                 explanation = EvidenceGroundedExplainer(
                     _RecordedAttemptPlanner(attempt)
                 ).explain(packet)
@@ -100,8 +146,7 @@ def evaluate_ollama_explanations(
                 plans_by_case.setdefault(case.case_id, []).append(plan_order)
             elif explanation.generation_mode.value == "deterministic_fallback":
                 fallbacks += 1
-                model_failures.append(
-                    {
+                failure = {
                         "repetition": repetition,
                         "case_id": case.case_id,
                         "fallback_reason": explanation.fallback_reason.value,
@@ -110,7 +155,15 @@ def evaluate_ollama_explanations(
                         ),
                         "attempt_error_type": attempt.error_type if attempt is not None else None,
                     }
-                )
+                if attempt is not None:
+                    failure.update(
+                        _plan_failure_details(
+                            attempt,
+                            packet.conclusion_status.value,
+                            packet_fact_ids,
+                        )
+                    )
+                model_failures.append(failure)
 
             facts_by_id = {fact.fact_id: fact for fact in packet.facts}
             actual_ids = {claim.fact_id for claim in explanation.claims}
@@ -178,9 +231,15 @@ def evaluate_ollama_explanations(
         if len(plans_by_case.get(case_id, [])) == repetitions
         and len(set(plans_by_case[case_id])) == 1
     )
+    raw_consistent_cases = sum(
+        1
+        for case_id in attempted_case_ids
+        if len(raw_plans_by_case.get(case_id, [])) == repetitions
+        and len(set(raw_plans_by_case[case_id])) == 1
+    )
     return {
         "runner": "ollama_explanation",
-        "prompt_version": PROMPT_VERSION,
+        "prompt_version": getattr(planner, "prompt_version", EXPLANATION_CONTRACT_VERSION),
         "dataset_cases": len(case_list),
         "repetitions": repetitions,
         "total_case_runs": total_runs,
@@ -190,7 +249,10 @@ def evaluate_ollama_explanations(
             "safety_engine_match_rate": engine_matches / total_runs if total_runs else 0.0,
             "valid_plan_rate": valid_plans / planner_attempts if planner_attempts else 1.0,
             "fallback_rate": fallbacks / planner_attempts if planner_attempts else 0.0,
-            "plan_consistency_rate": (
+            "raw_plan_consistency_rate": (
+                raw_consistent_cases / len(attempted_case_ids) if attempted_case_ids else 1.0
+            ),
+            "valid_plan_consistency_rate": (
                 consistent_cases / len(attempted_case_ids) if attempted_case_ids else 1.0
             ),
             "pipeline_pass_rate": pipeline_passes / total_runs if total_runs else 0.0,
@@ -247,7 +309,8 @@ def render_ollama_explanation_markdown(report: dict[str, Any], dataset_name: str
         "|---|---:|",
         f"| Valid plan rate | {metrics['valid_plan_rate']:.3f} |",
         f"| Fallback rate | {metrics['fallback_rate']:.3f} |",
-        f"| Plan consistency rate | {metrics['plan_consistency_rate']:.3f} |",
+        f"| Raw plan consistency rate | {metrics['raw_plan_consistency_rate']:.3f} |",
+        f"| Valid plan consistency rate | {metrics['valid_plan_consistency_rate']:.3f} |",
         f"| Pipeline pass rate | {metrics['pipeline_pass_rate']:.3f} |",
         f"| Conclusion preservation | {metrics['conclusion_preservation_rate']:.3f} |",
         f"| Fact reference coverage | {metrics['fact_reference_coverage']:.3f} |",

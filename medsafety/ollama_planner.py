@@ -10,7 +10,6 @@ from typing import Any
 import ollama
 
 from medsafety.contracts import EvidencePacket, ExplanationPlan
-from medsafety.explanation import PROMPT_VERSION
 
 
 DEFAULT_GENERATION_OPTIONS = {
@@ -18,6 +17,7 @@ DEFAULT_GENERATION_OPTIONS = {
     "seed": 42,
     "num_predict": 256,
 }
+OLLAMA_PROMPT_VERSION = "evidence-order-v2"
 
 
 def _response_field(response: Any, name: str):
@@ -53,6 +53,29 @@ class OllamaExplanationPlanner:
         self.model = model
         self.client = client or ollama.Client(host=host, timeout=timeout_seconds)
         self.options = dict(options or DEFAULT_GENERATION_OPTIONS)
+        self.prompt_version = OLLAMA_PROMPT_VERSION
+
+    @staticmethod
+    def build_output_schema(packet: EvidencePacket) -> dict[str, Any]:
+        fact_ids = [fact.fact_id for fact in packet.facts]
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["conclusion_status", "ordered_fact_ids"],
+            "properties": {
+                "conclusion_status": {
+                    "type": "string",
+                    "const": packet.conclusion_status.value,
+                },
+                "ordered_fact_ids": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": fact_ids},
+                    "minItems": len(fact_ids),
+                    "maxItems": len(fact_ids),
+                    "uniqueItems": True,
+                },
+            },
+        }
 
     @staticmethod
     def build_prompt(packet: EvidencePacket) -> str:
@@ -68,12 +91,14 @@ class OllamaExplanationPlanner:
             ],
         }
         return (
-            f"Prompt version: {PROMPT_VERSION}\n"
+            f"Prompt version: {OLLAMA_PROMPT_VERSION}\n"
             "You are an evidence ordering component, not a medical author. "
             "Return one JSON object with exactly two keys: conclusion_status and "
             "ordered_fact_ids. Preserve conclusion_status. Include every supplied fact_id "
             "exactly once, include no other ID, and order the most severe or actionable "
-            "evidence first. Do not output prose, advice, markdown, or new medical facts.\n"
+            "evidence first. Each fact_id is an opaque identifier: copy every character "
+            "exactly and never normalize hyphens, underscores, spelling, or case. Do not "
+            "output prose, advice, markdown, or new medical facts.\n"
             f"Evidence packet: {json.dumps(payload, ensure_ascii=False, sort_keys=True)}"
         )
 
@@ -83,7 +108,7 @@ class OllamaExplanationPlanner:
             response = self.client.generate(
                 model=self.model,
                 prompt=self.build_prompt(packet),
-                format="json",
+                format=self.build_output_schema(packet),
                 think=False,
                 options=self.options,
             )

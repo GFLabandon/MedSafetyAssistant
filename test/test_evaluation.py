@@ -133,6 +133,7 @@ def test_real_model_runner_repeats_and_records_raw_plans_without_network():
 
     class FakePlanner:
         options = {"temperature": 0, "seed": 42, "num_predict": 256}
+        prompt_version = "evidence-order-v2"
 
         def generate_attempt(self, packet):
             payload = {
@@ -164,7 +165,8 @@ def test_real_model_runner_repeats_and_records_raw_plans_without_network():
     assert report["planner_attempts"] == 15
     assert report["metrics"]["valid_plan_rate"] == 1.0
     assert report["metrics"]["fallback_rate"] == 0.0
-    assert report["metrics"]["plan_consistency_rate"] == 1.0
+    assert report["metrics"]["raw_plan_consistency_rate"] == 1.0
+    assert report["metrics"]["valid_plan_consistency_rate"] == 1.0
     assert report["metrics"]["pipeline_pass_rate"] == 1.0
     assert report["metrics"]["unsupported_claim_rate"] == 0.0
     assert report["metrics"]["planner_latency_ms_p50"] == 12.5

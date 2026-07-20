@@ -11,6 +11,7 @@ from medsafety.contracts import (
 from medsafety.explanation import EvidenceGroundedExplainer, PROMPT_VERSION
 from medsafety.ollama_planner import (
     DEFAULT_GENERATION_OPTIONS,
+    OLLAMA_PROMPT_VERSION,
     OllamaExplanationPlanner,
 )
 from medsafety.safety_engine import SafetyEngine
@@ -171,10 +172,17 @@ def test_ollama_adapter_requests_json_and_exposes_no_claim_text(two_fact_packet)
     assert plan.ordered_fact_ids[0] == (
         "fact-interaction-ibuprofen-aspirin-cardioprotection-001"
     )
-    assert client.kwargs["format"] == "json"
+    output_schema = client.kwargs["format"]
+    assert output_schema["additionalProperties"] is False
+    assert output_schema["properties"]["conclusion_status"]["const"] == "risk_found"
+    assert set(output_schema["properties"]["ordered_fact_ids"]["items"]["enum"]) == {
+        fact.fact_id for fact in two_fact_packet.facts
+    }
+    assert output_schema["properties"]["ordered_fact_ids"]["uniqueItems"] is True
     assert client.kwargs["options"] == DEFAULT_GENERATION_OPTIONS
     assert client.kwargs["think"] is False
-    assert PROMPT_VERSION in client.kwargs["prompt"]
+    assert OLLAMA_PROMPT_VERSION in client.kwargs["prompt"]
+    assert "opaque identifier" in client.kwargs["prompt"]
     assert "reason" not in client.kwargs["prompt"]
     assert "source_locator" not in client.kwargs["prompt"]
 
