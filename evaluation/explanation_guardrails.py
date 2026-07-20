@@ -6,8 +6,11 @@ from collections.abc import Iterable
 from typing import Any
 
 from medsafety.contracts import ExplanationGuardrailCase
-from medsafety.explanation import EvidenceGroundedExplainer, PROMPT_VERSION
+from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.safety_engine import SafetyEngine
+
+
+GUARDRAIL_VERSION = "explanation-guardrails-v2"
 
 
 class _ScriptedPlanner:
@@ -106,7 +109,7 @@ def evaluate_explanation_guardrails(
     total = len(case_list)
     return {
         "runner": "explanation_guardrails",
-        "prompt_version": PROMPT_VERSION,
+        "guardrail_version": GUARDRAIL_VERSION,
         "planner": "scripted_adversarial_fixtures",
         "dataset_cases": total,
         "metrics": {
@@ -144,7 +147,7 @@ def render_explanation_guardrails_markdown(
         f"Dataset: `{dataset_name}`",
         f"Data version: `{data_version}`",
         f"Dataset SHA-256: `{report['dataset_sha256']}`",
-        f"Prompt version: `{report['prompt_version']}`",
+        f"Guardrail version: `{report['guardrail_version']}`",
         f"Planner: `{report['planner']}`",
         f"Code commit: `{report['code_commit']}`",
         f"Working tree dirty at run: `{str(report['working_tree_dirty']).lower()}`",

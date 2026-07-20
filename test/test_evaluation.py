@@ -100,7 +100,7 @@ def test_explanation_guardrail_dataset_passes_all_scripted_attacks():
     report = evaluate_explanation_guardrails(cases, SafetyEngine(catalog))
 
     assert len(cases) == 10
-    assert report["prompt_version"] == "evidence-order-v1"
+    assert report["guardrail_version"] == "explanation-guardrails-v2"
     assert report["metrics"]["case_pass_rate"] == 1.0
     assert report["metrics"]["conclusion_preservation_rate"] == 1.0
     assert report["metrics"]["fact_reference_coverage"] == 1.0
