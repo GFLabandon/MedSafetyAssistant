@@ -4,8 +4,9 @@ from pathlib import Path
 import pytest
 
 from evaluation.cypher_inventory import parse_legacy_risk_facts
-from evaluation.dataset import load_cases
+from evaluation.dataset import load_cases, load_explanation_guardrail_cases
 from evaluation.entity_baseline import evaluate_entity_extractor
+from evaluation.explanation_guardrails import evaluate_explanation_guardrails
 from evaluation.safety_engine_baseline import evaluate_safety_engine
 from logic_layer.entity_utils import exact_entity_extraction
 from medsafety.catalog import KnowledgeCatalog
@@ -80,3 +81,22 @@ def test_source_aligned_safety_engine_dataset_matches_current_engine():
     assert saved_report["dataset_cases"] == len(cases)
     assert saved_report["metrics"] == report["metrics"]
     assert saved_report["failures"] == report["failures"]
+
+
+def test_explanation_guardrail_dataset_passes_all_scripted_attacks():
+    cases = load_explanation_guardrail_cases(
+        REPOSITORY_ROOT / "eval/explanation_guardrails_v1.jsonl"
+    )
+    catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
+
+    report = evaluate_explanation_guardrails(cases, SafetyEngine(catalog))
+
+    assert len(cases) == 9
+    assert report["prompt_version"] == "evidence-order-v1"
+    assert report["metrics"]["case_pass_rate"] == 1.0
+    assert report["metrics"]["conclusion_preservation_rate"] == 1.0
+    assert report["metrics"]["fact_reference_coverage"] == 1.0
+    assert report["metrics"]["extractive_claim_rate"] == 1.0
+    assert report["metrics"]["source_traceability_rate"] == 1.0
+    assert report["metrics"]["unsupported_claim_rate"] == 0.0
+    assert report["failures"] == []

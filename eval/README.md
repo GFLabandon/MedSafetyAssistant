@@ -18,7 +18,7 @@
 
 校验规则由 `medsafety.contracts.EvaluationCase` 定义。正式 test split 将在来源对齐并按 fact_id 分组后建立，防止同一事实的改写跨 split 泄漏。
 
-`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，只覆盖 V1 alpha.1 的两个事实。运行：
+`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，覆盖 V1 alpha.2 的 3 条事实。运行：
 
 ```bash
 /opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
@@ -29,3 +29,15 @@
 ```
 
 该开发集用于确定性回归，不是锁定测试集，也不代表临床准确率。
+
+`explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/explanation_guardrails_v1.jsonl \
+  --runner explanation_guardrails \
+  --data-dir data/v1 \
+  --format markdown
+```
+
+这是服务端护栏的对抗性回归集，不调用真实模型，也不表示模型或临床质量。

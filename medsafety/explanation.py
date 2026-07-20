@@ -76,12 +76,19 @@ class EvidenceGroundedExplainer:
                     plan = ExplanationPlan.model_validate(self.planner.plan(packet))
                     ordered_facts = self._validate_and_apply_plan(packet, plan)
                     mode = ExplanationGenerationMode.LLM_PLANNED
-                except (InvalidExplanationPlan, ValidationError, TypeError, ValueError):
-                    logger.warning("explanation planner returned an invalid plan", exc_info=True)
+                except (InvalidExplanationPlan, ValidationError, TypeError, ValueError) as exc:
+                    logger.info(
+                        "explanation planner returned an invalid plan (%s)",
+                        type(exc).__name__,
+                    )
                     mode = ExplanationGenerationMode.DETERMINISTIC_FALLBACK
                     fallback_reason = ExplanationFallbackReason.INVALID_PLAN
-                except Exception:
-                    logger.warning("explanation planner unavailable", exc_info=True)
+                except Exception as exc:
+                    logger.warning(
+                        "explanation planner unavailable (%s)",
+                        type(exc).__name__,
+                    )
+                    logger.debug("explanation planner failure detail", exc_info=True)
                     mode = ExplanationGenerationMode.DETERMINISTIC_FALLBACK
                     fallback_reason = ExplanationFallbackReason.PLANNER_UNAVAILABLE
 

@@ -304,3 +304,32 @@ class EvaluationCase(StrictModel):
         if self.label_status != LabelStatus.LEGACY_UNREVIEWED and self.expected.conclusion_status is None:
             raise ValueError("reviewed evaluation labels require an expected conclusion")
         return self
+
+
+class ExplanationGuardrailCase(StrictModel):
+    """Scripted planner output used to regression-test generation guardrails."""
+
+    case_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    medications: list[str] = Field(min_length=1)
+    contexts: list[str] = Field(default_factory=list)
+    use_llm_plan: bool = True
+    planner_result: dict[str, Any] | str | None = None
+    planner_error: bool = False
+    expected_generation_mode: ExplanationGenerationMode
+    expected_fallback_reason: ExplanationFallbackReason | None = None
+
+    @model_validator(mode="after")
+    def fixture_and_expectation_are_consistent(self):
+        if self.planner_error and self.planner_result is not None:
+            raise ValueError("planner error cases cannot also define a planner result")
+        if (
+            self.expected_generation_mode == ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.expected_fallback_reason is None
+        ):
+            raise ValueError("expected fallback mode requires a fallback reason")
+        if (
+            self.expected_generation_mode != ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.expected_fallback_reason is not None
+        ):
+            raise ValueError("fallback reason is only valid for expected fallback mode")
+        return self
