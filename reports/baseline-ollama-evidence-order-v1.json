@@ -1,0 +1,53 @@
+{
+  "runner": "ollama_explanation",
+  "code_commit": "5e8103d12e50886592c52c17f0ad01af879b52f5",
+  "working_tree_dirty": false,
+  "data_version": "v1.0.0-alpha.2",
+  "dataset": "eval/explanation_model_dev_v1.jsonl",
+  "dataset_cases": 7,
+  "dataset_sha256": "84a531667a8c1dd3b94324ec9ae849b30c2d58512de3fa16bf08364a6e379893",
+  "prompt_version": "evidence-order-v1",
+  "model": {
+    "name": "deepseek-r1:1.5b",
+    "digest": "e0979632db5a88d1a53884cb2a941772d10ff5d055aabaa6801c4e36f3a6c2d7",
+    "parameter_size": "1.8B",
+    "quantization_level": "Q4_K_M"
+  },
+  "ollama_package_version": "0.6.2",
+  "generation_options": {
+    "temperature": 0,
+    "seed": 42,
+    "num_predict": 256,
+    "think": false,
+    "format": "json"
+  },
+  "repetitions": 3,
+  "total_case_runs": 21,
+  "planner_attempts": 15,
+  "metrics": {
+    "valid_plan_rate": 0.6,
+    "fallback_rate": 0.4,
+    "valid_plan_consistency_rate": 0.6,
+    "pipeline_pass_rate": 1.0,
+    "conclusion_preservation_rate": 1.0,
+    "fact_reference_coverage": 1.0,
+    "extractive_claim_rate": 1.0,
+    "source_traceability_rate": 1.0,
+    "unsupported_claim_rate": 0.0,
+    "planner_latency_ms_p50": 1374.098,
+    "planner_latency_ms_p95": 1794.486
+  },
+  "failure_summary": {
+    "invalid_plans": 6,
+    "affected_cases": [
+      "model_duplicate_products",
+      "model_prompt_injection_isolated"
+    ],
+    "category": "fact_id_character_substitution",
+    "expected_fact_id": "fact-duplicate-acetaminophen-001",
+    "model_fact_id": "fact-duplicate_acetaminophen-001"
+  },
+  "pipeline_failures": [],
+  "raw_plan_log": "reports/raw/ollama-evidence-order-v1-plans.jsonl",
+  "interpretation_boundary": "Real local model planning over a small development probe; not clinical quality or a locked test-set result."
+}

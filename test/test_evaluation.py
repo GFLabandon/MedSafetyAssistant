@@ -173,3 +173,34 @@ def test_real_model_runner_repeats_and_records_raw_plans_without_network():
         for record in report["records"]
         if record["attempt"] is not None
     )
+
+
+def test_saved_real_model_v1_baseline_and_raw_plans_are_consistent():
+    dataset_path = REPOSITORY_ROOT / "eval/explanation_model_dev_v1.jsonl"
+    report = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-ollama-evidence-order-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    raw_records = [
+        json.loads(line)
+        for line in (
+            REPOSITORY_ROOT / "reports/raw/ollama-evidence-order-v1-plans.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert report["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    assert report["model"]["digest"] == (
+        "e0979632db5a88d1a53884cb2a941772d10ff5d055aabaa6801c4e36f3a6c2d7"
+    )
+    assert report["planner_attempts"] == len(raw_records) == 15
+    assert report["metrics"]["valid_plan_rate"] == 0.6
+    assert report["metrics"]["fallback_rate"] == 0.4
+    assert report["metrics"]["pipeline_pass_rate"] == 1.0
+    assert report["metrics"]["unsupported_claim_rate"] == 0.0
+    assert sum(
+        record["generation_mode"] == "deterministic_fallback"
+        for record in raw_records
+    ) == report["failure_summary"]["invalid_plans"] == 6
+    assert all(json.loads(record["raw_response"]) for record in raw_records)
