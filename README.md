@@ -76,6 +76,15 @@ curl -X POST http://localhost:8000/api/v1/safety/check \
 
 导入器会先验证 JSON catalog，再通过唯一约束、参数化查询和 `MERGE` 写入 `Safety*` 命名空间。重复运行不会创建重复节点或关系；脚本成功时输出数据版本和写入对象计数，连接失败时返回退出码 `3`，不会把驱动 traceback 暴露为普通输出。
 
+真实 Neo4j 集成验收使用独立端口和临时数据，不接触默认开发数据库：
+
+```bash
+MEDSAFETY_PYTHON=/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python \
+  bash scripts/test_neo4j_integration.sh
+```
+
+该测试会在隔离实例中连续导入两次，核对节点和关系计数不变，并比较 JSON 与 Neo4j Repository 在五类 Safety Engine 场景中的完整 `EvidencePacket`。脚本无论成功或失败都会停止并移除专用测试容器与网络；镜像和已有 Docker 卷不受影响。
+
 ### Frontend
 
 ```bash
