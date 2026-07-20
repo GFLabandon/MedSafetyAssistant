@@ -301,3 +301,32 @@ def test_opaque_id_runner_repeats_locked_cases_without_network():
     assert report["metrics"]["raw_plan_consistency_rate"] == 1.0
     assert report["failures"] == []
     assert report["ordering_failures"] == []
+
+
+def test_saved_locked_opaque_id_report_preserves_failures_and_raw_plans():
+    dataset_path = REPOSITORY_ROOT / "eval/opaque_id_test_v1.jsonl"
+    report = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-ollama-opaque-id-test-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    raw_records = [
+        json.loads(line)
+        for line in (
+            REPOSITORY_ROOT / "reports/raw/ollama-opaque-id-test-v1-plans.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert report["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    assert report["code_commit"] == "2f40fbda211f79aba6569acbc9d96a1b14283f6f"
+    assert report["planner_attempts"] == len(raw_records) == 36
+    assert report["metrics"]["valid_plan_rate"] == pytest.approx(30 / 36)
+    assert report["metrics"]["exact_severity_order_rate"] == pytest.approx(24 / 36)
+    assert report["metrics"]["character_exact_reference_rate"] == 0.9
+    assert report["metrics"]["raw_plan_consistency_rate"] == 1.0
+    assert sum(not record["valid_plan"] for record in raw_records) == 6
+    assert sum(not record["exact_order"] for record in raw_records) == 12
+    assert report["failure_summary"]["invalid_plans"] == 6
+    assert report["failure_summary"]["ordering_failures"] == 6
+    assert all(json.loads(record["raw_response"]) for record in raw_records)
