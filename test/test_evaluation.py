@@ -93,13 +93,13 @@ def test_source_aligned_safety_engine_dataset_matches_current_engine():
 
 def test_explanation_guardrail_dataset_passes_all_scripted_attacks():
     cases = load_explanation_guardrail_cases(
-        REPOSITORY_ROOT / "eval/explanation_guardrails_v1.jsonl"
+        REPOSITORY_ROOT / "eval/explanation_guardrails_v2.jsonl"
     )
     catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
 
     report = evaluate_explanation_guardrails(cases, SafetyEngine(catalog))
 
-    assert len(cases) == 9
+    assert len(cases) == 10
     assert report["prompt_version"] == "evidence-order-v1"
     assert report["metrics"]["case_pass_rate"] == 1.0
     assert report["metrics"]["conclusion_preservation_rate"] == 1.0
@@ -110,11 +110,10 @@ def test_explanation_guardrail_dataset_passes_all_scripted_attacks():
     assert report["failures"] == []
 
 
-def test_saved_explanation_guardrail_report_matches_runner():
+def test_saved_explanation_guardrail_v1_report_remains_historical_and_immutable():
     dataset_path = REPOSITORY_ROOT / "eval/explanation_guardrails_v1.jsonl"
     cases = load_explanation_guardrail_cases(dataset_path)
     catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
-    report = evaluate_explanation_guardrails(cases, SafetyEngine(catalog))
     saved_report = json.loads(
         (REPOSITORY_ROOT / "reports/baseline-explanation-guardrails-v1.json").read_text(
             encoding="utf-8"
@@ -125,10 +124,10 @@ def test_saved_explanation_guardrail_report_matches_runner():
     assert saved_report["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
     assert saved_report["data_version"] == catalog.data_version
     assert saved_report["dataset_cases"] == len(cases)
-    assert saved_report["prompt_version"] == report["prompt_version"]
-    assert saved_report["planner"] == report["planner"]
-    assert saved_report["metrics"] == report["metrics"]
-    assert saved_report["failures"] == report["failures"]
+    assert saved_report["prompt_version"] == "evidence-order-v1"
+    assert saved_report["planner"] == "scripted_adversarial_fixtures"
+    assert saved_report["metrics"]["case_pass_rate"] == 1.0
+    assert saved_report["failures"] == []
     assert saved_report["working_tree_dirty"] is False
 
 

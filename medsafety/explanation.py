@@ -126,7 +126,11 @@ class EvidenceGroundedExplainer:
             raise InvalidExplanationPlan("planner omitted or invented fact IDs")
 
         by_id = {fact.fact_id: fact for fact in packet.facts}
-        return [by_id[fact_id] for fact_id in planned_ids]
+        ordered_facts = [by_id[fact_id] for fact_id in planned_ids]
+        priorities = [_SEVERITY_PRIORITY[fact.severity] for fact in ordered_facts]
+        if priorities != sorted(priorities):
+            raise InvalidExplanationPlan("planner violated severity ordering")
+        return ordered_facts
 
     @staticmethod
     def _deterministic_order(facts: list[EvidenceFact]) -> list[EvidenceFact]:

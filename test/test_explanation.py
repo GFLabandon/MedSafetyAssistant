@@ -46,24 +46,56 @@ def two_fact_packet(engine):
     )
 
 
-def test_valid_plan_can_only_reorder_complete_evidence(two_fact_packet):
-    expected_ids = [fact.fact_id for fact in two_fact_packet.facts]
+def test_valid_plan_must_preserve_complete_evidence_in_severity_order(two_fact_packet):
+    expected_ids = [
+        fact.fact_id
+        for fact in sorted(
+            two_fact_packet.facts,
+            key=lambda fact: {"FATAL": 0, "RED": 1, "ORANGE": 2, "INFO": 3}[
+                fact.severity.value
+            ],
+        )
+    ]
     planner = ScriptedPlanner(
         {
             "conclusion_status": "risk_found",
-            "ordered_fact_ids": list(reversed(expected_ids)),
+            "ordered_fact_ids": expected_ids,
         }
     )
 
     result = EvidenceGroundedExplainer(planner).explain(two_fact_packet)
 
     assert result.generation_mode == ExplanationGenerationMode.LLM_PLANNED
-    assert [claim.fact_id for claim in result.claims] == list(reversed(expected_ids))
+    assert [claim.fact_id for claim in result.claims] == expected_ids
     facts_by_id = {fact.fact_id: fact for fact in two_fact_packet.facts}
     assert all(claim.statement == facts_by_id[claim.fact_id].reason for claim in result.claims)
     assert all(claim.source_ids == facts_by_id[claim.fact_id].source_ids for claim in result.claims)
     assert result.prompt_version == PROMPT_VERSION
     assert result.fallback_reason is None
+
+
+def test_plan_with_lower_severity_first_falls_back(two_fact_packet):
+    severity_ordered_ids = [
+        fact.fact_id
+        for fact in sorted(
+            two_fact_packet.facts,
+            key=lambda fact: {"FATAL": 0, "RED": 1, "ORANGE": 2, "INFO": 3}[
+                fact.severity.value
+            ],
+        )
+    ]
+    planner = ScriptedPlanner(
+        {
+            "conclusion_status": "risk_found",
+            "ordered_fact_ids": list(reversed(severity_ordered_ids)),
+        }
+    )
+
+    result = EvidenceGroundedExplainer(planner).explain(two_fact_packet)
+
+    assert result.generation_mode == ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+    assert result.fallback_reason == ExplanationFallbackReason.INVALID_PLAN
+    assert [claim.fact_id for claim in result.claims] == severity_ordered_ids
 
 
 @pytest.mark.parametrize(
