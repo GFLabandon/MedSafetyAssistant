@@ -90,6 +90,26 @@ class ApiContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SafetyCheckRequest(medications=[" "])
 
+    def test_v1_safety_check_serializes_knowledge_unavailable(self):
+        from api import SafetyCheckRequest, check_v1_safety
+        from medsafety.contracts import ConclusionStatus, EvidencePacket
+
+        unavailable = EvidencePacket(
+            conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
+            limitations=["用药安全知识库当前不可用，系统未进行风险判断，请稍后重试。"],
+        )
+        engine = unittest.mock.Mock()
+        engine.assess.return_value = unavailable
+
+        with patch("api.get_safety_engine", return_value=engine):
+            response = asyncio.run(
+                check_v1_safety(SafetyCheckRequest(medications=["泰诺"]))
+            )
+
+        self.assertEqual(response["conclusion_status"], "knowledge_unavailable")
+        self.assertIsNone(response["data_version"])
+        self.assertEqual(response["facts"], [])
+
     def test_unhandled_error_does_not_expose_exception_or_traceback(self):
         from api import unhandled_exception_handler
 

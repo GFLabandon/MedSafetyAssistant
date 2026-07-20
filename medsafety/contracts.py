@@ -150,7 +150,7 @@ class EvidencePacket(StrictModel):
     resolved_medications: list[str] = Field(default_factory=list)
     unresolved_inputs: list[str] = Field(default_factory=list)
     missing_context: list[str] = Field(default_factory=list)
-    data_version: str = Field(min_length=1)
+    data_version: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def risk_conclusions_require_facts(self):
@@ -158,6 +158,11 @@ class EvidencePacket(StrictModel):
             raise ValueError("risk_found requires at least one evidence fact")
         if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.facts:
             raise ValueError("non-risk conclusions must not contain risk facts")
+        if (
+            self.conclusion_status != ConclusionStatus.KNOWLEDGE_UNAVAILABLE
+            and self.data_version is None
+        ):
+            raise ValueError("available knowledge conclusions require a data version")
         return self
 
 

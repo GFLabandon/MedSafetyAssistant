@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from itertools import combinations
 
 from medsafety.contracts import (
@@ -11,7 +12,10 @@ from medsafety.contracts import (
     FactRecord,
     MedicationRecord,
 )
-from medsafety.repositories import KnowledgeRepository
+from medsafety.repositories import KnowledgeRepository, KnowledgeUnavailableError
+
+
+logger = logging.getLogger(__name__)
 
 
 class SafetyEngine:
@@ -19,6 +23,22 @@ class SafetyEngine:
         self.repository = repository
 
     def assess(self, medication_names: list[str], contexts: list[str] | None = None) -> EvidencePacket:
+        try:
+            return self._assess(medication_names, contexts=contexts)
+        except KnowledgeUnavailableError:
+            logger.warning("safety knowledge repository unavailable", exc_info=True)
+            return EvidencePacket(
+                conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
+                limitations=["用药安全知识库当前不可用，系统未进行风险判断，请稍后重试。"],
+                unresolved_inputs=list(dict.fromkeys(medication_names)),
+                data_version=None,
+            )
+
+    def _assess(
+        self,
+        medication_names: list[str],
+        contexts: list[str] | None = None,
+    ) -> EvidencePacket:
         context_set = {item.strip() for item in (contexts or []) if item.strip()}
         resolved: list[MedicationRecord] = []
         unresolved: list[str] = []

@@ -10,8 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from neo4j.exceptions import DriverError, Neo4jError
+from pydantic import ValidationError
+
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.contracts import FactRecord, MedicationRecord
+from medsafety.repositories import KnowledgeUnavailableError
 
 
 _SNAPSHOT_NAME = "source-aligned-v1"
@@ -227,7 +231,7 @@ class Neo4jKnowledgeRepository:
     def data_version(self) -> str:
         record = self._single(_DATA_VERSION, snapshot_name=_SNAPSHOT_NAME)
         if record is None or not record.get("data_version"):
-            raise LookupError("Neo4j safety knowledge snapshot is not initialized")
+            raise KnowledgeUnavailableError("Neo4j safety knowledge snapshot is not initialized")
         return str(record["data_version"])
 
     def resolve_medication(self, value: str) -> MedicationRecord | None:
@@ -237,15 +241,17 @@ class Neo4jKnowledgeRepository:
         )
         if record is None:
             return None
-        return MedicationRecord.model_validate(
-            _contract_properties(MedicationRecord, record["medication"])
-        )
+        medication = self._validate_record(MedicationRecord, record, "medication")
+        self._require_current_version(medication.data_version)
+        return medication
 
     def duplicate_fact_for(self, ingredient: str) -> FactRecord | None:
         record = self._single(_DUPLICATE_FACT, ingredient=ingredient)
         if record is None:
             return None
-        return FactRecord.model_validate(_contract_properties(FactRecord, record["fact"]))
+        fact = self._validate_record(FactRecord, record, "fact")
+        self._require_current_version(fact.data_version)
+        return fact
 
     def interaction_facts_for(self, left: set[str], right: set[str]) -> list[FactRecord]:
         records = self._all(
@@ -253,18 +259,37 @@ class Neo4jKnowledgeRepository:
             left=sorted(left),
             right=sorted(right),
         )
-        return [
-            FactRecord.model_validate(_contract_properties(FactRecord, record["fact"]))
-            for record in records
-        ]
+        facts = [self._validate_record(FactRecord, record, "fact") for record in records]
+        for fact in facts:
+            self._require_current_version(fact.data_version)
+        return facts
+
+    def _require_current_version(self, record_version: str) -> None:
+        if record_version != self.data_version:
+            raise KnowledgeUnavailableError("Neo4j safety knowledge contains mixed data versions")
+
+    @staticmethod
+    def _validate_record(model_type: Any, record: dict[str, Any], key: str):
+        try:
+            return model_type.model_validate(_contract_properties(model_type, record[key]))
+        except (KeyError, TypeError, ValidationError) as exc:
+            raise KnowledgeUnavailableError(
+                "Neo4j safety knowledge contains an invalid record"
+            ) from exc
 
     def _single(self, query: str, **parameters: Any) -> dict[str, Any] | None:
-        with self._driver.session(database=self._database) as session:
-            result = session.run(query, **parameters)
-            record = result.single()
-            return dict(record) if record is not None else None
+        try:
+            with self._driver.session(database=self._database) as session:
+                result = session.run(query, **parameters)
+                record = result.single()
+                return dict(record) if record is not None else None
+        except (DriverError, Neo4jError) as exc:
+            raise KnowledgeUnavailableError("Neo4j safety knowledge query failed") from exc
 
     def _all(self, query: str, **parameters: Any) -> list[dict[str, Any]]:
-        with self._driver.session(database=self._database) as session:
-            result: Iterable[Any] = session.run(query, **parameters)
-            return [dict(record) for record in result]
+        try:
+            with self._driver.session(database=self._database) as session:
+                result: Iterable[Any] = session.run(query, **parameters)
+                return [dict(record) for record in result]
+        except (DriverError, Neo4jError) as exc:
+            raise KnowledgeUnavailableError("Neo4j safety knowledge query failed") from exc

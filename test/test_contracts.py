@@ -86,3 +86,17 @@ def test_non_risk_packet_can_be_empty_and_explain_limitations():
         data_version="v1",
     )
     assert packet.facts == []
+
+
+def test_only_knowledge_unavailable_can_omit_data_version():
+    packet = EvidencePacket(
+        conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
+        limitations=["知识库不可用"],
+    )
+
+    assert packet.data_version is None
+
+    with pytest.raises(ValidationError, match="require a data version"):
+        EvidencePacket(
+            conclusion_status=ConclusionStatus.NO_KNOWN_RISK_IN_SCOPE,
+        )

@@ -6,6 +6,7 @@ import pytest
 from medsafety.catalog import CatalogValidationError, KnowledgeCatalog
 from medsafety.contracts import ConclusionStatus, RiskType
 from medsafety.safety_engine import SafetyEngine
+from medsafety.repositories import KnowledgeUnavailableError
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -94,3 +95,27 @@ def test_catalog_rejects_unknown_source_reference(tmp_path):
 
     with pytest.raises(CatalogValidationError, match="unknown sources"):
         KnowledgeCatalog.from_directory(tmp_path)
+
+
+def test_repository_failure_never_becomes_no_known_risk():
+    class UnavailableRepository:
+        @property
+        def data_version(self):
+            raise KnowledgeUnavailableError("private database detail")
+
+        def resolve_medication(self, _value):
+            raise KnowledgeUnavailableError("private database detail")
+
+        def duplicate_fact_for(self, _ingredient):
+            raise AssertionError("not reached")
+
+        def interaction_facts_for(self, _left, _right):
+            raise AssertionError("not reached")
+
+    result = SafetyEngine(UnavailableRepository()).assess(["泰诺"])
+
+    assert result.conclusion_status == ConclusionStatus.KNOWLEDGE_UNAVAILABLE
+    assert result.data_version is None
+    assert result.facts == []
+    assert result.unresolved_inputs == ["泰诺"]
+    assert "private database detail" not in " ".join(result.limitations)

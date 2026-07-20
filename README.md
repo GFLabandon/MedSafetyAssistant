@@ -49,6 +49,8 @@ API endpoints:
 
 它会返回 `risk_found`、`no_known_risk_in_scope`、`insufficient_information`、`out_of_scope` 或 `knowledge_unavailable`，并返回 `fact_id`、`source_id`、来源定位、数据版本和限制。
 
+当知识库连接失败、快照未初始化、记录不符合严格契约或同一查询读到混合数据版本时，Safety Engine 返回 `knowledge_unavailable`，且 `data_version` 为 `null`。该状态禁止解释为“未发现风险”；内部异常只进入服务端日志，不进入 API 响应。
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/safety/check \
   -H 'Content-Type: application/json' \

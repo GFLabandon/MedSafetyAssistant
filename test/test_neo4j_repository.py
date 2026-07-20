@@ -3,9 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+import pytest
+from neo4j.exceptions import ServiceUnavailable
+
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.contracts import ConclusionStatus
 from medsafety.neo4j_repository import Neo4jCatalogImporter, Neo4jKnowledgeRepository
+from medsafety.repositories import KnowledgeUnavailableError
 from medsafety.safety_engine import SafetyEngine
 
 
@@ -145,3 +149,51 @@ def test_neo4j_repository_returns_none_for_unknown_medication():
     repository = Neo4jKnowledgeRepository(FakeDriver(responder))
 
     assert repository.resolve_medication("不存在") is None
+
+
+def test_neo4j_repository_rejects_missing_snapshot():
+    repository = Neo4jKnowledgeRepository(FakeDriver())
+
+    with pytest.raises(KnowledgeUnavailableError, match="not initialized"):
+        _ = repository.data_version
+
+
+def test_neo4j_repository_rejects_mixed_data_versions():
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    medication = catalog.medications["medication-tyno-cold-tablet-cn"].model_dump(mode="json")
+
+    def responder(query: str, _parameters: dict[str, Any]):
+        if "RETURN properties(medication)" in query:
+            return [{"medication": medication}]
+        if "SafetyKnowledgeSnapshot" in query:
+            return [{"data_version": "v1.0.0-alpha.2"}]
+        raise AssertionError(f"unexpected query: {query}")
+
+    repository = Neo4jKnowledgeRepository(FakeDriver(responder))
+
+    with pytest.raises(KnowledgeUnavailableError, match="mixed data versions"):
+        repository.resolve_medication("泰诺")
+
+
+def test_neo4j_repository_rejects_invalid_projection_record():
+    def responder(query: str, _parameters: dict[str, Any]):
+        if "RETURN properties(medication)" in query:
+            return [{"medication": {"medication_id": "broken-record"}}]
+        raise AssertionError(f"unexpected query: {query}")
+
+    repository = Neo4jKnowledgeRepository(FakeDriver(responder))
+
+    with pytest.raises(KnowledgeUnavailableError, match="invalid record"):
+        repository.resolve_medication("泰诺")
+
+
+def test_neo4j_repository_wraps_driver_errors_without_exposing_them_to_engine():
+    def responder(_query: str, _parameters: dict[str, Any]):
+        raise ServiceUnavailable("private bolt address")
+
+    repository = Neo4jKnowledgeRepository(FakeDriver(responder))
+    result = SafetyEngine(repository).assess(["泰诺"])
+
+    assert result.conclusion_status == ConclusionStatus.KNOWLEDGE_UNAVAILABLE
+    assert result.data_version is None
+    assert "private bolt address" not in " ".join(result.limitations)

@@ -14,12 +14,12 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 47 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 54 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
-| Neo4j 集成 | 1 passed，47 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
+| Neo4j 集成 | 1 passed，54 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 
 外部依赖未运行，因此本阶段只发布离线、可复现的规则实体抽取基线。不得将依赖缺失时的全链路输出称为模型或系统质量结果。
 
@@ -104,5 +104,8 @@
 - 使用官方 Neo4j 5.26.28 镜像和 tmpfs 数据目录完成真实集成测试，测试后容器与网络已移除；
 - 对同一 catalog 连续导入两次，节点与关系计数保持一致：6 Source、4 Medication、10 Ingredient、2 Fact、1 Snapshot、11 条成分关系和 10 条来源关系；
 - JSON 与 Neo4j Repository 在重复成分、条件不足、条件相互作用、单药未命中和未知药品五类场景中返回完全一致的 `EvidencePacket`。
+- Neo4j 连接失败、快照缺失、记录损坏或数据版本不一致会转换为受控的 Repository 不可用错误；
+- Safety Engine 将上述错误映射为 `knowledge_unavailable`，返回 `data_version: null`，不泄露内部异常，也不会错误返回 `no_known_risk_in_scope`；
+- API 契约测试已覆盖该状态的 JSON 序列化。
 
-下一验收门：补齐禁忌症事实与确定性规则，并为 Neo4j 不可用、知识快照未初始化和数据版本不一致定义稳定的 `knowledge_unavailable` 应用层映射。
+下一验收门：单独完成禁忌症事实的来源审计，再实现条件/疾病上下文输入契约与确定性禁忌规则；在来源未核验前不从旧图谱迁移医学结论。

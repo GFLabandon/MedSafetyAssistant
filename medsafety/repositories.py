@@ -7,6 +7,10 @@ from typing import Protocol
 from medsafety.contracts import FactRecord, MedicationRecord
 
 
+class KnowledgeUnavailableError(RuntimeError):
+    """Raised when a repository cannot provide one trustworthy snapshot."""
+
+
 class KnowledgeRepository(Protocol):
     """Read-only access to reviewed, source-aligned safety knowledge."""
 
