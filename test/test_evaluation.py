@@ -8,10 +8,12 @@ from evaluation.cypher_inventory import parse_legacy_risk_facts
 from evaluation.dataset import load_cases, load_explanation_guardrail_cases
 from evaluation.entity_baseline import evaluate_entity_extractor
 from evaluation.explanation_guardrails import evaluate_explanation_guardrails
+from evaluation.ollama_explanation import evaluate_ollama_explanations
 from evaluation.safety_engine_baseline import evaluate_safety_engine
 from logic_layer.entity_utils import exact_entity_extraction
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.safety_engine import SafetyEngine
+from medsafety.ollama_planner import OllamaPlanAttempt
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -123,3 +125,51 @@ def test_saved_explanation_guardrail_report_matches_runner():
     assert saved_report["metrics"] == report["metrics"]
     assert saved_report["failures"] == report["failures"]
     assert saved_report["working_tree_dirty"] is False
+
+
+def test_real_model_runner_repeats_and_records_raw_plans_without_network():
+    cases = load_cases(REPOSITORY_ROOT / "eval/explanation_model_dev_v1.jsonl")
+    catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
+
+    class FakePlanner:
+        options = {"temperature": 0, "seed": 42, "num_predict": 256}
+
+        def generate_attempt(self, packet):
+            payload = {
+                "conclusion_status": packet.conclusion_status.value,
+                "ordered_fact_ids": [fact.fact_id for fact in packet.facts],
+            }
+            return OllamaPlanAttempt(
+                raw_response=json.dumps(payload, ensure_ascii=False),
+                parsed_payload=payload,
+                latency_ms=12.5,
+                error_category=None,
+                error_type=None,
+                response_metadata={"eval_count": 8},
+            )
+
+        def plan(self, packet):
+            raise AssertionError("non-risk cases must not call the planner")
+
+    report = evaluate_ollama_explanations(
+        cases,
+        SafetyEngine(catalog),
+        FakePlanner(),
+        repetitions=3,
+    )
+
+    assert len(cases) == 7
+    assert report["repetitions"] == 3
+    assert report["total_case_runs"] == 21
+    assert report["planner_attempts"] == 15
+    assert report["metrics"]["valid_plan_rate"] == 1.0
+    assert report["metrics"]["fallback_rate"] == 0.0
+    assert report["metrics"]["plan_consistency_rate"] == 1.0
+    assert report["metrics"]["pipeline_pass_rate"] == 1.0
+    assert report["metrics"]["unsupported_claim_rate"] == 0.0
+    assert report["metrics"]["planner_latency_ms_p50"] == 12.5
+    assert all(
+        record["attempt"]["raw_response"]
+        for record in report["records"]
+        if record["attempt"] is not None
+    )
