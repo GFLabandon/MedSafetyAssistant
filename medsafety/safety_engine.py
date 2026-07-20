@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from itertools import combinations
 
-from medsafety.catalog import KnowledgeCatalog
 from medsafety.contracts import (
     ConclusionStatus,
     EvidenceFact,
@@ -12,11 +11,12 @@ from medsafety.contracts import (
     FactRecord,
     MedicationRecord,
 )
+from medsafety.repositories import KnowledgeRepository
 
 
 class SafetyEngine:
-    def __init__(self, catalog: KnowledgeCatalog):
-        self.catalog = catalog
+    def __init__(self, repository: KnowledgeRepository):
+        self.repository = repository
 
     def assess(self, medication_names: list[str], contexts: list[str] | None = None) -> EvidencePacket:
         context_set = {item.strip() for item in (contexts or []) if item.strip()}
@@ -25,7 +25,7 @@ class SafetyEngine:
         seen_medication_ids: set[str] = set()
 
         for raw_name in medication_names:
-            medication = self.catalog.resolve_medication(raw_name)
+            medication = self.repository.resolve_medication(raw_name)
             if medication is None:
                 unresolved.append(raw_name)
             elif medication.medication_id not in seen_medication_ids:
@@ -39,7 +39,7 @@ class SafetyEngine:
                 limitations=["输入药品不在当前来源对齐目录中，系统未进行风险判断。"],
                 resolved_medications=[],
                 unresolved_inputs=unresolved or medication_names,
-                data_version=self.catalog.data_version,
+                data_version=self.repository.data_version,
             )
 
         evidence_by_fact_id: dict[str, EvidenceFact] = {}
@@ -53,12 +53,12 @@ class SafetyEngine:
         for ingredient, owners in ingredient_owners.items():
             if len(owners) < 2:
                 continue
-            fact = self.catalog.duplicate_fact_for(ingredient)
+            fact = self.repository.duplicate_fact_for(ingredient)
             if fact:
                 evidence_by_fact_id[fact.fact_id] = self._to_evidence(fact, owners)
 
         for left, right in combinations(resolved, 2):
-            for fact in self.catalog.interaction_facts_for(
+            for fact in self.repository.interaction_facts_for(
                 set(left.active_ingredients), set(right.active_ingredients)
             ):
                 required = set(fact.required_context)
@@ -82,7 +82,7 @@ class SafetyEngine:
                 resolved_medications=resolved_names,
                 unresolved_inputs=unresolved,
                 missing_context=sorted(missing_context),
-                data_version=self.catalog.data_version,
+                data_version=self.repository.data_version,
             )
 
         if missing_context:
@@ -92,7 +92,7 @@ class SafetyEngine:
                 resolved_medications=resolved_names,
                 unresolved_inputs=unresolved,
                 missing_context=sorted(missing_context),
-                data_version=self.catalog.data_version,
+                data_version=self.repository.data_version,
             )
 
         if unresolved:
@@ -101,14 +101,14 @@ class SafetyEngine:
                 limitations=limitations,
                 resolved_medications=resolved_names,
                 unresolved_inputs=unresolved,
-                data_version=self.catalog.data_version,
+                data_version=self.repository.data_version,
             )
 
         return EvidencePacket(
             conclusion_status=ConclusionStatus.NO_KNOWN_RISK_IN_SCOPE,
             limitations=["当前来源对齐目录内未命中风险；这不代表该药品或组合安全。"],
             resolved_medications=resolved_names,
-            data_version=self.catalog.data_version,
+            data_version=self.repository.data_version,
         )
 
     @staticmethod

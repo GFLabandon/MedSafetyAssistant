@@ -65,6 +65,17 @@ curl -X POST http://localhost:8000/api/v1/safety/check \
 
 当前数据是 `source_aligned`，不是 `clinically_reviewed`。7 条开发样例只用于确定性回归，不能作为临床准确率或锁定测试集结果。
 
+#### Neo4j 查询投影
+
+`data/v1/` 是 V1 知识的唯一权威源。Neo4j 只作为可重建的查询投影，不允许反向覆盖 JSON 数据。配置 `NEO4J_URI`、`NEO4J_USER` 和 `NEO4J_PASSWORD` 并启动 Neo4j 后，可执行：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python \
+  scripts/import_v1_to_neo4j.py
+```
+
+导入器会先验证 JSON catalog，再通过唯一约束、参数化查询和 `MERGE` 写入 `Safety*` 命名空间。重复运行不会创建重复节点或关系；脚本成功时输出数据版本和写入对象计数，连接失败时返回退出码 `3`，不会把驱动 traceback 暴露为普通输出。
+
 ### Frontend
 
 ```bash

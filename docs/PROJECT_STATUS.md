@@ -1,8 +1,8 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-20
-当前阶段：V1 第 2 周——来源对齐与确定性 Safety Engine
-状态：V1 alpha.1 已实现并通过离线验收
+当前阶段：V1 第 2 周——来源对齐、确定性 Safety Engine 与 Neo4j 查询投影
+状态：V1 alpha.2 开发中；存储解耦与幂等导入已完成离线验证，真实 Neo4j 集成验收待运行
 
 ## 当前目标
 
@@ -91,3 +91,16 @@
 - 7 条 source-aligned 开发样例确定性回归通过；该结果不是临床准确率。
 - API 全局异常和 SSE 错误不再向客户端返回 traceback 或内部异常文本。
 - Redis 手工连接脚本不再被 pytest 误收集。
+
+## V1 alpha.2 进展
+
+- 新增只读 `KnowledgeRepository` 边界，Safety Engine 不再依赖 JSON catalog 的具体实现；
+- `KnowledgeCatalog` 继续作为权威 JSON 实现，现有 API 行为保持不变；
+- 新增 `Neo4jKnowledgeRepository`，只读取 `reviewed` 且来源对齐的 V1 记录；
+- 新增参数化、基于唯一约束和 `MERGE` 的 Neo4j 导入器；重复导入不会创建重复节点或关系；
+- Neo4j 使用独立 `Safety*` 标签作为可重建查询投影，不读取或改写旧版未审核图谱；
+- 导入脚本在依赖不可用时返回稳定退出码，不向终端输出驱动 traceback；
+- 离线假驱动测试覆盖重复导入、参数化写入、严格契约重建和 Safety Engine 适配；
+- 当前本机 Neo4j 未运行，因此不得将上述离线测试表述为真实数据库集成通过。
+
+下一验收门：启动隔离的 Neo4j 5 测试实例，验证首次导入、二次导入计数不变、Repository 查询结果与 JSON catalog 一致，并将该过程加入可选集成测试。
