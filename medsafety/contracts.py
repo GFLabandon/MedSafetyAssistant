@@ -44,6 +44,11 @@ class RiskType(str, Enum):
     INTERACTION = "INTERACTION"
 
 
+class MedicationKind(str, Enum):
+    PRODUCT = "product"
+    SUBSTANCE = "substance"
+
+
 class LabelStatus(str, Enum):
     LEGACY_UNREVIEWED = "legacy_unreviewed"
     SOURCE_ALIGNED = "source_aligned"
@@ -79,6 +84,7 @@ class FactRecord(StrictModel):
     object: str = Field(min_length=1)
     risk_type: RiskType
     severity: Severity
+    severity_rationale: str = Field(min_length=1)
     reason: str = Field(min_length=1)
     source_ids: list[str] = Field(default_factory=list)
     source_locator: str | None = None
@@ -87,6 +93,7 @@ class FactRecord(StrictModel):
     reviewed_by: str | None = None
     reviewed_at: datetime | None = None
     data_version: str = Field(min_length=1)
+    required_context: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def reviewed_facts_have_evidence(self):
@@ -105,15 +112,44 @@ class EvidenceFact(StrictModel):
     object: str = Field(min_length=1)
     risk_type: RiskType
     severity: Severity
+    severity_rationale: str = Field(min_length=1)
     reason: str = Field(min_length=1)
     source_ids: list[str] = Field(min_length=1)
+    source_locator: str = Field(min_length=1)
     label_status: LabelStatus
+
+
+class MedicationRecord(StrictModel):
+    medication_id: str = Field(min_length=1)
+    canonical_name: str = Field(min_length=1)
+    kind: MedicationKind
+    aliases: list[str] = Field(default_factory=list)
+    active_ingredients: list[str] = Field(min_length=1)
+    source_ids: list[str] = Field(min_length=1)
+    source_locator: str = Field(min_length=1)
+    review_status: ReviewStatus = ReviewStatus.DRAFT
+    label_status: LabelStatus = LabelStatus.LEGACY_UNREVIEWED
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    data_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def reviewed_medications_are_traceable(self):
+        if self.review_status == ReviewStatus.REVIEWED:
+            if self.label_status == LabelStatus.LEGACY_UNREVIEWED:
+                raise ValueError("reviewed medications cannot retain legacy_unreviewed status")
+            if not self.reviewed_by or not self.reviewed_at:
+                raise ValueError("reviewed medications require reviewer metadata")
+        return self
 
 
 class EvidencePacket(StrictModel):
     conclusion_status: ConclusionStatus
     facts: list[EvidenceFact] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    resolved_medications: list[str] = Field(default_factory=list)
+    unresolved_inputs: list[str] = Field(default_factory=list)
+    missing_context: list[str] = Field(default_factory=list)
     data_version: str = Field(min_length=1)
 
     @model_validator(mode="after")

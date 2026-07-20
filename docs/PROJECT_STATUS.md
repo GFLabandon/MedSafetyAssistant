@@ -1,8 +1,8 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-20
-当前阶段：V1 第 1 周——范围、数据与评测契约
-状态：第一批任务完成，等待仓库卫生清单确认与下一阶段指令
+当前阶段：V1 第 2 周——来源对齐与确定性 Safety Engine
+状态：V1 alpha.1 已实现并通过离线验收
 
 ## 当前目标
 
@@ -14,8 +14,8 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 33 passed，1 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
-| pytest warning | `test_redis_connection.py` 返回 bool，被 pytest 误收集 | 测试输出 |
+| Python 当前回归 | 44 passed，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
 | Docker/Redis | Docker daemon 未运行 | `docker ps` 连接失败 |
@@ -79,3 +79,15 @@
 - 当前规则实体抽取已有真实基线；
 - 新增测试和原有测试全部通过；
 - 未对现有医学内容作未经核验的修改。
+
+## V1 alpha.1 进展
+
+- 已独立清理 19 个被 Git 跟踪的 `.pyc` 和 `2.1.0`；
+- 建立 6 条可定位来源记录、4 条药品/成分记录和 2 条风险事实；
+- 新事实均为 `source_aligned`，未声称 `clinically_reviewed`；
+- Safety Engine 与旧 Cypher 隔离，只消费 `data/v1/`；
+- 泰诺 + 感康可以返回完整的商品名、成分规则与 FDA 风险来源链；
+- 布洛芬 + 阿司匹林会先检查“阿司匹林用于心血管保护”的适用条件；
+- 7 条 source-aligned 开发样例确定性回归通过；该结果不是临床准确率。
+- API 全局异常和 SSE 错误不再向客户端返回 traceback 或内部异常文本。
+- Redis 手工连接脚本不再被 pytest 误收集。

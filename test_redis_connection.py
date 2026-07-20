@@ -7,6 +7,8 @@
 import redis
 from config import Config
 
+__test__ = False
+
 def test_redis_connection():
     """测试 Redis 连接"""
     try:

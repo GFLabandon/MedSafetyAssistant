@@ -1,7 +1,8 @@
 # api.py - FastAPI wrapper layer
 from contextlib import asynccontextmanager
 import json
-import traceback
+import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,12 @@ from logic_layer.health_check import get_environment_diagnostics
 from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import stream_safety_response
 from logic_layer.vector_store import VectorStore
+from medsafety.catalog import KnowledgeCatalog
+from medsafety.safety_engine import SafetyEngine
+
+
+V1_DATA_DIRECTORY = Path(__file__).resolve().parent / "data/v1"
+logger = logging.getLogger(__name__)
 
 
 class QueryRequest(BaseModel):
@@ -39,8 +46,31 @@ class QueryRequest(BaseModel):
         return value.strip()
 
 
+class SafetyCheckRequest(BaseModel):
+    medications: list[str] = Field(..., min_length=1)
+    contexts: list[str] = Field(default_factory=list)
+
+    @field_validator("medications")
+    @classmethod
+    def medications_must_not_be_blank(cls, values):
+        normalized = [value.strip() for value in values if value.strip()]
+        if not normalized:
+            raise ValueError("at least one non-blank medication is required")
+        return normalized
+
+    @field_validator("contexts")
+    @classmethod
+    def normalize_contexts(cls, values):
+        return [value.strip() for value in values if value.strip()]
+
+
+def build_safety_engine():
+    return SafetyEngine(KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.safety_engine = build_safety_engine()
     app.state.vector_store = VectorStore()
     try:
         yield
@@ -68,9 +98,16 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        "unhandled API exception",
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
     return JSONResponse(
         status_code=500,
-        content={"error": str(exc), "detail": traceback.format_exc()},
+        content={
+            "error": "internal_server_error",
+            "detail": "An unexpected error occurred.",
+        },
     )
 
 
@@ -78,6 +115,12 @@ def get_vector_store(request: Request | None):
     if request is None:
         return None
     return getattr(request.app.state, "vector_store", None)
+
+
+def get_safety_engine(request: Request | None):
+    if request is None:
+        return build_safety_engine()
+    return getattr(request.app.state, "safety_engine", None) or build_safety_engine()
 
 
 def sse_event(payload):
@@ -127,7 +170,11 @@ def stream_query_events(payload, vector_store=None):
         )
         yield sse_event({"type": "done", **save_result})
     except Exception as exc:
-        yield sse_event({"type": "error", "error": str(exc)})
+        logger.error(
+            "streaming query failed",
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        yield sse_event({"type": "error", "error": "query_failed"})
     finally:
         kg.close()
 
@@ -154,3 +201,9 @@ async def stream_query_medication(payload: QueryRequest, request: Request = None
 @app.get("/api/health")
 async def health():
     return get_environment_diagnostics()
+
+
+@app.post("/api/v1/safety/check")
+async def check_v1_safety(payload: SafetyCheckRequest, request: Request = None):
+    result = get_safety_engine(request).assess(payload.medications, contexts=payload.contexts)
+    return result.model_dump(mode="json")

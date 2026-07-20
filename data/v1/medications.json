@@ -1,0 +1,58 @@
+[
+  {
+    "medication_id": "medication-tyno-cold-tablet-cn",
+    "canonical_name": "泰诺",
+    "kind": "product",
+    "aliases": ["酚麻美敏片"],
+    "active_ingredients": ["对乙酰氨基酚", "盐酸伪麻黄碱", "氢溴酸右美沙芬", "氯苯那敏"],
+    "source_ids": ["source-shanghai-mpa-2021-176", "source-nmpa-cold-medicine-2020"],
+    "source_locator": "上海市药监局目录第3页序号29确认商品名映射；国家药监局转载页面第17行列出酚麻美敏成分。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00",
+    "data_version": "v1.0.0-alpha.1"
+  },
+  {
+    "medication_id": "medication-gankang-tablet-cn",
+    "canonical_name": "感康",
+    "kind": "product",
+    "aliases": ["复方氨酚烷胺片"],
+    "active_ingredients": ["对乙酰氨基酚", "盐酸金刚烷胺", "人工牛黄", "咖啡因", "马来酸氯苯那敏"],
+    "source_ids": ["source-hohhot-procurement-2025", "source-yantai-otc-catalog-2011"],
+    "source_locator": "政府采购合同第7页序号1确认商品名映射；OTC目录第17行列出复方氨酚烷胺片成分。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00",
+    "data_version": "v1.0.0-alpha.1"
+  },
+  {
+    "medication_id": "medication-ibuprofen-substance",
+    "canonical_name": "布洛芬",
+    "kind": "substance",
+    "aliases": ["ibuprofen"],
+    "active_ingredients": ["布洛芬"],
+    "source_ids": ["source-nmpa-cold-medicine-2020", "source-fda-ibuprofen-aspirin-2006"],
+    "source_locator": "国家药监局转载页面第16行；FDA Science Paper第1页标题与摘要。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00",
+    "data_version": "v1.0.0-alpha.1"
+  },
+  {
+    "medication_id": "medication-aspirin-substance",
+    "canonical_name": "阿司匹林",
+    "kind": "substance",
+    "aliases": ["aspirin"],
+    "active_ingredients": ["阿司匹林"],
+    "source_ids": ["source-nmpa-cold-medicine-2020", "source-fda-ibuprofen-aspirin-2006"],
+    "source_locator": "国家药监局转载页面第16行；FDA Science Paper第1页标题与摘要。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00",
+    "data_version": "v1.0.0-alpha.1"
+  }
+]

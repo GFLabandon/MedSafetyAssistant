@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 from unittest.mock import patch
 
@@ -70,6 +71,37 @@ class ApiContractTests(unittest.TestCase):
             response = asyncio.run(health())
 
         self.assertEqual(response, fake_diagnostics)
+
+    def test_v1_safety_check_returns_source_aligned_evidence(self):
+        from api import SafetyCheckRequest, check_v1_safety
+
+        response = asyncio.run(
+            check_v1_safety(SafetyCheckRequest(medications=["泰诺", "感康"]))
+        )
+
+        self.assertEqual(response["conclusion_status"], "risk_found")
+        self.assertEqual(response["facts"][0]["fact_id"], "fact-duplicate-acetaminophen-001")
+        self.assertIn("source-fda-acetaminophen-2025", response["facts"][0]["source_ids"])
+
+    def test_v1_safety_check_rejects_blank_medication_list(self):
+        from pydantic import ValidationError
+        from api import SafetyCheckRequest
+
+        with self.assertRaises(ValidationError):
+            SafetyCheckRequest(medications=[" "])
+
+    def test_unhandled_error_does_not_expose_exception_or_traceback(self):
+        from api import unhandled_exception_handler
+
+        response = asyncio.run(
+            unhandled_exception_handler(None, RuntimeError("private connection detail"))
+        )
+        payload = json.loads(response.body)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(payload["error"], "internal_server_error")
+        self.assertNotIn("private connection detail", response.body.decode())
+        self.assertNotIn("Traceback", response.body.decode())
 
     def test_stream_query_events_emit_meta_tokens_done_and_save_status(self):
         from api import QueryRequest, stream_query_events

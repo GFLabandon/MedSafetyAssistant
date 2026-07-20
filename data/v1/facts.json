@@ -1,0 +1,38 @@
+[
+  {
+    "fact_id": "fact-duplicate-acetaminophen-001",
+    "subject": "对乙酰氨基酚",
+    "predicate": "DUPLICATE_INGREDIENT",
+    "object": "对乙酰氨基酚",
+    "risk_type": "DUPLICATE_THERAPY",
+    "severity": "RED",
+    "severity_rationale": "项目风险沟通策略：重复成分可能导致意外过量，需要在继续使用前核对总剂量并咨询专业人员；RED不是来源中的临床分级。",
+    "reason": "两个产品都含对乙酰氨基酚。FDA建议不要同时使用多个含该成分的产品，以降低意外过量风险。",
+    "source_ids": ["source-fda-acetaminophen-2025"],
+    "source_locator": "Safe Use of Acetaminophen，第108至116行。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00",
+    "data_version": "v1.0.0-alpha.1",
+    "required_context": []
+  },
+  {
+    "fact_id": "fact-interaction-ibuprofen-aspirin-cardioprotection-001",
+    "subject": "布洛芬",
+    "predicate": "INTERACTS_WITH",
+    "object": "阿司匹林",
+    "risk_type": "INTERACTION",
+    "severity": "ORANGE",
+    "severity_rationale": "项目风险沟通策略：来源描述的是带条件的药效相互作用并建议咨询服用时机，因此标为需要澄清和专业建议；ORANGE不是来源中的临床分级。",
+    "reason": "当低剂量阿司匹林用于心血管保护时，同时使用布洛芬可能削弱阿司匹林的抗血小板作用；服用时机应由专业人员确认。",
+    "source_ids": ["source-fda-ibuprofen-aspirin-2006"],
+    "source_locator": "FDA Science Paper第1页第4至24行及Recommendations for Concomitant Use。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00",
+    "data_version": "v1.0.0-alpha.1",
+    "required_context": ["阿司匹林用于心血管保护"]
+  }
+]

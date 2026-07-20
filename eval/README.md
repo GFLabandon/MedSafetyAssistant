@@ -17,3 +17,15 @@
 ```
 
 校验规则由 `medsafety.contracts.EvaluationCase` 定义。正式 test split 将在来源对齐并按 fact_id 分组后建立，防止同一事实的改写跨 split 泄漏。
+
+`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，只覆盖 V1 alpha.1 的两个事实。运行：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/safety_engine_dev.jsonl \
+  --runner safety_engine \
+  --data-dir data/v1 \
+  --format markdown
+```
+
+该开发集用于确定性回归，不是锁定测试集，也不代表临床准确率。

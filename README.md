@@ -38,6 +38,32 @@ API endpoints:
 - `POST /api/query` - 非流式用药安全查询。
 - `POST /api/query/stream` - SSE 风格流式查询，先返回元数据，再返回回答 token。
 - `GET /api/health` - Neo4j、Redis、Ollama 的非阻塞配置诊断。
+- `POST /api/v1/safety/check` - 只读取来源对齐事实的确定性 V1 风险检查。
+
+### Source-Aligned Safety Engine (V1 Alpha)
+
+新的 V1 Safety Engine 与旧 Cypher 图谱隔离，只读取 `data/v1/` 中通过 schema 和来源引用校验的记录。当前 alpha.1 只覆盖：
+
+- 泰诺与感康共享对乙酰氨基酚的重复成分场景；
+- 布洛芬与用于心血管保护的低剂量阿司匹林之间的条件性相互作用。
+
+它会返回 `risk_found`、`no_known_risk_in_scope`、`insufficient_information`、`out_of_scope` 或 `knowledge_unavailable`，并返回 `fact_id`、`source_id`、来源定位、数据版本和限制。
+
+```bash
+curl -X POST http://localhost:8000/api/v1/safety/check \
+  -H 'Content-Type: application/json' \
+  -d '{"medications":["泰诺","感康"],"contexts":[]}'
+
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/validate_v1_data.py
+
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/safety_engine_dev.jsonl \
+  --runner safety_engine \
+  --data-dir data/v1 \
+  --format markdown
+```
+
+当前数据是 `source_aligned`，不是 `clinically_reviewed`。7 条开发样例只用于确定性回归，不能作为临床准确率或锁定测试集结果。
 
 ### Frontend
 

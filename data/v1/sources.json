@@ -1,0 +1,79 @@
+[
+  {
+    "source_id": "source-shanghai-mpa-2021-176",
+    "title": "疫情防控实名登记止咳、退热、抗病毒、抗菌素药品目录（2021年10月）",
+    "publisher": "上海市药品监督管理局等",
+    "url": "https://yjj.sh.gov.cn/cmsres/95/9549620eab8b4c0983b4d267defd8b1f/1ff84d1385f6e633e60861902b599c44.pdf",
+    "published_at": "2021-11-12",
+    "version": "沪药监药管〔2021〕176号",
+    "license_note": "政府公开文件；仅保存事实摘要和定位，不复制全文。",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00"
+  },
+  {
+    "source_id": "source-nmpa-cold-medicine-2020",
+    "title": "2020年公众十大用药提示（三）：感冒用药须谨慎，安全合理是关键",
+    "publisher": "国家药品监督管理局（西藏自治区药品监督管理局转载）",
+    "url": "https://mpa.xizang.gov.cn/yp/ypkp/202011/t20201127_183023.html",
+    "published_at": "2020-11-27",
+    "version": "2020 public medication safety guidance",
+    "license_note": "政府公开网页；仅保存事实摘要和行定位。",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00"
+  },
+  {
+    "source_id": "source-hohhot-procurement-2025",
+    "title": "在押人员日常用药供应服务采购合同",
+    "publisher": "呼和浩特市公安局监所管理支队 / 内蒙古自治区政府采购网",
+    "url": "https://www.ccgp-neimenggu.gov.cn/ecms-econtract/contract/draft/2025/6/5/373b5b46-846e-4729-962c-6af3f2defbea_%E5%9C%A8%E6%8A%BC%E4%BA%BA%E5%91%98%E6%97%A5%E5%B8%B8%E7%94%A8%E8%8D%AF%E5%90%88%E5%90%8C-%E6%96%B0.pdf",
+    "published_at": "2025-06-05",
+    "version": "150101-NMGKA-CS-20250001-HT-2571390",
+    "license_note": "政府采购公开文件；仅用于核对商品名与通用名映射。",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00"
+  },
+  {
+    "source_id": "source-yantai-otc-catalog-2011",
+    "title": "第四批非处方药化学药品部分目录",
+    "publisher": "烟台市人民政府",
+    "url": "https://www.yantai.gov.cn/art/2011/5/9/art_12124_1132875.html",
+    "published_at": "2011-05-09",
+    "version": "第四批非处方药化学药品部分目录",
+    "license_note": "政府公开网页；仅保存事实摘要和行定位。",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00"
+  },
+  {
+    "source_id": "source-fda-acetaminophen-2025",
+    "title": "Acetaminophen",
+    "publisher": "U.S. Food and Drug Administration",
+    "url": "https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen",
+    "version": "Content current as of 2025-08-14",
+    "license_note": "U.S. government public information; only a paraphrased fact and locator are stored.",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00"
+  },
+  {
+    "source_id": "source-fda-ibuprofen-aspirin-2006",
+    "title": "Concomitant Use of Ibuprofen and Aspirin: Potential for Attenuation of the Anti-Platelet Effect of Aspirin",
+    "publisher": "U.S. Food and Drug Administration",
+    "url": "https://www.fda.gov/media/76636/download",
+    "published_at": "2006-09-08",
+    "version": "FDA Science Paper 2006-09-08",
+    "license_note": "U.S. government public information; only a paraphrased fact and locator are stored.",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T18:00:00+08:00"
+  }
+]

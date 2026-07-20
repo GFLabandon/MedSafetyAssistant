@@ -6,7 +6,10 @@ import pytest
 from evaluation.cypher_inventory import parse_legacy_risk_facts
 from evaluation.dataset import load_cases
 from evaluation.entity_baseline import evaluate_entity_extractor
+from evaluation.safety_engine_baseline import evaluate_safety_engine
 from logic_layer.entity_utils import exact_entity_extraction
+from medsafety.catalog import KnowledgeCatalog
+from medsafety.safety_engine import SafetyEngine
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -54,3 +57,14 @@ def test_legacy_cypher_inventory_has_all_current_risk_relationships():
     assert len([fact for fact in facts if fact.relationship_type == "CONTRAINDICATED_IN"]) == 22
     assert len([fact for fact in facts if fact.relationship_type == "INTERACTS_WITH"]) == 9
     assert all(fact.source_label != "MISSING" for fact in facts)
+
+
+def test_source_aligned_safety_engine_dataset_matches_current_engine():
+    cases = load_cases(REPOSITORY_ROOT / "eval/safety_engine_dev.jsonl")
+    catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
+    report = evaluate_safety_engine(cases, SafetyEngine(catalog))
+
+    assert len(cases) == 7
+    assert report["metrics"]["conclusion_accuracy"] == 1.0
+    assert report["metrics"]["fact_set_exact_match"] == 1.0
+    assert report["failures"] == []
