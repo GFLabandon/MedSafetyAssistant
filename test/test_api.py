@@ -90,6 +90,25 @@ class ApiContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SafetyCheckRequest(medications=[" "])
 
+    def test_v1_safety_check_returns_explicit_contraindication_context(self):
+        from api import SafetyCheckRequest, check_v1_safety
+
+        response = asyncio.run(
+            check_v1_safety(
+                SafetyCheckRequest(medications=["布洛芬"], contexts=["NSAID过敏"])
+            )
+        )
+
+        self.assertEqual(response["conclusion_status"], "risk_found")
+        self.assertEqual(
+            response["facts"][0]["fact_id"],
+            "fact-contraindication-ibuprofen-nsaid-allergic-reaction-001",
+        )
+        self.assertEqual(
+            response["resolved_contexts"],
+            ["服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"],
+        )
+
     def test_v1_safety_check_serializes_knowledge_unavailable(self):
         from api import SafetyCheckRequest, check_v1_safety
         from medsafety.contracts import ConclusionStatus, EvidencePacket

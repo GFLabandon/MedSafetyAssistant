@@ -42,10 +42,13 @@ API endpoints:
 
 ### Source-Aligned Safety Engine (V1 Alpha)
 
-新的 V1 Safety Engine 与旧 Cypher 图谱隔离，只读取 `data/v1/` 中通过 schema 和来源引用校验的记录。当前 alpha.1 只覆盖：
+新的 V1 Safety Engine 与旧 Cypher 图谱隔离，只读取 `data/v1/` 中通过 schema 和来源引用校验的记录。当前 alpha.2 只覆盖：
 
 - 泰诺与感康共享对乙酰氨基酚的重复成分场景；
-- 布洛芬与用于心血管保护的低剂量阿司匹林之间的条件性相互作用。
+- 布洛芬与用于心血管保护的低剂量阿司匹林之间的条件性相互作用；
+- 明确报告既往服用阿司匹林或其他 NSAID 后发生哮喘、荨麻疹或过敏样反应时的布洛芬禁忌。
+
+普通哮喘不会被扩大解释成阿司匹林/NSAID 相关反应史。旧图谱中“布洛芬 + 高血压/胃溃疡”等宽泛禁忌没有迁移，审计依据见 [`reports/contraindication-source-audit-v1.md`](reports/contraindication-source-audit-v1.md)。
 
 它会返回 `risk_found`、`no_known_risk_in_scope`、`insufficient_information`、`out_of_scope` 或 `knowledge_unavailable`，并返回 `fact_id`、`source_id`、来源定位、数据版本和限制。
 
@@ -65,7 +68,7 @@ curl -X POST http://localhost:8000/api/v1/safety/check \
   --format markdown
 ```
 
-当前数据是 `source_aligned`，不是 `clinically_reviewed`。7 条开发样例只用于确定性回归，不能作为临床准确率或锁定测试集结果。
+当前数据是 `source_aligned`，不是 `clinically_reviewed`。9 条开发样例只用于确定性回归，不能作为临床准确率或锁定测试集结果。
 
 #### Neo4j 查询投影
 
@@ -85,7 +88,7 @@ MEDSAFETY_PYTHON=/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python
   bash scripts/test_neo4j_integration.sh
 ```
 
-该测试会在隔离实例中连续导入两次，核对节点和关系计数不变，并比较 JSON 与 Neo4j Repository 在五类 Safety Engine 场景中的完整 `EvidencePacket`。脚本无论成功或失败都会停止并移除专用测试容器与网络；镜像和已有 Docker 卷不受影响。
+该测试会在隔离实例中连续导入两次，核对节点和关系计数不变，并比较 JSON 与 Neo4j Repository 在七类 Safety Engine 场景中的完整 `EvidencePacket`。脚本无论成功或失败都会停止并移除专用测试容器与网络；镜像和已有 Docker 卷不受影响。
 
 ### Frontend
 
@@ -102,6 +105,7 @@ npm run dev
 - `泰诺和感康能一起吃吗？`
 - `我喝酒了，还能吃头孢吗？`
 - `布洛芬和阿司匹林能一起吃吗？`
+- `我以前吃阿司匹林会过敏，还能吃布洛芬吗？`
 - `那我之前问过的药还能继续吃吗？`
 
 ## Interview Narrative

@@ -11,7 +11,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.1"
+    "data_version": "v1.0.0-alpha.2"
   },
   {
     "medication_id": "medication-gankang-tablet-cn",
@@ -25,7 +25,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.1"
+    "data_version": "v1.0.0-alpha.2"
   },
   {
     "medication_id": "medication-ibuprofen-substance",
@@ -39,7 +39,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.1"
+    "data_version": "v1.0.0-alpha.2"
   },
   {
     "medication_id": "medication-aspirin-substance",
@@ -53,6 +53,6 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.1"
+    "data_version": "v1.0.0-alpha.2"
   }
 ]

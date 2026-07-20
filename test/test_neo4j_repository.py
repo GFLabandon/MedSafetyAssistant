@@ -78,12 +78,14 @@ def test_importer_is_parameterized_and_repeat_safe():
     second = importer.import_catalog(catalog)
 
     assert first == second
-    assert first.data_version == "v1.0.0-alpha.1"
-    assert first.sources == 6
+    assert first.data_version == "v1.0.0-alpha.2"
+    assert first.sources == 7
     assert first.medications == 4
     assert first.ingredients == 10
-    assert first.facts == 2
-    assert first.support_links == 10
+    assert first.contexts == 2
+    assert first.facts == 3
+    assert first.support_links == 11
+    assert first.context_links == 1
     assert len(driver.calls) == first_call_count * 2
 
     constraint_calls = [query for query, _ in driver.calls if query.startswith("CREATE CONSTRAINT")]
@@ -130,6 +132,8 @@ def test_neo4j_repository_reconstructs_strict_contracts_and_drives_engine():
             return [{"fact": duplicate_fact}]
         if "INTERACTS_WITH" in query:
             return []
+        if "CONTRAINDICATED_IN" in query:
+            return []
         raise AssertionError(f"unexpected query: {query}")
 
     repository = Neo4jKnowledgeRepository(FakeDriver(responder), database="neo4j")
@@ -151,6 +155,34 @@ def test_neo4j_repository_returns_none_for_unknown_medication():
     assert repository.resolve_medication("不存在") is None
 
 
+def test_neo4j_repository_context_and_contraindication_drive_engine():
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    medication = catalog.medications["medication-ibuprofen-substance"].model_dump(mode="json")
+    context = catalog.contexts["context-nsaid-allergic-reaction-history"].model_dump(
+        mode="json"
+    )
+    fact = catalog.facts[
+        "fact-contraindication-ibuprofen-nsaid-allergic-reaction-001"
+    ].model_dump(mode="json")
+
+    def responder(query: str, _parameters: dict[str, Any]):
+        if "SafetyKnowledgeSnapshot" in query:
+            return [{"data_version": catalog.data_version}]
+        if "RETURN properties(medication)" in query:
+            return [{"medication": medication}]
+        if "RETURN properties(context)" in query:
+            return [{"context": context}]
+        if "CONTRAINDICATED_IN" in query:
+            return [{"fact": fact}]
+        raise AssertionError(f"unexpected query: {query}")
+
+    repository = Neo4jKnowledgeRepository(FakeDriver(responder))
+    result = SafetyEngine(repository).assess(["布洛芬"], contexts=["NSAID过敏"])
+
+    assert result.conclusion_status == ConclusionStatus.RISK_FOUND
+    assert result.facts[0].fact_id == fact["fact_id"]
+
+
 def test_neo4j_repository_rejects_missing_snapshot():
     repository = Neo4jKnowledgeRepository(FakeDriver())
 
@@ -166,7 +198,7 @@ def test_neo4j_repository_rejects_mixed_data_versions():
         if "RETURN properties(medication)" in query:
             return [{"medication": medication}]
         if "SafetyKnowledgeSnapshot" in query:
-            return [{"data_version": "v1.0.0-alpha.2"}]
+            return [{"data_version": "v1.0.0-alpha.3"}]
         raise AssertionError(f"unexpected query: {query}")
 
     repository = Neo4jKnowledgeRepository(FakeDriver(responder))

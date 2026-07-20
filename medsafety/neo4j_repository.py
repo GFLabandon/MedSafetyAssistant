@@ -14,7 +14,7 @@ from neo4j.exceptions import DriverError, Neo4jError
 from pydantic import ValidationError
 
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.contracts import FactRecord, MedicationRecord
+from medsafety.contracts import ClinicalContextRecord, FactRecord, MedicationRecord
 from medsafety.repositories import KnowledgeUnavailableError
 
 
@@ -27,6 +27,8 @@ _CONSTRAINT_QUERIES = (
     "FOR (medication:SafetyMedication) REQUIRE medication.medication_id IS UNIQUE",
     "CREATE CONSTRAINT safety_ingredient_name IF NOT EXISTS "
     "FOR (ingredient:SafetyIngredient) REQUIRE ingredient.name IS UNIQUE",
+    "CREATE CONSTRAINT safety_context_id IF NOT EXISTS "
+    "FOR (context:SafetyContext) REQUIRE context.context_id IS UNIQUE",
     "CREATE CONSTRAINT safety_fact_id IF NOT EXISTS "
     "FOR (fact:SafetyFact) REQUIRE fact.fact_id IS UNIQUE",
     "CREATE CONSTRAINT safety_snapshot_name IF NOT EXISTS "
@@ -47,6 +49,11 @@ SET source += $properties
 _UPSERT_MEDICATION = """
 MERGE (medication:SafetyMedication {medication_id: $medication_id})
 SET medication += $properties
+"""
+
+_UPSERT_CONTEXT = """
+MERGE (context:SafetyContext {context_id: $context_id})
+SET context += $properties
 """
 
 _LINK_MEDICATION_INGREDIENT = """
@@ -72,6 +79,12 @@ MATCH (source:SafetySource {source_id: $source_id})
 MERGE (fact)-[:SUPPORTED_BY]->(source)
 """
 
+_LINK_FACT_CONTEXT = """
+MATCH (fact:SafetyFact {fact_id: $fact_id})
+MATCH (context:SafetyContext {context_id: $context_id})
+MERGE (fact)-[:APPLIES_IN]->(context)
+"""
+
 _RESOLVE_MEDICATION = """
 MATCH (medication:SafetyMedication)
 WHERE medication.review_status = 'reviewed'
@@ -81,6 +94,17 @@ WHERE medication.review_status = 'reviewed'
     OR $normalized_name IN medication.aliases_normalized
   )
 RETURN properties(medication) AS medication
+LIMIT 1
+"""
+
+_RESOLVE_CONTEXT = """
+MATCH (context:SafetyContext)
+WHERE context.review_status = 'reviewed'
+  AND (
+    context.canonical_name_normalized = $normalized_name
+    OR $normalized_name IN context.aliases_normalized
+  )
+RETURN properties(context) AS context
 LIMIT 1
 """
 
@@ -108,6 +132,17 @@ RETURN properties(fact) AS fact
 ORDER BY fact.fact_id
 """
 
+_CONTRAINDICATION_FACTS = """
+MATCH (fact:SafetyFact)
+WHERE fact.review_status = 'reviewed'
+  AND fact.label_status IN ['source_aligned', 'clinically_reviewed']
+  AND fact.predicate = 'CONTRAINDICATED_IN'
+  AND fact.subject IN $ingredients
+  AND fact.object IN $contexts
+RETURN properties(fact) AS fact
+ORDER BY fact.fact_id
+"""
+
 _DATA_VERSION = """
 MATCH (snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name})
 RETURN snapshot.data_version AS data_version
@@ -120,8 +155,10 @@ class ImportSummary:
     sources: int
     medications: int
     ingredients: int
+    contexts: int
     facts: int
     support_links: int
+    context_links: int
 
 
 def _json_properties(model: Any) -> dict[str, Any]:
@@ -165,6 +202,20 @@ class Neo4jCatalogImporter:
                 properties=properties,
             )
 
+        for context in catalog.contexts.values():
+            properties = _json_properties(context)
+            properties["canonical_name_normalized"] = KnowledgeCatalog.normalize_alias(
+                context.canonical_name
+            )
+            properties["aliases_normalized"] = [
+                KnowledgeCatalog.normalize_alias(alias) for alias in context.aliases
+            ]
+            transaction.run(
+                _UPSERT_CONTEXT,
+                context_id=context.context_id,
+                properties=properties,
+            )
+
         ingredients: set[str] = set()
         medication_support_links = 0
         for medication in catalog.medications.values():
@@ -196,6 +247,10 @@ class Neo4jCatalogImporter:
                 )
 
         fact_support_links = 0
+        fact_context_links = 0
+        context_ids_by_name = {
+            context.canonical_name: context.context_id for context in catalog.contexts.values()
+        }
         for fact in catalog.facts.values():
             transaction.run(
                 _UPSERT_FACT,
@@ -209,14 +264,23 @@ class Neo4jCatalogImporter:
                     fact_id=fact.fact_id,
                     source_id=source_id,
                 )
+            if fact.predicate == "CONTRAINDICATED_IN":
+                fact_context_links += 1
+                transaction.run(
+                    _LINK_FACT_CONTEXT,
+                    fact_id=fact.fact_id,
+                    context_id=context_ids_by_name[fact.object],
+                )
 
         return ImportSummary(
             data_version=catalog.data_version,
             sources=len(catalog.sources),
             medications=len(catalog.medications),
             ingredients=len(ingredients),
+            contexts=len(catalog.contexts),
             facts=len(catalog.facts),
             support_links=medication_support_links + fact_support_links,
+            context_links=fact_context_links,
         )
 
 
@@ -245,6 +309,17 @@ class Neo4jKnowledgeRepository:
         self._require_current_version(medication.data_version)
         return medication
 
+    def resolve_context(self, value: str) -> ClinicalContextRecord | None:
+        record = self._single(
+            _RESOLVE_CONTEXT,
+            normalized_name=KnowledgeCatalog.normalize_alias(value),
+        )
+        if record is None:
+            return None
+        context = self._validate_record(ClinicalContextRecord, record, "context")
+        self._require_current_version(context.data_version)
+        return context
+
     def duplicate_fact_for(self, ingredient: str) -> FactRecord | None:
         record = self._single(_DUPLICATE_FACT, ingredient=ingredient)
         if record is None:
@@ -258,6 +333,21 @@ class Neo4jKnowledgeRepository:
             _INTERACTION_FACTS,
             left=sorted(left),
             right=sorted(right),
+        )
+        facts = [self._validate_record(FactRecord, record, "fact") for record in records]
+        for fact in facts:
+            self._require_current_version(fact.data_version)
+        return facts
+
+    def contraindication_facts_for(
+        self,
+        ingredients: set[str],
+        contexts: set[str],
+    ) -> list[FactRecord]:
+        records = self._all(
+            _CONTRAINDICATION_FACTS,
+            ingredients=sorted(ingredients),
+            contexts=sorted(contexts),
         )
         facts = [self._validate_record(FactRecord, record, "fact") for record in records]
         for fact in facts:

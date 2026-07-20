@@ -49,6 +49,11 @@ class MedicationKind(str, Enum):
     SUBSTANCE = "substance"
 
 
+class ContextKind(str, Enum):
+    MEDICATION_USE = "medication_use"
+    REACTION_HISTORY = "reaction_history"
+
+
 class LabelStatus(str, Enum):
     LEGACY_UNREVIEWED = "legacy_unreviewed"
     SOURCE_ALIGNED = "source_aligned"
@@ -143,12 +148,33 @@ class MedicationRecord(StrictModel):
         return self
 
 
+class ClinicalContextRecord(StrictModel):
+    context_id: str = Field(min_length=1)
+    canonical_name: str = Field(min_length=1)
+    kind: ContextKind
+    aliases: list[str] = Field(default_factory=list)
+    description: str = Field(min_length=1)
+    review_status: ReviewStatus = ReviewStatus.DRAFT
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    data_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def reviewed_contexts_have_review_metadata(self):
+        if self.review_status == ReviewStatus.REVIEWED:
+            if not self.reviewed_by or not self.reviewed_at:
+                raise ValueError("reviewed contexts require reviewer metadata")
+        return self
+
+
 class EvidencePacket(StrictModel):
     conclusion_status: ConclusionStatus
     facts: list[EvidenceFact] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     resolved_medications: list[str] = Field(default_factory=list)
     unresolved_inputs: list[str] = Field(default_factory=list)
+    resolved_contexts: list[str] = Field(default_factory=list)
+    unresolved_contexts: list[str] = Field(default_factory=list)
     missing_context: list[str] = Field(default_factory=list)
     data_version: str | None = Field(default=None, min_length=1)
 

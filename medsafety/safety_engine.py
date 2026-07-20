@@ -31,6 +31,7 @@ class SafetyEngine:
                 conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
                 limitations=["用药安全知识库当前不可用，系统未进行风险判断，请稍后重试。"],
                 unresolved_inputs=list(dict.fromkeys(medication_names)),
+                unresolved_contexts=list(dict.fromkeys(contexts or [])),
                 data_version=None,
             )
 
@@ -39,7 +40,7 @@ class SafetyEngine:
         medication_names: list[str],
         contexts: list[str] | None = None,
     ) -> EvidencePacket:
-        context_set = {item.strip() for item in (contexts or []) if item.strip()}
+        raw_contexts = [item.strip() for item in (contexts or []) if item.strip()]
         resolved: list[MedicationRecord] = []
         unresolved: list[str] = []
         seen_medication_ids: set[str] = set()
@@ -53,12 +54,28 @@ class SafetyEngine:
                 seen_medication_ids.add(medication.medication_id)
 
         resolved_names = [item.canonical_name for item in resolved]
+
+        resolved_contexts = []
+        unresolved_contexts = []
+        seen_context_ids: set[str] = set()
+        for raw_context in raw_contexts:
+            context = self.repository.resolve_context(raw_context)
+            if context is None:
+                unresolved_contexts.append(raw_context)
+            elif context.context_id not in seen_context_ids:
+                resolved_contexts.append(context)
+                seen_context_ids.add(context.context_id)
+        context_set = {item.canonical_name for item in resolved_contexts}
+        resolved_context_names = [item.canonical_name for item in resolved_contexts]
+
         if not resolved:
             return EvidencePacket(
                 conclusion_status=ConclusionStatus.OUT_OF_SCOPE,
                 limitations=["输入药品不在当前来源对齐目录中，系统未进行风险判断。"],
                 resolved_medications=[],
                 unresolved_inputs=unresolved or medication_names,
+                resolved_contexts=resolved_context_names,
+                unresolved_contexts=unresolved_contexts,
                 data_version=self.repository.data_version,
             )
 
@@ -77,6 +94,13 @@ class SafetyEngine:
             if fact:
                 evidence_by_fact_id[fact.fact_id] = self._to_evidence(fact, owners)
 
+        all_ingredients = set(ingredient_owners)
+        if context_set:
+            for fact in self.repository.contraindication_facts_for(all_ingredients, context_set):
+                owners = ingredient_owners.get(fact.subject, [])
+                if owners:
+                    evidence_by_fact_id[fact.fact_id] = self._to_evidence(fact, owners)
+
         for left, right in combinations(resolved, 2):
             for fact in self.repository.interaction_facts_for(
                 set(left.active_ingredients), set(right.active_ingredients)
@@ -90,6 +114,8 @@ class SafetyEngine:
         limitations = []
         if unresolved:
             limitations.append("部分输入不在当前来源对齐目录中，结果只覆盖已识别药品。")
+        if unresolved_contexts:
+            limitations.append("部分健康背景不在当前来源对齐目录中，系统未对其作风险判断。")
         if missing_context:
             limitations.append("存在带条件的相互作用事实，需要补充药品用途后才能判断。")
 
@@ -101,6 +127,8 @@ class SafetyEngine:
                 limitations=limitations,
                 resolved_medications=resolved_names,
                 unresolved_inputs=unresolved,
+                resolved_contexts=resolved_context_names,
+                unresolved_contexts=unresolved_contexts,
                 missing_context=sorted(missing_context),
                 data_version=self.repository.data_version,
             )
@@ -111,16 +139,20 @@ class SafetyEngine:
                 limitations=limitations,
                 resolved_medications=resolved_names,
                 unresolved_inputs=unresolved,
+                resolved_contexts=resolved_context_names,
+                unresolved_contexts=unresolved_contexts,
                 missing_context=sorted(missing_context),
                 data_version=self.repository.data_version,
             )
 
-        if unresolved:
+        if unresolved or unresolved_contexts:
             return EvidencePacket(
                 conclusion_status=ConclusionStatus.OUT_OF_SCOPE,
                 limitations=limitations,
                 resolved_medications=resolved_names,
                 unresolved_inputs=unresolved,
+                resolved_contexts=resolved_context_names,
+                unresolved_contexts=unresolved_contexts,
                 data_version=self.repository.data_version,
             )
 
@@ -128,6 +160,7 @@ class SafetyEngine:
             conclusion_status=ConclusionStatus.NO_KNOWN_RISK_IN_SCOPE,
             limitations=["当前来源对齐目录内未命中风险；这不代表该药品或组合安全。"],
             resolved_medications=resolved_names,
+            resolved_contexts=resolved_context_names,
             data_version=self.repository.data_version,
         )
 

@@ -14,7 +14,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.1",
+    "data_version": "v1.0.0-alpha.2",
     "required_context": []
   },
   {
@@ -32,7 +32,25 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.1",
+    "data_version": "v1.0.0-alpha.2",
     "required_context": ["阿司匹林用于心血管保护"]
+  },
+  {
+    "fact_id": "fact-contraindication-ibuprofen-nsaid-allergic-reaction-001",
+    "subject": "布洛芬",
+    "predicate": "CONTRAINDICATED_IN",
+    "object": "服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应",
+    "risk_type": "CONTRAINDICATION",
+    "severity": "RED",
+    "severity_rationale": "项目风险沟通策略：来源标签明确写明该人群不应使用布洛芬片，并报告过严重、极少数致命的类过敏反应，因此标为需要停止自行用药并联系专业人员；RED不是来源中的临床分级。",
+    "reason": "该布洛芬片标签明确：曾在服用阿司匹林或其他非甾体抗炎药后出现哮喘、荨麻疹或其他过敏样反应者不应使用。具体剂型和商品仍需核对自身说明书。",
+    "source_ids": ["source-dailymed-ibuprofen-amneal-2024"],
+    "source_locator": "CONTRAINDICATIONS；PRECAUTIONS—Preexisting asthma。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T20:00:00+08:00",
+    "data_version": "v1.0.0-alpha.2",
+    "required_context": ["服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"]
   }
 ]

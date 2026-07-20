@@ -37,6 +37,7 @@ MATCH (node)
 WHERE node:SafetySource
    OR node:SafetyMedication
    OR node:SafetyIngredient
+   OR node:SafetyContext
    OR node:SafetyFact
    OR node:SafetyKnowledgeSnapshot
 DETACH DELETE node
@@ -62,6 +63,7 @@ def _projection_counts(driver) -> dict[str, int]:
         "sources": "MATCH (node:SafetySource) RETURN count(node) AS count",
         "medications": "MATCH (node:SafetyMedication) RETURN count(node) AS count",
         "ingredients": "MATCH (node:SafetyIngredient) RETURN count(node) AS count",
+        "contexts": "MATCH (node:SafetyContext) RETURN count(node) AS count",
         "facts": "MATCH (node:SafetyFact) RETURN count(node) AS count",
         "snapshots": "MATCH (node:SafetyKnowledgeSnapshot) RETURN count(node) AS count",
         "ingredient_links": (
@@ -71,6 +73,10 @@ def _projection_counts(driver) -> dict[str, int]:
         "support_links": (
             "MATCH (subject)-[link:SUPPORTED_BY]->(:SafetySource) "
             "WHERE subject:SafetyMedication OR subject:SafetyFact "
+            "RETURN count(link) AS count"
+        ),
+        "context_links": (
+            "MATCH (:SafetyFact)-[link:APPLIES_IN]->(:SafetyContext) "
             "RETURN count(link) AS count"
         ),
     }
@@ -93,13 +99,15 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
     assert first_summary == second_summary
     assert first_counts == second_counts
     assert second_counts == {
-        "sources": 6,
+        "sources": 7,
         "medications": 4,
         "ingredients": 10,
-        "facts": 2,
+        "contexts": 2,
+        "facts": 3,
         "snapshots": 1,
         "ingredient_links": 11,
-        "support_links": 10,
+        "support_links": 11,
+        "context_links": 1,
     }
 
     neo4j_engine = SafetyEngine(Neo4jKnowledgeRepository(driver))
@@ -109,6 +117,8 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
         (["布洛芬", "阿司匹林"], []),
         (["ibuprofen", "aspirin"], ["阿司匹林用于心血管保护"]),
         (["泰诺"], []),
+        (["布洛芬"], ["NSAID过敏"]),
+        (["布洛芬"], ["哮喘"]),
         (["未收录药"], []),
     ]
 

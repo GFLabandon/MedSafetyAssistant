@@ -64,7 +64,19 @@ def test_source_aligned_safety_engine_dataset_matches_current_engine():
     catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
     report = evaluate_safety_engine(cases, SafetyEngine(catalog))
 
-    assert len(cases) == 7
+    assert len(cases) == 9
     assert report["metrics"]["conclusion_accuracy"] == 1.0
     assert report["metrics"]["fact_set_exact_match"] == 1.0
+    assert report["metrics"]["medication_set_exact_match"] == 1.0
+    assert report["metrics"]["context_set_exact_match"] == 1.0
     assert report["failures"] == []
+
+    saved_report = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-safety-engine-v1-alpha.2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert saved_report["data_version"] == catalog.data_version
+    assert saved_report["dataset_cases"] == len(cases)
+    assert saved_report["metrics"] == report["metrics"]
+    assert saved_report["failures"] == report["failures"]

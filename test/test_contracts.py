@@ -4,7 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from medsafety.contracts import (
+    ClinicalContextRecord,
     ConclusionStatus,
+    ContextKind,
     EvidencePacket,
     FactRecord,
     LabelStatus,
@@ -69,6 +71,18 @@ def test_reviewed_fact_requires_sources_locator_and_reviewer():
         reviewed_at=datetime(2026, 7, 20, 12, 0),
     )
     assert fact.label_status == LabelStatus.SOURCE_ALIGNED
+
+
+def test_reviewed_context_requires_review_metadata():
+    with pytest.raises(ValidationError, match="reviewed contexts require"):
+        ClinicalContextRecord(
+            context_id="context-1",
+            canonical_name="明确上下文",
+            kind=ContextKind.REACTION_HISTORY,
+            description="只记录用户明确报告的反应史。",
+            review_status=ReviewStatus.REVIEWED,
+            data_version="v1",
+        )
 
 
 def test_risk_found_requires_evidence_facts():

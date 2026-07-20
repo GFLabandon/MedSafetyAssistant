@@ -2,7 +2,7 @@
 
 更新时间：2026-07-20
 当前阶段：V1 第 2 周——来源对齐、确定性 Safety Engine 与 Neo4j 查询投影
-状态：V1 alpha.2 存储适配已通过离线与真实 Neo4j 集成验收
+状态：V1 alpha.2 禁忌症最小闭环已通过来源、离线与真实 Neo4j 验收
 
 ## 当前目标
 
@@ -14,12 +14,12 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 54 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 61 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | Ollama | 未运行 | `127.0.0.1:11434` 连接失败 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
-| Neo4j 集成 | 1 passed，54 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
+| Neo4j 集成 | 1 passed，61 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 
 外部依赖未运行，因此本阶段只发布离线、可复现的规则实体抽取基线。不得将依赖缺失时的全链路输出称为模型或系统质量结果。
 
@@ -102,10 +102,15 @@
 - 导入脚本在依赖不可用时返回稳定退出码，不向终端输出驱动 traceback；
 - 离线假驱动测试覆盖重复导入、参数化写入、严格契约重建和 Safety Engine 适配；
 - 使用官方 Neo4j 5.26.28 镜像和 tmpfs 数据目录完成真实集成测试，测试后容器与网络已移除；
-- 对同一 catalog 连续导入两次，节点与关系计数保持一致：6 Source、4 Medication、10 Ingredient、2 Fact、1 Snapshot、11 条成分关系和 10 条来源关系；
-- JSON 与 Neo4j Repository 在重复成分、条件不足、条件相互作用、单药未命中和未知药品五类场景中返回完全一致的 `EvidencePacket`。
+- 对同一 catalog 连续导入两次，节点与关系计数保持一致：7 Source、4 Medication、10 Ingredient、2 Context、3 Fact、1 Snapshot、11 条成分关系、11 条来源关系和 1 条上下文关系；
+- JSON 与 Neo4j Repository 在七类场景中返回完全一致的 `EvidencePacket`。
 - Neo4j 连接失败、快照缺失、记录损坏或数据版本不一致会转换为受控的 Repository 不可用错误；
 - Safety Engine 将上述错误映射为 `knowledge_unavailable`，返回 `data_version: null`，不泄露内部异常，也不会错误返回 `no_known_risk_in_scope`；
 - API 契约测试已覆盖该状态的 JSON 序列化。
+- 完成 22 条 legacy 禁忌关系的重新筛查，旧记录继续保持 `legacy_unreviewed`；
+- 新增 1 条 DailyMed 布洛芬片标签来源、1 条严格限定的禁忌事实和 2 个受控临床上下文，数据版本升级为 `v1.0.0-alpha.2`；
+- Safety Engine 只在用户明确报告阿司匹林/NSAID 相关哮喘、荨麻疹或过敏样反应时命中禁忌；普通“哮喘”返回 `out_of_scope`；
+- Neo4j 投影新增 2 个 `SafetyContext` 节点和 1 条 `APPLIES_IN` 关系；两次真实导入计数一致；
+- 9 条 source-aligned 开发样例确定性回归全部匹配；该结果不是临床准确率。
 
-下一验收门：单独完成禁忌症事实的来源审计，再实现条件/疾病上下文输入契约与确定性禁忌规则；在来源未核验前不从旧图谱迁移医学结论。
+下一验收门：冻结 alpha.2 的数据卡和可复现报告，随后进入第 3 周“Evidence Packet 约束生成与引用校验”；在此之前不继续扩张医学覆盖面。

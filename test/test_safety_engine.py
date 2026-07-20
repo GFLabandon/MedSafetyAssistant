@@ -24,10 +24,11 @@ def engine(catalog):
 
 
 def test_catalog_loads_only_source_aligned_v1_records(catalog):
-    assert catalog.data_version == "v1.0.0-alpha.1"
-    assert len(catalog.sources) == 6
+    assert catalog.data_version == "v1.0.0-alpha.2"
+    assert len(catalog.sources) == 7
     assert len(catalog.medications) == 4
-    assert len(catalog.facts) == 2
+    assert len(catalog.contexts) == 2
+    assert len(catalog.facts) == 3
 
 
 def test_catalog_loading_is_idempotent(catalog):
@@ -36,6 +37,7 @@ def test_catalog_loading_is_idempotent(catalog):
     assert second.data_version == catalog.data_version
     assert set(second.sources) == set(catalog.sources)
     assert set(second.medications) == set(catalog.medications)
+    assert set(second.contexts) == set(catalog.contexts)
     assert set(second.facts) == set(catalog.facts)
 
 
@@ -86,14 +88,59 @@ def test_unknown_medication_is_out_of_scope(engine):
     assert result.unresolved_inputs == ["星云片"]
 
 
+def test_ibuprofen_contraindication_requires_explicit_nsaid_reaction_history(engine):
+    result = engine.assess(["布洛芬"], contexts=["NSAID过敏"])
+
+    assert result.conclusion_status == ConclusionStatus.RISK_FOUND
+    assert result.resolved_contexts == [
+        "服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"
+    ]
+    assert result.facts[0].fact_id == (
+        "fact-contraindication-ibuprofen-nsaid-allergic-reaction-001"
+    )
+    assert result.facts[0].risk_type == RiskType.CONTRAINDICATION
+    assert "source-dailymed-ibuprofen-amneal-2024" in result.facts[0].source_ids
+
+
+def test_plain_asthma_does_not_expand_into_nsaid_reaction_history(engine):
+    result = engine.assess(["布洛芬"], contexts=["哮喘"])
+
+    assert result.conclusion_status == ConclusionStatus.OUT_OF_SCOPE
+    assert result.facts == []
+    assert result.resolved_contexts == []
+    assert result.unresolved_contexts == ["哮喘"]
+
+
 def test_catalog_rejects_unknown_source_reference(tmp_path):
-    for name in ("sources.json", "medications.json", "facts.json"):
+    for name in ("sources.json", "medications.json", "contexts.json", "facts.json"):
         payload = json.loads((DATA_DIRECTORY / name).read_text(encoding="utf-8"))
         if name == "facts.json":
             payload[0]["source_ids"] = ["missing-source"]
         (tmp_path / name).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
     with pytest.raises(CatalogValidationError, match="unknown sources"):
+        KnowledgeCatalog.from_directory(tmp_path)
+
+
+def test_catalog_rejects_unknown_required_context(tmp_path):
+    for name in ("sources.json", "medications.json", "contexts.json", "facts.json"):
+        payload = json.loads((DATA_DIRECTORY / name).read_text(encoding="utf-8"))
+        if name == "facts.json":
+            payload[0]["required_context"] = ["不存在的上下文"]
+        (tmp_path / name).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(CatalogValidationError, match="unknown contexts"):
+        KnowledgeCatalog.from_directory(tmp_path)
+
+
+def test_catalog_rejects_duplicate_stable_ids(tmp_path):
+    for name in ("sources.json", "medications.json", "contexts.json", "facts.json"):
+        payload = json.loads((DATA_DIRECTORY / name).read_text(encoding="utf-8"))
+        if name == "contexts.json":
+            payload.append(payload[0])
+        (tmp_path / name).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(CatalogValidationError, match="duplicate context id"):
         KnowledgeCatalog.from_directory(tmp_path)
 
 

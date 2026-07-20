@@ -75,5 +75,18 @@
     "review_status": "reviewed",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00"
+  },
+  {
+    "source_id": "source-dailymed-ibuprofen-amneal-2024",
+    "title": "Ibuprofen Tablets, USP 600 mg",
+    "publisher": "U.S. National Library of Medicine DailyMed；labeler: Amneal Pharmaceuticals of New York LLC",
+    "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=8df77ead-27eb-4f6f-95a9-f68d3e9cfa71",
+    "published_at": "2024-07-18",
+    "version": "Set ID 8df77ead-27eb-4f6f-95a9-f68d3e9cfa71；Updated 2024-07-18",
+    "license_note": "NLM公开在用标签；仅保存项目释义和章节定位，不复制全文。DailyMed说明标签内容未经NLM预审，临床使用应核对具体产品说明书。",
+    "accessed_at": "2026-07-20",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-20",
+    "reviewed_at": "2026-07-20T20:00:00+08:00"
   }
 ]
