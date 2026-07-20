@@ -333,3 +333,35 @@ class ExplanationGuardrailCase(StrictModel):
         ):
             raise ValueError("fallback reason is only valid for expected fallback mode")
         return self
+
+
+class OpaquePlannerFact(StrictModel):
+    """Synthetic, non-medical fact metadata for a locked planner contract test."""
+
+    fact_id: str = Field(min_length=1)
+    risk_type: RiskType
+    severity: Severity
+
+
+class OpaquePlannerCase(StrictModel):
+    """Held-out fact-ID copying and ordering case with no clinical content."""
+
+    case_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    split: str = Field(pattern="^test$")
+    dataset_version: str = Field(min_length=1)
+    facts: list[OpaquePlannerFact] = Field(min_length=1)
+    expected_ordered_fact_ids: list[str] = Field(min_length=1)
+    tags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def expected_order_is_a_complete_permutation(self):
+        fact_ids = [fact.fact_id for fact in self.facts]
+        if len(fact_ids) != len(set(fact_ids)):
+            raise ValueError("opaque planner facts require unique fact IDs")
+        if len(self.expected_ordered_fact_ids) != len(
+            set(self.expected_ordered_fact_ids)
+        ):
+            raise ValueError("expected fact ID order must not contain duplicates")
+        if set(self.expected_ordered_fact_ids) != set(fact_ids):
+            raise ValueError("expected fact ID order must contain every fact exactly once")
+        return self

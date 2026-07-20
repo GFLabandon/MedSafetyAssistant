@@ -55,3 +55,17 @@
 ```
 
 该数据集已经用于 `evidence-order-v1` 到 v2 的迭代，只能作为开发集；后续不能把它改称独立测试集。
+
+`opaque_id_test_v1.jsonl` 是在 v2 prompt/schema 完成后冻结的合成 contract test，SHA-256 为 `ced2daf4cabbc4cb4c1d0238b35e352a485515a9764207d89fdc2c4035d99f5a`。它只测试未见 fact_id 的逐字符复制、完整集合、严重度排序和三轮一致性，不包含医学事实：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/opaque_id_test_v1.jsonl \
+  --runner ollama_opaque_ids \
+  --model deepseek-r1:1.5b \
+  --repetitions 3 \
+  --timeout-seconds 120 \
+  --format json
+```
+
+首次真实运行后，无论结果是否通过，都不得再用该版本调 prompt。任何内容或期望顺序修改必须创建新的数据集版本，并保留 v1 原始报告。

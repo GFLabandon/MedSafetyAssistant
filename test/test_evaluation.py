@@ -5,10 +5,15 @@ from pathlib import Path
 import pytest
 
 from evaluation.cypher_inventory import parse_legacy_risk_facts
-from evaluation.dataset import load_cases, load_explanation_guardrail_cases
+from evaluation.dataset import (
+    load_cases,
+    load_explanation_guardrail_cases,
+    load_opaque_planner_cases,
+)
 from evaluation.entity_baseline import evaluate_entity_extractor
 from evaluation.explanation_guardrails import evaluate_explanation_guardrails
 from evaluation.ollama_explanation import evaluate_ollama_explanations
+from evaluation.opaque_id_planner import evaluate_opaque_id_planner
 from evaluation.safety_engine_baseline import evaluate_safety_engine
 from logic_layer.entity_utils import exact_entity_extraction
 from medsafety.catalog import KnowledgeCatalog
@@ -242,3 +247,57 @@ def test_saved_real_model_v2_baseline_improves_plan_validity_without_weakening_s
     assert v2["pipeline_failures"] == []
     assert all(record["generation_mode"] == "llm_planned" for record in raw_records)
     assert all(json.loads(record["raw_response"]) for record in raw_records)
+
+
+def test_locked_opaque_id_dataset_is_valid_and_not_medical():
+    cases = load_opaque_planner_cases(REPOSITORY_ROOT / "eval/opaque_id_test_v1.jsonl")
+
+    assert len(cases) == 12
+    assert all(case.split == "test" for case in cases)
+    assert {case.dataset_version for case in cases} == {"opaque-id-test-v1"}
+    assert all(
+        set(case.expected_ordered_fact_ids) == {fact.fact_id for fact in case.facts}
+        for case in cases
+    )
+
+
+def test_opaque_id_runner_repeats_locked_cases_without_network():
+    cases = load_opaque_planner_cases(REPOSITORY_ROOT / "eval/opaque_id_test_v1.jsonl")
+    severity_priority = {"FATAL": 0, "RED": 1, "ORANGE": 2, "INFO": 3}
+
+    class FakePlanner:
+        prompt_version = "evidence-order-v2"
+        options = {"temperature": 0, "seed": 42, "num_predict": 256}
+
+        def generate_attempt(self, packet):
+            ordered = [
+                fact.fact_id
+                for fact in sorted(
+                    packet.facts,
+                    key=lambda fact: severity_priority[fact.severity.value],
+                )
+            ]
+            payload = {
+                "conclusion_status": "risk_found",
+                "ordered_fact_ids": ordered,
+            }
+            return OllamaPlanAttempt(
+                raw_response=json.dumps(payload, ensure_ascii=False),
+                parsed_payload=payload,
+                latency_ms=9.5,
+                error_category=None,
+                error_type=None,
+                response_metadata={"eval_count": 5},
+            )
+
+    report = evaluate_opaque_id_planner(cases, FakePlanner(), repetitions=3)
+
+    assert report["dataset_type"] == "locked_synthetic_contract_test"
+    assert report["dataset_cases"] == 12
+    assert report["planner_attempts"] == 36
+    assert report["metrics"]["valid_plan_rate"] == 1.0
+    assert report["metrics"]["exact_severity_order_rate"] == 1.0
+    assert report["metrics"]["character_exact_reference_rate"] == 1.0
+    assert report["metrics"]["raw_plan_consistency_rate"] == 1.0
+    assert report["failures"] == []
+    assert report["ordering_failures"] == []

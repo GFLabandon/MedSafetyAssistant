@@ -100,6 +100,8 @@ V1 已实现 `evidence-order-v1` 的第一层护栏测试：模型只规划 fact
 - 发生测试集修订时递增数据版本并说明原因；
 - 不使用被测 LLM 生成未经人工核对的标准答案。
 
+`opaque-id-test-v1` 是独立于医学事实的锁定 contract test：它在 `evidence-order-v2` 完成后冻结，只验证未见 opaque ID 的字符保持、完整引用和严重度排序。首次运行后禁止据此调 prompt；它也不能替代按医学 fact_id 分组的临床内容测试集。
+
 ## 8. 报告要求
 
 每份报告必须记录：

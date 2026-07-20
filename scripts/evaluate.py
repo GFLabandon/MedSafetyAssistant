@@ -17,7 +17,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from evaluation.dataset import load_cases, load_explanation_guardrail_cases
+from evaluation.dataset import (
+    load_cases,
+    load_explanation_guardrail_cases,
+    load_opaque_planner_cases,
+)
 from evaluation.entity_baseline import evaluate_entity_extractor, render_markdown
 from evaluation.explanation_guardrails import (
     evaluate_explanation_guardrails,
@@ -26,6 +30,10 @@ from evaluation.explanation_guardrails import (
 from evaluation.ollama_explanation import (
     evaluate_ollama_explanations,
     render_ollama_explanation_markdown,
+)
+from evaluation.opaque_id_planner import (
+    evaluate_opaque_id_planner,
+    render_opaque_id_markdown,
 )
 from evaluation.safety_engine_baseline import evaluate_safety_engine, render_safety_markdown
 from config import Config
@@ -92,6 +100,7 @@ def main() -> int:
             "safety_engine",
             "explanation_guardrails",
             "ollama_explanation",
+            "ollama_opaque_ids",
         ),
         default="rule_entities",
     )
@@ -126,7 +135,7 @@ def main() -> int:
             str(dataset_path),
             catalog.data_version,
         )
-    else:
+    elif args.runner == "ollama_explanation":
         cases = load_cases(dataset_path)
         catalog = KnowledgeCatalog.from_directory(args.data_dir)
         planner = OllamaExplanationPlanner(
@@ -147,6 +156,24 @@ def main() -> int:
         report["ollama_package_version"] = package_version("ollama")
         report["code_commit"], report["working_tree_dirty"] = git_state()
         markdown = render_ollama_explanation_markdown(report, str(dataset_path))
+    else:
+        cases = load_opaque_planner_cases(dataset_path)
+        planner = OllamaExplanationPlanner(
+            host=args.ollama_url,
+            model=args.model,
+            timeout_seconds=args.timeout_seconds,
+        )
+        report = evaluate_opaque_id_planner(
+            cases,
+            planner,
+            repetitions=args.repetitions,
+        )
+        report["dataset_sha256"] = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+        report["model"] = ollama_model_metadata(planner)
+        report["ollama_url"] = args.ollama_url
+        report["ollama_package_version"] = package_version("ollama")
+        report["code_commit"], report["working_tree_dirty"] = git_state()
+        markdown = render_opaque_id_markdown(report, str(dataset_path))
 
     if args.format == "markdown":
         sys.stdout.write(markdown)
