@@ -102,6 +102,8 @@ V1 已实现 `evidence-order-v1` 的第一层护栏测试：模型只规划 fact
 
 `opaque-id-test-v1` 是独立于医学事实的锁定 contract test：它在 `evidence-order-v2` 完成后冻结，只验证未见 opaque ID 的字符保持、完整引用和严重度排序。首次运行后禁止据此调 prompt；它也不能替代按医学 fact_id 分组的临床内容测试集。
 
+首次可审计运行结果保存在 `reports/baseline-ollama-opaque-id-test-v1.{json,md}` 和 `reports/raw/`：36 次请求中有效计划率 0.833、精确严重度顺序率 0.667。失败用于增加服务端严重度顺序不变量，但没有修改锁定数据或据此调 prompt；新的脚本化 `explanation-guardrails-v2` 验证所有不变量。
+
 ## 8. 报告要求
 
 每份报告必须记录：

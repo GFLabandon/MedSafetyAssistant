@@ -131,6 +131,26 @@ def test_saved_explanation_guardrail_v1_report_remains_historical_and_immutable(
     assert saved_report["working_tree_dirty"] is False
 
 
+def test_saved_explanation_guardrail_v2_report_matches_current_runner():
+    dataset_path = REPOSITORY_ROOT / "eval/explanation_guardrails_v2.jsonl"
+    cases = load_explanation_guardrail_cases(dataset_path)
+    catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
+    current = evaluate_explanation_guardrails(cases, SafetyEngine(catalog))
+    saved = json.loads(
+        (REPOSITORY_ROOT / "reports/baseline-explanation-guardrails-v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert saved["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    assert saved["code_commit"] == "1844277fcfff3d6185ee43b17c1ad4bee3085fcd"
+    assert saved["guardrail_version"] == current["guardrail_version"]
+    assert saved["dataset_cases"] == len(cases) == 10
+    assert saved["metrics"] == current["metrics"]
+    assert saved["failures"] == current["failures"] == []
+    assert saved["working_tree_dirty"] is False
+
+
 def test_real_model_runner_repeats_and_records_raw_plans_without_network():
     cases = load_cases(REPOSITORY_ROOT / "eval/explanation_model_dev_v1.jsonl")
     catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")

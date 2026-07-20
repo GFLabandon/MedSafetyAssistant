@@ -14,7 +14,7 @@
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 80 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 85 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
@@ -137,4 +137,15 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - v2 在相同探针和模型上 15/15 合法，有效计划率和三轮一致性均为 1.000，P50/P95 为 1085.918/1511.546 ms；
 - v1/v2 均属于同一开发集上的调优证据，不能宣称模型泛化或临床准确率。
 
-下一验收门：按 fact_id 分组建立不可用于调参的独立测试集；随后扩展实体抽取与提示注入策略评测，而不是继续在当前开发集上优化数字。
+该验收门已通过独立的非医学 opaque-ID contract test 完成；医学内容层仍缺少按 fact_id 分组的独立测试集。
+
+## 锁定 opaque-ID 测试与安全修复
+
+- 在 v2 完成后冻结 12 条非医学合成测试，覆盖未见 ID、相似字符、大小写、Unicode、UUID 和 2/3/4 事实排序；
+- 3 次重复共 36 次模型请求，有效计划率 0.833、逐字符引用率 0.900、精确严重度顺序率 0.667；
+- Ollama structured output 在两个相似 ID 场景中稳定返回重复 ID，说明 `uniqueItems` 不能替代服务端校验；
+- 两个多事实场景稳定违反严重度顺序，说明模型不能独立承担风险优先级策略；
+- 服务端新增 `FATAL > RED > ORANGE > INFO` 顺序不变量，违规计划与未知、遗漏、重复 ID 一样确定性回退；
+- `explanation_guardrails-v2` 的 10 个脚本化场景全部通过，历史 v1 数据和报告未被覆盖。
+
+下一验收门：开始实体抽取边界重构，先定义歧义药名、未知实体、提示注入与必须澄清状态的版本化契约；不再扩展当前解释排序 prompt。
