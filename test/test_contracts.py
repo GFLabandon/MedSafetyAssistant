@@ -4,7 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from medsafety.contracts import (
+    ClinicalContextRecord,
     ConclusionStatus,
+    ContextKind,
     EvidencePacket,
     FactRecord,
     LabelStatus,
@@ -71,6 +73,18 @@ def test_reviewed_fact_requires_sources_locator_and_reviewer():
     assert fact.label_status == LabelStatus.SOURCE_ALIGNED
 
 
+def test_reviewed_context_requires_review_metadata():
+    with pytest.raises(ValidationError, match="reviewed contexts require"):
+        ClinicalContextRecord(
+            context_id="context-1",
+            canonical_name="明确上下文",
+            kind=ContextKind.REACTION_HISTORY,
+            description="只记录用户明确报告的反应史。",
+            review_status=ReviewStatus.REVIEWED,
+            data_version="v1",
+        )
+
+
 def test_risk_found_requires_evidence_facts():
     with pytest.raises(ValidationError, match="risk_found requires"):
         EvidencePacket(
@@ -86,3 +100,17 @@ def test_non_risk_packet_can_be_empty_and_explain_limitations():
         data_version="v1",
     )
     assert packet.facts == []
+
+
+def test_only_knowledge_unavailable_can_omit_data_version():
+    packet = EvidencePacket(
+        conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
+        limitations=["知识库不可用"],
+    )
+
+    assert packet.data_version is None
+
+    with pytest.raises(ValidationError, match="require a data version"):
+        EvidencePacket(
+            conclusion_status=ConclusionStatus.NO_KNOWN_RISK_IN_SCOPE,
+        )

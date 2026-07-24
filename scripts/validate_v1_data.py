@@ -23,6 +23,7 @@ def main() -> int:
     print(f"data_version={catalog.data_version}")
     print(f"sources={len(catalog.sources)}")
     print(f"medications={len(catalog.medications)}")
+    print(f"contexts={len(catalog.contexts)}")
     print(f"facts={len(catalog.facts)}")
     print("status=valid")
     return 0

@@ -1,0 +1,51 @@
+{
+  "runner": "ollama_opaque_ids",
+  "dataset_type": "locked_synthetic_contract_test",
+  "dataset_version": "opaque-id-test-v1",
+  "dataset": "eval/opaque_id_test_v1.jsonl",
+  "dataset_cases": 12,
+  "dataset_sha256": "ced2daf4cabbc4cb4c1d0238b35e352a485515a9764207d89fdc2c4035d99f5a",
+  "code_commit": "2f40fbda211f79aba6569acbc9d96a1b14283f6f",
+  "working_tree_dirty": false,
+  "prompt_version": "evidence-order-v2",
+  "model": {
+    "name": "deepseek-r1:1.5b",
+    "digest": "e0979632db5a88d1a53884cb2a941772d10ff5d055aabaa6801c4e36f3a6c2d7",
+    "parameter_size": "1.8B",
+    "quantization_level": "Q4_K_M"
+  },
+  "ollama_package_version": "0.6.2",
+  "generation_options": {
+    "temperature": 0,
+    "seed": 42,
+    "num_predict": 256,
+    "think": false,
+    "format": "dynamic_json_schema"
+  },
+  "repetitions": 3,
+  "planner_attempts": 36,
+  "metrics": {
+    "valid_plan_rate": 0.8333333333333334,
+    "exact_severity_order_rate": 0.6666666666666666,
+    "character_exact_reference_rate": 0.9,
+    "raw_plan_consistency_rate": 1.0,
+    "planner_latency_ms_p50": 946.787,
+    "planner_latency_ms_p95": 1489.869
+  },
+  "failure_summary": {
+    "invalid_plans": 6,
+    "invalid_case_ids": [
+      "opaque_similar_pair",
+      "opaque_case_sensitive_pair"
+    ],
+    "ordering_failures": 6,
+    "ordering_case_ids": [
+      "opaque_four_severities",
+      "opaque_three_punctuation"
+    ],
+    "stable_across_all_repetitions": true
+  },
+  "raw_plan_log": "reports/raw/ollama-opaque-id-test-v1-plans.jsonl",
+  "collection_note": "The first identical run completed but its stdout was not captured by the execution channel. This report is from an unchanged repeat run; dataset and prompt were not modified.",
+  "interpretation_boundary": "Locked synthetic contract test for ID copying and ordering only; contains no medical facts and does not measure clinical quality."
+}

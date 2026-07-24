@@ -10,12 +10,13 @@
 
 本轮新增数据全部是 `source_aligned`，不是 `clinically_reviewed`。
 
-## V1 alpha.1 覆盖范围
+## V1 alpha.2 覆盖范围
 
-第一批只对齐两个场景：
+当前只对齐三个场景：
 
 1. 泰诺与感康共享对乙酰氨基酚，并应用“不要同时使用多个含对乙酰氨基酚产品”的风险规则；
-2. 布洛芬与低剂量阿司匹林用于心血管保护时存在带条件的药效相互作用。
+2. 布洛芬与低剂量阿司匹林用于心血管保护时存在带条件的药效相互作用；
+3. 明确报告既往服用阿司匹林或其他 NSAID 后出现哮喘、荨麻疹或过敏样反应时，布洛芬片标签明确要求不应使用。
 
 其他旧图谱事实继续保持 `legacy_unreviewed`，Safety Engine 不读取它们。
 
@@ -34,6 +35,14 @@
 - FDA Science Paper 明确把结论限定为布洛芬与用于心血管保护的低剂量阿司匹林；
 - 旧图谱将其写成一般性的 RED 相互作用，适用范围过宽；
 - 新事实增加 `required_context`，缺少用途信息时 Safety Engine 必须要求澄清。
+
+### 布洛芬 + 明确的阿司匹林/NSAID 反应史
+
+- DailyMed 的 Ibuprofen Tablets, USP 600 mg 在用标签，Set ID `8df77ead-27eb-4f6f-95a9-f68d3e9cfa71`，更新时间 2024-07-18；
+- 定位为 `CONTRAINDICATIONS` 和 `PRECAUTIONS—Preexisting asthma`；
+- 规则只接受受控上下文“服用阿司匹林或其他 NSAID 后出现哮喘、荨麻疹或过敏反应”；
+- 单独的“哮喘”保持未解析，不能触发禁忌；
+- 旧图谱中的布洛芬高血压、胃溃疡和儿童禁忌没有迁移，原因记录在 `reports/contraindication-source-audit-v1.md`。
 
 ## 工程审核记录
 

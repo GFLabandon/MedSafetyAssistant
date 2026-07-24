@@ -1,0 +1,24 @@
+[
+  {
+    "context_id": "context-aspirin-cardioprotection",
+    "canonical_name": "阿司匹林用于心血管保护",
+    "kind": "medication_use",
+    "aliases": ["低剂量阿司匹林用于心血管保护", "阿司匹林用于心血管预防"],
+    "description": "用户明确说明阿司匹林用途为心血管事件预防；不推断剂量、适应症或处方状态。",
+    "review_status": "reviewed",
+    "reviewed_by": "project-context-vocabulary-2026-07-20",
+    "reviewed_at": "2026-07-20T20:00:00+08:00",
+    "data_version": "v1.0.0-alpha.2"
+  },
+  {
+    "context_id": "context-nsaid-allergic-reaction-history",
+    "canonical_name": "服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应",
+    "kind": "reaction_history",
+    "aliases": ["阿司匹林过敏", "NSAID过敏", "吃阿司匹林后哮喘", "服用NSAID后出现过敏反应"],
+    "description": "仅表示用户明确报告既往服用阿司匹林或其他非甾体抗炎药后出现哮喘、荨麻疹或其他过敏样反应；普通哮喘不属于该上下文。",
+    "review_status": "reviewed",
+    "reviewed_by": "project-context-vocabulary-2026-07-20",
+    "reviewed_at": "2026-07-20T20:00:00+08:00",
+    "data_version": "v1.0.0-alpha.2"
+  }
+]

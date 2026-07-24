@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from medsafety.contracts import (
+    ClinicalContextRecord,
     FactRecord,
     LabelStatus,
     MedicationRecord,
@@ -26,17 +27,30 @@ def _load_json(path: Path):
         raise CatalogValidationError(f"cannot load {path}: {exc}") from exc
 
 
+def _index_unique(records, identifier: str, record_type: str):
+    indexed = {}
+    for record in records:
+        record_id = getattr(record, identifier)
+        if record_id in indexed:
+            raise CatalogValidationError(f"duplicate {record_type} id: {record_id}")
+        indexed[record_id] = record
+    return indexed
+
+
 class KnowledgeCatalog:
     def __init__(
         self,
         sources: list[SourceRecord],
         medications: list[MedicationRecord],
+        contexts: list[ClinicalContextRecord],
         facts: list[FactRecord],
     ):
-        self.sources = {item.source_id: item for item in sources}
-        self.medications = {item.medication_id: item for item in medications}
-        self.facts = {item.fact_id: item for item in facts}
-        self._aliases: dict[str, MedicationRecord] = {}
+        self.sources = _index_unique(sources, "source_id", "source")
+        self.medications = _index_unique(medications, "medication_id", "medication")
+        self.contexts = _index_unique(contexts, "context_id", "context")
+        self.facts = _index_unique(facts, "fact_id", "fact")
+        self._medication_aliases: dict[str, MedicationRecord] = {}
+        self._context_aliases: dict[str, ClinicalContextRecord] = {}
         self._validate_and_index()
 
     @classmethod
@@ -47,23 +61,30 @@ class KnowledgeCatalog:
             medications = [
                 MedicationRecord.model_validate(item) for item in _load_json(root / "medications.json")
             ]
+            contexts = [
+                ClinicalContextRecord.model_validate(item)
+                for item in _load_json(root / "contexts.json")
+            ]
             facts = [FactRecord.model_validate(item) for item in _load_json(root / "facts.json")]
         except CatalogValidationError:
             raise
         except Exception as exc:
             raise CatalogValidationError(f"invalid V1 catalog in {root}: {exc}") from exc
-        return cls(sources=sources, medications=medications, facts=facts)
+        return cls(sources=sources, medications=medications, contexts=contexts, facts=facts)
 
     @property
     def data_version(self) -> str:
-        versions = {item.data_version for item in [*self.medications.values(), *self.facts.values()]}
+        versions = {
+            item.data_version
+            for item in [*self.medications.values(), *self.contexts.values(), *self.facts.values()]
+        }
         if len(versions) != 1:
             raise CatalogValidationError(f"catalog contains inconsistent data versions: {sorted(versions)}")
         return versions.pop()
 
     def _validate_and_index(self):
-        if not self.sources or not self.medications or not self.facts:
-            raise CatalogValidationError("catalog requires sources, medications, and facts")
+        if not self.sources or not self.medications or not self.contexts or not self.facts:
+            raise CatalogValidationError("catalog requires sources, medications, contexts, and facts")
 
         for source in self.sources.values():
             if source.review_status != ReviewStatus.REVIEWED:
@@ -78,25 +99,55 @@ class KnowledgeCatalog:
             if missing_sources:
                 raise CatalogValidationError(f"record references unknown sources: {sorted(missing_sources)}")
 
+        for context in self.contexts.values():
+            if context.review_status != ReviewStatus.REVIEWED:
+                raise CatalogValidationError(f"context is not reviewed: {context.context_id}")
+
+        canonical_contexts = {context.canonical_name for context in self.contexts.values()}
+        for fact in self.facts.values():
+            unknown_contexts = set(fact.required_context) - canonical_contexts
+            if unknown_contexts:
+                raise CatalogValidationError(
+                    f"fact references unknown contexts: {sorted(unknown_contexts)}"
+                )
+            if fact.predicate == "CONTRAINDICATED_IN" and fact.object not in canonical_contexts:
+                raise CatalogValidationError(
+                    f"contraindication references unknown context: {fact.object}"
+                )
+
         _ = self.data_version
 
         for medication in self.medications.values():
             for alias in [medication.canonical_name, *medication.aliases]:
                 key = self.normalize_alias(alias)
-                existing = self._aliases.get(key)
+                existing = self._medication_aliases.get(key)
                 if existing and existing.medication_id != medication.medication_id:
                     raise CatalogValidationError(
                         f"ambiguous medication alias {alias!r}: "
                         f"{existing.medication_id} and {medication.medication_id}"
                     )
-                self._aliases[key] = medication
+                self._medication_aliases[key] = medication
+
+        for context in self.contexts.values():
+            for alias in [context.canonical_name, *context.aliases]:
+                key = self.normalize_alias(alias)
+                existing = self._context_aliases.get(key)
+                if existing and existing.context_id != context.context_id:
+                    raise CatalogValidationError(
+                        f"ambiguous context alias {alias!r}: "
+                        f"{existing.context_id} and {context.context_id}"
+                    )
+                self._context_aliases[key] = context
 
     @staticmethod
     def normalize_alias(value: str) -> str:
         return " ".join(value.casefold().strip().split())
 
     def resolve_medication(self, value: str) -> MedicationRecord | None:
-        return self._aliases.get(self.normalize_alias(value))
+        return self._medication_aliases.get(self.normalize_alias(value))
+
+    def resolve_context(self, value: str) -> ClinicalContextRecord | None:
+        return self._context_aliases.get(self.normalize_alias(value))
 
     def duplicate_fact_for(self, ingredient: str) -> FactRecord | None:
         return next(
@@ -120,3 +171,16 @@ class KnowledgeCatalog:
             ):
                 matches.append(fact)
         return matches
+
+    def contraindication_facts_for(
+        self,
+        ingredients: set[str],
+        contexts: set[str],
+    ) -> list[FactRecord]:
+        return [
+            fact
+            for fact in self.facts.values()
+            if fact.predicate == "CONTRAINDICATED_IN"
+            and fact.subject in ingredients
+            and fact.object in contexts
+        ]

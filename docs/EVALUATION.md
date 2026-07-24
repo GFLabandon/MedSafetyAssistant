@@ -50,6 +50,12 @@
 - `safety_engine`：不调用 LLM 的确定性事实与风险基线；
 - `full_pipeline`：Evidence Packet + 受约束生成。
 
+V1 已实现 `evidence-order-v1` 的第一层护栏测试：模型只规划 fact_id 顺序，服务端检查完整引用集合并确定性渲染。该测试覆盖未知 ID、漏引、重复引用、结论篡改、额外字段和 planner 故障；它是工程契约验证，不替代真实 Ollama 的重复运行评测。
+
+脚本化基线保存在 `reports/baseline-explanation-guardrails-v1.{json,md}`。报告记录数据集 SHA-256、代码 commit、工作树状态、数据版本和 prompt 版本；保存结果还会由全量测试与当前 runner 指标比对。
+
+真实 Ollama 开发基线保存在 `reports/baseline-ollama-evidence-order-v1.{json,md}` 和 v2 对应文件中，15 条原始计划分别保存在 `reports/raw/`。v1 暴露了 fact_id 字符替换问题，v2 用动态 JSON Schema 修复；两者使用同一数据集和模型 digest。该对比属于开发调优证据，不能作为独立测试集结果。
+
 `current_pipeline`、`pure_llm`、`prompt_llm` 和 `full_pipeline` 必须记录模型名称、模型摘要、参数、prompt 版本和依赖健康状态。依赖不健康时不得生成正式报告。
 
 ## 5. 指标
@@ -94,6 +100,10 @@
 - 发生测试集修订时递增数据版本并说明原因；
 - 不使用被测 LLM 生成未经人工核对的标准答案。
 
+`opaque-id-test-v1` 是独立于医学事实的锁定 contract test：它在 `evidence-order-v2` 完成后冻结，只验证未见 opaque ID 的字符保持、完整引用和严重度排序。首次运行后禁止据此调 prompt；它也不能替代按医学 fact_id 分组的临床内容测试集。
+
+首次可审计运行结果保存在 `reports/baseline-ollama-opaque-id-test-v1.{json,md}` 和 `reports/raw/`：36 次请求中有效计划率 0.833、精确严重度顺序率 0.667。失败用于增加服务端严重度顺序不变量，但没有修改锁定数据或据此调 prompt；新的脚本化 `explanation-guardrails-v2` 验证所有不变量。
+
 ## 8. 报告要求
 
 每份报告必须记录：
@@ -107,4 +117,4 @@
 - 失败样例和错误分类；
 - 已知限制。
 
-当前无正式端到端基线的原因必须如实记录：本轮执行时 Docker、Neo4j、Redis 和 Ollama 未运行。
+当前仍无正式端到端基线：真实 Ollama 只评测了 V1 Evidence Packet 解释规划，Neo4j、Redis、实体抽取和 legacy 查询链路没有在同一次受控运行中验收。

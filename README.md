@@ -1,159 +1,232 @@
 # MedSafetyAssistant
 
-家庭用药安全助手（RAG + Knowledge Graph）。
-核心目标：在医疗问答中降低纯 LLM 幻觉，优先给出可追溯的结构化依据。
+[![Quality Gate](https://github.com/GFLabandon/MedSafetyAssistant/actions/workflows/quality.yml/badge.svg)](https://github.com/GFLabandon/MedSafetyAssistant/actions/workflows/quality.yml)
 
-## 快速启动
+一个面向家庭常见用药场景的、**证据可追溯且可评测的 AI 应用后端**。
 
-```bash
-pip install -r requirements.txt
+项目不让 LLM 自由创造医学结论：确定性 Safety Engine 从版本化事实目录生成
+`EvidencePacket`，LLM 只能为已有事实排序，服务端随后校验结论、事实 ID、引用完整性和
+严重度顺序；任何违规或模型故障都会触发确定性回退。
 
-docker-compose up -d redis
-neo4j console
+> **安全边界：**这是工程验证项目，不是医疗器械或临床决策系统。当前 V1 只有 3 条
+> `source_aligned` 风险事实，没有医生或药师临床审核签名。
 
-ollama pull mxbai-embed-large:latest
-ollama pull deepseek-r1:7b
-# ollama pull qwen2.5-coder:14b  # 推荐模型（效果更好，机器配置允许时使用）
+## 为什么这个项目不只是一次 LLM API 调用
 
-# 如需切换到推荐模型：
-# export OLLAMA_MODEL=qwen2.5-coder:14b   # macOS/Linux
-# set OLLAMA_MODEL=qwen2.5-coder:14b      # Windows PowerShell
+- **确定性领域逻辑：**重复成分、条件性相互作用和严格限定禁忌由 Safety Engine 判断，
+  不由模型决定。
+- **可追溯证据：**每条正式结论都携带 `fact_id`、`source_id`、来源定位、数据版本和限制。
+- **模型输出不可信：**未知、遗漏、重复事实 ID，结论篡改和严重度错序都会被服务端拒绝。
+- **可重建图投影：**版本化 JSON 是权威源，Neo4j 是带唯一约束和幂等导入的查询投影。
+- **失败也是评测结果：**仓库保留真实 Ollama 的 ID 复制与排序失败，而不是只展示成功样例。
 
-python -m streamlit run app.py
+## 当前可验证结果
+
+| 证据 | 当前结果 | 解释边界 |
+|---|---:|---|
+| Python 回归 | `85 passed, 1 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
+| Safety Engine 开发集 | 9/9 whole-case match | 仅覆盖 3 条来源对齐事实 |
+| 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
+| Ollama v2 开发探针 | 15/15 合法计划 | 同一开发探针上的 schema 调优结果 |
+| 锁定 opaque-ID 测试 | valid plan `0.833`，severity order `0.667` | 36 次真实请求；违规均被服务端拦截 |
+| Neo4j 投影 | 两次导入计数一致，七类结果与 JSON 等价 | 隔离 Neo4j 5.26.28 集成验收 |
+
+报告和原始失败证据：
+
+- [项目状态与验收记录](docs/PROJECT_STATUS.md)
+- [V1 alpha.2 数据卡](docs/DATA_CARD_V1_ALPHA_2.md)
+- [Safety Engine 基线](reports/baseline-safety-engine-v1-alpha.2.md)
+- [输出护栏 v2 基线](reports/baseline-explanation-guardrails-v2.md)
+- [真实 Ollama 开发基线](reports/baseline-ollama-evidence-order-v2.md)
+- [锁定 opaque-ID 失败报告](reports/baseline-ollama-opaque-id-test-v1.md)
+
+## 核心架构
+
+```mermaid
+flowchart LR
+    A["结构化药品与上下文"] --> B["Safety Engine"]
+    J["data/v1 权威 JSON"] --> B
+    J --> C["幂等导入"]
+    C --> D["Neo4j 查询投影"]
+    D --> B
+    B --> E["Evidence Packet"]
+    E --> F["Ollama 事实排序"]
+    F --> G["服务端不变量校验"]
+    G -->|"合法"| H["抽取式证据解释"]
+    G -->|"违规或故障"| I["确定性回退"]
+    E --> I
 ```
 
-## Full-Stack Mode
+LLM 可以排列证据，但不能：
 
-原始 `app.py` Streamlit 应用仍然保留，作为原型 UI 使用。Full-Stack Mode 在同一套后端编排服务之上增加 `FastAPI` BFF 和 `React Chat UI`，用于展示更清晰的 API 合约、流式回答和结构化证据。
+- 新增或改写医学事实；
+- 改变 Safety Engine 的结论；
+- 遗漏、重复或创造 `fact_id`；
+- 生成来源、来源定位或严重度说明。
 
-### Backend
+## V1 支持范围
+
+当前 `v1.0.0-alpha.2` 只覆盖：
+
+1. 泰诺与感康共享对乙酰氨基酚的重复成分风险；
+2. 布洛芬与用于心血管保护的阿司匹林之间的条件性相互作用；
+3. 明确报告阿司匹林或其他 NSAID 相关哮喘、荨麻疹或过敏样反应史时的布洛芬禁忌。
+
+API 使用五种结论状态：
+
+| 状态 | 含义 |
+|---|---|
+| `risk_found` | 当前数据版本命中来源对齐风险 |
+| `no_known_risk_in_scope` | 范围内未命中；不代表组合安全 |
+| `insufficient_information` | 缺少判断必需的上下文 |
+| `out_of_scope` | 药品或上下文不在当前覆盖范围 |
+| `knowledge_unavailable` | 知识服务不可用，禁止显示为“无风险” |
+
+完整边界见 [安全边界文档](docs/SAFETY_BOUNDARY.md)。
+
+## 五分钟离线验收
+
+要求 Python 3.10。以下步骤不需要启动 Neo4j、Redis 或 Ollama：
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+
+# Linux
+sha256sum --check data/v1/checksums.sha256
+# macOS
+shasum -a 256 -c data/v1/checksums.sha256
+
+python scripts/validate_v1_data.py
+python -m pytest -q -m "not integration"
+
+cd frontend
+npm ci
+npm run build
+```
+
+上述命令也是 GitHub Actions 的基础质量门。真实 Neo4j 和 Ollama 验收属于显式运行的
+集成/评测任务，不会在普通离线测试中伪装为端到端通过。
+
+## 运行 V1 API
+
+```bash
 uvicorn api:app --reload --port 8000
 ```
 
-API endpoints:
+交互文档：`http://127.0.0.1:8000/docs`
 
-- `POST /api/query` - 非流式用药安全查询。
-- `POST /api/query/stream` - SSE 风格流式查询，先返回元数据，再返回回答 token。
-- `GET /api/health` - Neo4j、Redis、Ollama 的非阻塞配置诊断。
-- `POST /api/v1/safety/check` - 只读取来源对齐事实的确定性 V1 风险检查。
-
-### Source-Aligned Safety Engine (V1 Alpha)
-
-新的 V1 Safety Engine 与旧 Cypher 图谱隔离，只读取 `data/v1/` 中通过 schema 和来源引用校验的记录。当前 alpha.1 只覆盖：
-
-- 泰诺与感康共享对乙酰氨基酚的重复成分场景；
-- 布洛芬与用于心血管保护的低剂量阿司匹林之间的条件性相互作用。
-
-它会返回 `risk_found`、`no_known_risk_in_scope`、`insufficient_information`、`out_of_scope` 或 `knowledge_unavailable`，并返回 `fact_id`、`source_id`、来源定位、数据版本和限制。
+### 演示 1：重复成分风险
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/safety/check \
+curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
   -H 'Content-Type: application/json' \
-  -d '{"medications":["泰诺","感康"],"contexts":[]}'
-
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/validate_v1_data.py
-
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
-  --dataset eval/safety_engine_dev.jsonl \
-  --runner safety_engine \
-  --data-dir data/v1 \
-  --format markdown
+  -d '{"medications":["泰诺","感康"],"contexts":[],"use_llm_plan":false}'
 ```
 
-当前数据是 `source_aligned`，不是 `clinically_reviewed`。7 条开发样例只用于确定性回归，不能作为临床准确率或锁定测试集结果。
+预期：`risk_found`，并返回
+`fact-duplicate-acetaminophen-001` 及其来源定位。
 
-### Frontend
+### 演示 2：缺少条件时拒绝过度判断
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/safety/check \
+  -H 'Content-Type: application/json' \
+  -d '{"medications":["布洛芬","阿司匹林"],"contexts":[]}'
+```
+
+预期：`insufficient_information`，要求补充阿司匹林用途。
+
+### 演示 3：未知药品不等于安全
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/safety/check \
+  -H 'Content-Type: application/json' \
+  -d '{"medications":["星云片"],"contexts":[]}'
+```
+
+预期：`out_of_scope`，而不是“未发现风险”。
+
+## 使用真实 Ollama 解释规划
+
+默认模型为 `deepseek-r1:1.5b`。模型只负责完整事实 ID 的排序：
+
+```bash
+ollama pull deepseek-r1:1.5b
+ollama serve
+
+curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
+  -H 'Content-Type: application/json' \
+  -d '{"medications":["泰诺","感康"],"contexts":[],"use_llm_plan":true}'
+```
+
+模型不可用、超时或输出不符合合约时，响应会标记
+`generation_mode: deterministic_fallback`，但不会丢失结构化证据。
+
+评测命令、模型 digest、固定参数和数据集校验和见
+[解释生成文档](docs/EXPLANATION_GENERATION.md)。
+
+## Neo4j 查询投影
+
+`data/v1/` 是唯一权威源。Neo4j 只作为可删除、可重建的读取投影，不允许反向覆盖 JSON。
+
+配置 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD` 并启动 Neo4j 后：
+
+```bash
+python scripts/import_v1_to_neo4j.py
+```
+
+导入器先校验 catalog，再通过唯一约束、参数化查询和 `MERGE` 写入独立的 `Safety*`
+命名空间。真实隔离集成测试：
+
+```bash
+MEDSAFETY_PYTHON=python bash scripts/test_neo4j_integration.sh
+```
+
+测试使用临时实例和数据目录，连续导入两次并比较 JSON/Neo4j Repository 的完整
+`EvidencePacket`，结束后移除专用容器与网络。
+
+## 前端与 legacy 边界
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-打开 `http://localhost:5173`。
+当前 React 页面仍调用 legacy `/api/query` 流式链路，用于保留早期全栈原型。它尚未接入
+V1 Evidence Packet 和服务端护栏，因此**不能作为当前正式安全链路的演示依据**。
 
-### Demo Questions
+当前正式、可验证的入口是：
 
-- `泰诺和感康能一起吃吗？`
-- `我喝酒了，还能吃头孢吗？`
-- `布洛芬和阿司匹林能一起吃吗？`
-- `那我之前问过的药还能继续吃吗？`
+- `POST /api/v1/safety/check`
+- `POST /api/v1/safety/explain`
 
-## Interview Narrative
+将 React 切换到 V1、移除共享 session 并显示证据状态属于下一阶段工作。
 
-This project is best described as a lightweight Agentic AI full-stack system for a high-risk medication-safety scenario.
+## 仓库结构
 
-It is not a general-purpose Agent platform. The current agent layer is intentionally small and explainable: route selection over fixed backend tools, knowledge-graph retrieval, Redis memory retrieval, and evidence display in the UI.
-
-The Route B items, such as tool registry, prompt management, trace events, memory abstraction, and regression evaluation sets, are future work after the Phase A full-stack base is stable.
-
-## 系统架构图
-
-```mermaid
-flowchart TD
-    A[React Chat UI] --> B[FastAPI BFF]
-    B --> C[assistant_service]
-    C --> D[LLM Router]
-    C --> E[Hybrid NER]
-    C --> F[Neo4j Knowledge Graph]
-    C --> G[Redis Vector Memory]
-    C --> H[Ollama LLM]
-    F --> C
-    G --> C
-    H --> C
-    C --> B
-    B --> A
+```text
+medsafety/            V1 契约、Safety Engine、解释护栏和 Repository
+data/v1/              版本化权威数据与校验和
+evaluation/           可复现评测 runner
+eval/                 开发集、对抗集和锁定 contract test
+reports/              指标、失败分析和真实模型原始记录
+scripts/              数据校验、评测和 Neo4j 导入入口
+test/                 单元、契约、API 和隔离集成测试
+frontend/             React 原型界面（当前仍是 legacy 链路）
+docs/                 安全边界、数据卡、评测协议和项目状态
 ```
 
-## 与标准 RAG 的区别
+## 已知限制
 
-标准 RAG：文档切块 -> Embedding -> 向量检索 -> Prompt 注入 -> LLM 生成。
+- 只有 3 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
+- 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
+- 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
+- React 仍使用 legacy 自由生成链路和共享 session。
+- `/api/health` 当前只检查配置，尚不是真实依赖 readiness。
+- 尚无 Neo4j、Redis、Ollama 同时在线的完整端到端基线。
+- 当前不是 ReAct、多 Agent、MCP 平台或生产高并发系统。
 
-本项目的差异：
-- 用 `Neo4j` 结构化知识图谱承担核心事实检索（精确关系查询），而不是仅依赖语义相似检索。
-- 增加“双路 NER（规则 + LLM）”作为前置路由，先抽实体再做图谱推理，减少盲检索噪声。
-- `Redis` 向量检索主要用于历史对话上下文增强，不替代药品禁忌事实查询。
-
-## LangChain 对照 Demo
-
-仓库提供了一个最小可运行的标准 RAG 对照样例：
-
-- 脚本: `examples/langchain_rag_demo.py`
-- 语料: `examples/demo_med_faq.txt`
-- 流程: `TextLoader -> OllamaEmbeddings -> FAISS -> RetrievalQA`
-
-运行：
-
-```bash
-python examples/langchain_rag_demo.py
-```
-
-用途：
-- 可说明“我既能用框架快速原型，也能按业务场景做自研控制层”。
-
-## 增强项
-
-- 轻量 `Rerank`：历史检索先按余弦相似度召回候选，再用 LLM 对候选重排，提升上下文相关性。
-- 最小 `Agent` 路由：由 LLM 决定本轮优先走 `query_kg`（知识图谱）、`search_history`（历史检索）或 `both`（混合）。
-- 稳定性策略：路由或 rerank 失败时自动回退到默认策略，不影响主流程可用性。
-
-## 已知局限（面向工程事实）
-
-- 当前 `Agent` 是“最小路由层”，本质是单次分类 + 固定函数调用，不是完整 ReAct 循环（缺少 observation 回传后的迭代决策）。
-- 当前 `Rerank` 主要是定性验证效果，尚未完成系统化离线评测；已通过失败回退策略保障主流程稳定。
-
-## Redis 管理命令
-
-```bash
-docker ps --filter "name=redisearch-new"
-docker exec -it redisearch-new redis-cli ping
-python test_redis_connection.py
-
-docker logs -f redisearch-new
-docker stop redisearch-new
-docker start redisearch-new
-docker restart redisearch-new
-```
+下一阶段与验收门见 [项目状态](docs/PROJECT_STATUS.md) 和
+[完整升级计划](docs/PROJECT_PLAN.md)。

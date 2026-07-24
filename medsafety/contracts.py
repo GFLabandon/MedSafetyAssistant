@@ -31,6 +31,17 @@ class ConclusionStatus(str, Enum):
     KNOWLEDGE_UNAVAILABLE = "knowledge_unavailable"
 
 
+class ExplanationGenerationMode(str, Enum):
+    DETERMINISTIC = "deterministic"
+    LLM_PLANNED = "llm_planned"
+    DETERMINISTIC_FALLBACK = "deterministic_fallback"
+
+
+class ExplanationFallbackReason(str, Enum):
+    PLANNER_UNAVAILABLE = "planner_unavailable"
+    INVALID_PLAN = "invalid_plan"
+
+
 class Severity(str, Enum):
     INFO = "INFO"
     ORANGE = "ORANGE"
@@ -47,6 +58,11 @@ class RiskType(str, Enum):
 class MedicationKind(str, Enum):
     PRODUCT = "product"
     SUBSTANCE = "substance"
+
+
+class ContextKind(str, Enum):
+    MEDICATION_USE = "medication_use"
+    REACTION_HISTORY = "reaction_history"
 
 
 class LabelStatus(str, Enum):
@@ -143,14 +159,35 @@ class MedicationRecord(StrictModel):
         return self
 
 
+class ClinicalContextRecord(StrictModel):
+    context_id: str = Field(min_length=1)
+    canonical_name: str = Field(min_length=1)
+    kind: ContextKind
+    aliases: list[str] = Field(default_factory=list)
+    description: str = Field(min_length=1)
+    review_status: ReviewStatus = ReviewStatus.DRAFT
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    data_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def reviewed_contexts_have_review_metadata(self):
+        if self.review_status == ReviewStatus.REVIEWED:
+            if not self.reviewed_by or not self.reviewed_at:
+                raise ValueError("reviewed contexts require reviewer metadata")
+        return self
+
+
 class EvidencePacket(StrictModel):
     conclusion_status: ConclusionStatus
     facts: list[EvidenceFact] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     resolved_medications: list[str] = Field(default_factory=list)
     unresolved_inputs: list[str] = Field(default_factory=list)
+    resolved_contexts: list[str] = Field(default_factory=list)
+    unresolved_contexts: list[str] = Field(default_factory=list)
     missing_context: list[str] = Field(default_factory=list)
-    data_version: str = Field(min_length=1)
+    data_version: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def risk_conclusions_require_facts(self):
@@ -158,6 +195,83 @@ class EvidencePacket(StrictModel):
             raise ValueError("risk_found requires at least one evidence fact")
         if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.facts:
             raise ValueError("non-risk conclusions must not contain risk facts")
+        if (
+            self.conclusion_status != ConclusionStatus.KNOWLEDGE_UNAVAILABLE
+            and self.data_version is None
+        ):
+            raise ValueError("available knowledge conclusions require a data version")
+        return self
+
+
+class ExplanationPlan(StrictModel):
+    """The complete set of decisions an LLM may make for a V1 explanation."""
+
+    conclusion_status: ConclusionStatus
+    ordered_fact_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def fact_ids_match_conclusion_shape(self):
+        if self.conclusion_status == ConclusionStatus.RISK_FOUND and not self.ordered_fact_ids:
+            raise ValueError("risk_found plans require fact IDs")
+        if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.ordered_fact_ids:
+            raise ValueError("non-risk plans must not contain fact IDs")
+        return self
+
+
+class ExplanationClaim(StrictModel):
+    """An extractive claim copied from one validated Evidence Fact."""
+
+    fact_id: str = Field(min_length=1)
+    risk_type: RiskType
+    severity: Severity
+    statement: str = Field(min_length=1)
+    severity_rationale: str = Field(min_length=1)
+    source_ids: list[str] = Field(min_length=1)
+    source_locator: str = Field(min_length=1)
+    label_status: LabelStatus
+
+
+class SafetyExplanation(StrictModel):
+    """User-facing V1 explanation with machine-checkable evidence links."""
+
+    conclusion_status: ConclusionStatus
+    summary: str = Field(min_length=1)
+    claims: list[ExplanationClaim] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    resolved_medications: list[str] = Field(default_factory=list)
+    unresolved_inputs: list[str] = Field(default_factory=list)
+    resolved_contexts: list[str] = Field(default_factory=list)
+    unresolved_contexts: list[str] = Field(default_factory=list)
+    missing_context: list[str] = Field(default_factory=list)
+    data_version: str | None = Field(default=None, min_length=1)
+    generation_mode: ExplanationGenerationMode
+    prompt_version: str = Field(min_length=1)
+    fallback_reason: ExplanationFallbackReason | None = None
+
+    @model_validator(mode="after")
+    def claims_match_conclusion(self):
+        if self.conclusion_status == ConclusionStatus.RISK_FOUND and not self.claims:
+            raise ValueError("risk_found explanations require at least one claim")
+        if self.conclusion_status != ConclusionStatus.RISK_FOUND and self.claims:
+            raise ValueError("non-risk explanations must not contain claims")
+        if (
+            self.generation_mode == ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.fallback_reason is None
+        ):
+            raise ValueError("deterministic fallback requires a reason")
+        if (
+            self.generation_mode != ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.fallback_reason is not None
+        ):
+            raise ValueError("fallback reason is only valid for deterministic fallback")
+        claim_ids = [claim.fact_id for claim in self.claims]
+        if len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("explanations must not contain duplicate fact IDs")
+        if (
+            self.conclusion_status != ConclusionStatus.KNOWLEDGE_UNAVAILABLE
+            and self.data_version is None
+        ):
+            raise ValueError("available knowledge explanations require a data version")
         return self
 
 
@@ -189,4 +303,65 @@ class EvaluationCase(StrictModel):
     def reviewed_labels_require_a_conclusion(self):
         if self.label_status != LabelStatus.LEGACY_UNREVIEWED and self.expected.conclusion_status is None:
             raise ValueError("reviewed evaluation labels require an expected conclusion")
+        return self
+
+
+class ExplanationGuardrailCase(StrictModel):
+    """Scripted planner output used to regression-test generation guardrails."""
+
+    case_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    medications: list[str] = Field(min_length=1)
+    contexts: list[str] = Field(default_factory=list)
+    use_llm_plan: bool = True
+    planner_result: dict[str, Any] | str | None = None
+    planner_error: bool = False
+    expected_generation_mode: ExplanationGenerationMode
+    expected_fallback_reason: ExplanationFallbackReason | None = None
+
+    @model_validator(mode="after")
+    def fixture_and_expectation_are_consistent(self):
+        if self.planner_error and self.planner_result is not None:
+            raise ValueError("planner error cases cannot also define a planner result")
+        if (
+            self.expected_generation_mode == ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.expected_fallback_reason is None
+        ):
+            raise ValueError("expected fallback mode requires a fallback reason")
+        if (
+            self.expected_generation_mode != ExplanationGenerationMode.DETERMINISTIC_FALLBACK
+            and self.expected_fallback_reason is not None
+        ):
+            raise ValueError("fallback reason is only valid for expected fallback mode")
+        return self
+
+
+class OpaquePlannerFact(StrictModel):
+    """Synthetic, non-medical fact metadata for a locked planner contract test."""
+
+    fact_id: str = Field(min_length=1)
+    risk_type: RiskType
+    severity: Severity
+
+
+class OpaquePlannerCase(StrictModel):
+    """Held-out fact-ID copying and ordering case with no clinical content."""
+
+    case_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]+$")
+    split: str = Field(pattern="^test$")
+    dataset_version: str = Field(min_length=1)
+    facts: list[OpaquePlannerFact] = Field(min_length=1)
+    expected_ordered_fact_ids: list[str] = Field(min_length=1)
+    tags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def expected_order_is_a_complete_permutation(self):
+        fact_ids = [fact.fact_id for fact in self.facts]
+        if len(fact_ids) != len(set(fact_ids)):
+            raise ValueError("opaque planner facts require unique fact IDs")
+        if len(self.expected_ordered_fact_ids) != len(
+            set(self.expected_ordered_fact_ids)
+        ):
+            raise ValueError("expected fact ID order must not contain duplicates")
+        if set(self.expected_ordered_fact_ids) != set(fact_ids):
+            raise ValueError("expected fact ID order must contain every fact exactly once")
         return self

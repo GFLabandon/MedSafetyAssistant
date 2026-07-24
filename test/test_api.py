@@ -90,6 +90,71 @@ class ApiContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SafetyCheckRequest(medications=[" "])
 
+    def test_v1_safety_check_returns_explicit_contraindication_context(self):
+        from api import SafetyCheckRequest, check_v1_safety
+
+        response = asyncio.run(
+            check_v1_safety(
+                SafetyCheckRequest(medications=["布洛芬"], contexts=["NSAID过敏"])
+            )
+        )
+
+        self.assertEqual(response["conclusion_status"], "risk_found")
+        self.assertEqual(
+            response["facts"][0]["fact_id"],
+            "fact-contraindication-ibuprofen-nsaid-allergic-reaction-001",
+        )
+        self.assertEqual(
+            response["resolved_contexts"],
+            ["服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"],
+        )
+
+    def test_v1_safety_check_serializes_knowledge_unavailable(self):
+        from api import SafetyCheckRequest, check_v1_safety
+        from medsafety.contracts import ConclusionStatus, EvidencePacket
+
+        unavailable = EvidencePacket(
+            conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
+            limitations=["用药安全知识库当前不可用，系统未进行风险判断，请稍后重试。"],
+        )
+        engine = unittest.mock.Mock()
+        engine.assess.return_value = unavailable
+
+        with patch("api.get_safety_engine", return_value=engine):
+            response = asyncio.run(
+                check_v1_safety(SafetyCheckRequest(medications=["泰诺"]))
+            )
+
+        self.assertEqual(response["conclusion_status"], "knowledge_unavailable")
+        self.assertIsNone(response["data_version"])
+        self.assertEqual(response["facts"], [])
+
+    def test_v1_safety_explain_returns_extractively_grounded_claim(self):
+        from api import SafetyExplainRequest, explain_v1_safety
+        from medsafety.explanation import EvidenceGroundedExplainer
+
+        with patch(
+            "api.get_safety_explainer",
+            return_value=EvidenceGroundedExplainer(),
+        ):
+            response = asyncio.run(
+                explain_v1_safety(
+                    SafetyExplainRequest(
+                        medications=["泰诺", "感康"],
+                        use_llm_plan=False,
+                    )
+                )
+            )
+
+        self.assertEqual(response["conclusion_status"], "risk_found")
+        self.assertEqual(response["generation_mode"], "deterministic")
+        self.assertEqual(
+            response["claims"][0]["fact_id"],
+            "fact-duplicate-acetaminophen-001",
+        )
+        self.assertIn("source-fda-acetaminophen-2025", response["claims"][0]["source_ids"])
+        self.assertNotIn("facts", response)
+
     def test_unhandled_error_does_not_expose_exception_or_traceback(self):
         from api import unhandled_exception_handler
 

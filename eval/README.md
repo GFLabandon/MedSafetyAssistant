@@ -18,7 +18,7 @@
 
 校验规则由 `medsafety.contracts.EvaluationCase` 定义。正式 test split 将在来源对齐并按 fact_id 分组后建立，防止同一事实的改写跨 split 泄漏。
 
-`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，只覆盖 V1 alpha.1 的两个事实。运行：
+`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，覆盖 V1 alpha.2 的 3 条事实。运行：
 
 ```bash
 /opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
@@ -29,3 +29,45 @@
 ```
 
 该开发集用于确定性回归，不是锁定测试集，也不代表临床准确率。
+
+`explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/explanation_guardrails_v1.jsonl \
+  --runner explanation_guardrails \
+  --data-dir data/v1 \
+  --format markdown
+```
+
+这是服务端护栏的对抗性回归集，不调用真实模型，也不表示模型或临床质量。
+
+`explanation_guardrails_v2.jsonl` 在 v1 基础上增加严重度逆序攻击，并把合法计划改为 `RED` 先于 `ORANGE`。当前代码回归使用 v2；v1 与其报告作为新增严重度规则之前的历史基线保留。
+
+`explanation_model_dev_v1.jsonl` 是真实 Ollama 开发探针。它包含 5 个实际模型规划场景和 2 个必须跳过模型的非风险场景，运行 3 次会产生 15 次模型请求：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/explanation_model_dev_v1.jsonl \
+  --runner ollama_explanation \
+  --model deepseek-r1:1.5b \
+  --repetitions 3 \
+  --timeout-seconds 120 \
+  --format json
+```
+
+该数据集已经用于 `evidence-order-v1` 到 v2 的迭代，只能作为开发集；后续不能把它改称独立测试集。
+
+`opaque_id_test_v1.jsonl` 是在 v2 prompt/schema 完成后冻结的合成 contract test，SHA-256 为 `ced2daf4cabbc4cb4c1d0238b35e352a485515a9764207d89fdc2c4035d99f5a`。它只测试未见 fact_id 的逐字符复制、完整集合、严重度排序和三轮一致性，不包含医学事实：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+  --dataset eval/opaque_id_test_v1.jsonl \
+  --runner ollama_opaque_ids \
+  --model deepseek-r1:1.5b \
+  --repetitions 3 \
+  --timeout-seconds 120 \
+  --format json
+```
+
+首次真实运行后，无论结果是否通过，都不得再用该版本调 prompt。任何内容或期望顺序修改必须创建新的数据集版本，并保留 v1 原始报告。

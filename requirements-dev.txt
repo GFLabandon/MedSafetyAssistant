@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Test runner used by the local verification commands and GitHub Actions.
+pytest>=8.0.0,<10.0.0
