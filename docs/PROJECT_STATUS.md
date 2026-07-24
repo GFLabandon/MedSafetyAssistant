@@ -1,13 +1,29 @@
 # MedSafetyAssistant 项目状态
 
-更新时间：2026-07-24
-当前阶段：P1——正式产品链路
-状态：P1 验收完成；P2 暂停，先修复 Neo4j 兼容链路与投影运行边界
+更新时间：2026-07-25
+当前阶段：P2——事实节点知识图谱
+状态：P1 已合并；P2 第一批本地验收完成，等待远程 CI
 
 ## 当前目标
 
-把自然语言输入可靠地接入正式 V1 Safety Engine，并让 React 展示可追溯证据和明确
-失败状态。当前阶段不改变医学数据、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+把 Neo4j 从事实属性投影升级为可沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
+`SUPPORTED_BY` 和 `BELONGS_TO` 遍历的事实节点图，并在导入提交前自动检查完整性。
+当前第一批不改变医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P2 第一批范围
+
+- [x] P1 PR #2 合并至默认 `main`，删除已合并的本地和远程 P1 分支；
+- [x] 从最新 `main` 建立独立 `codex/p2-knowledge-graph` 分支；
+- [x] 冻结事实节点图模型、端点类型和迁移验收门；
+- [x] 公开仓库忽略规则改为明确路径，并增加凭据、构建物和超大文件 CI 审计；
+- [x] 实现事实主体、客体、上下文、来源与快照关系；
+- [x] Repository 风险查询全部改为真实边遍历；
+- [x] 导入事务内完成计数、孤立事实、版本和属性—关系一致性检查；
+- [x] 在 Docker Neo4j 上验证重复导入、JSON 等价性和人为损坏检测。
+
+完整规格见 [`KNOWLEDGE_GRAPH_P2.md`](KNOWLEDGE_GRAPH_P2.md)。
+本批本地证据见
+[`p2-graph-model-acceptance.md`](../reports/p2-graph-model-acceptance.md)。
 
 ## P1 完成项
 
@@ -80,7 +96,7 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 117 passed，1 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 126 passed，2 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -90,7 +106,7 @@ P2 暂停期变更。
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
-| Neo4j 集成 | 1 passed，61 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
+| Neo4j 集成 | 2 passed，126 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 
 本阶段已经真实运行 Ollama 解释规划，但没有同时运行 Neo4j、Redis 和 legacy 全链路，因此结果只能称为 V1 Evidence Packet 解释层开发基线，不能称为端到端系统质量结果。
 
