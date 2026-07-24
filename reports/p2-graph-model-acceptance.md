@@ -46,7 +46,8 @@
 | catalog 校验 | 7 Source、4 Medication、2 Context、3 Fact | 新增端点可建图校验 |
 | 前端构建 | Vite 7.3.6 通过 | 26 modules transformed |
 | 浏览器契约 | 4/4 通过 | API fixture，不是真实浏览器端到端依赖 |
-| 公开仓库审计 | 通过 | 130 个已跟踪文件，单文件上限 5 MiB |
+| 公开仓库审计 | 通过 | 131 个已跟踪文件，单文件上限 5 MiB |
+| GitHub Actions | 3/3 通过 | Repository、Backend、Frontend |
 | `git diff --check` | 通过 | 无空白错误 |
 
 真实 Neo4j 验收使用 `docker-compose.integration.yml` 创建专用容器和网络，测试完成后
@@ -63,7 +64,6 @@
 
 ## 尚未完成
 
-- GitHub Actions 需要在分支推送并创建 PR 后确认远程全绿；
 - 当前仍只有 3 条 `source_aligned` 事实，没有临床审核签名；
 - 尚未记录 `EXPLAIN/PROFILE` 查询计划或扩充知识内容；
 - 内容扩充必须另行完成来源审核、数据冻结和评测，不能直接迁移 legacy 关系。
