@@ -23,7 +23,7 @@ export default function QueryForm({ initialQuestion, loading, onSubmit }) {
         value={question}
         onChange={(event) => setQuestion(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="请输入用药问题，例如：我有高血压，能吃泰诺吗？"
+        placeholder="请输入具体药品，例如：泰诺和感康能一起吃吗？"
       />
       <div className="actions">
         <button className="primary-button" type="button" disabled={loading || !question.trim()} onClick={submit}>

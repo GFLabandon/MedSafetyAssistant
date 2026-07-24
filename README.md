@@ -24,7 +24,7 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `85 passed, 1 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `102 passed, 1 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 9/9 whole-case match | 仅覆盖 3 条来源对齐事实 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -45,7 +45,9 @@
 
 ```mermaid
 flowchart LR
-    A["结构化药品与上下文"] --> B["Safety Engine"]
+    A["自然语言问题"] --> R["确定性实体解析"]
+    R -->|"已解析"| B["Safety Engine"]
+    R -->|"歧义或未知"| Q["澄清或范围外状态"]
     J["data/v1 权威 JSON"] --> B
     J --> C["幂等导入"]
     C --> D["Neo4j 查询投影"]
@@ -56,6 +58,7 @@ flowchart LR
     G -->|"合法"| H["抽取式证据解释"]
     G -->|"违规或故障"| I["确定性回退"]
     E --> I
+    Q --> H
 ```
 
 LLM 可以排列证据，但不能：
@@ -115,6 +118,18 @@ uvicorn api:app --reload --port 8000
 ```
 
 交互文档：`http://127.0.0.1:8000/docs`
+
+自然语言正式入口：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
+```
+
+响应同时返回版本化 `resolution` 与 `explanation`：实体解析只匹配 `data/v1/` 中的受控
+别名和上下文规则；模糊药名、未知药名、缺失适用条件和指令式注入文本不会进入开放域
+医学生成。
 
 ### 演示 1：重复成分风险
 
@@ -186,7 +201,7 @@ MEDSAFETY_PYTHON=python bash scripts/test_neo4j_integration.sh
 测试使用临时实例和数据目录，连续导入两次并比较 JSON/Neo4j Repository 的完整
 `EvidencePacket`，结束后移除专用容器与网络。
 
-## 前端与 legacy 边界
+## V1 证据前端
 
 ```bash
 cd frontend
@@ -194,15 +209,17 @@ npm ci
 npm run dev
 ```
 
-当前 React 页面仍调用 legacy `/api/query` 流式链路，用于保留早期全栈原型。它尚未接入
-V1 Evidence Packet 和服务端护栏，因此**不能作为当前正式安全链路的演示依据**。
+React 页面调用自然语言 V1 入口，明确展示五种结论状态、实体解析状态、澄清问题、
+`fact_id`、来源 ID、来源定位、数据版本、生成模式和回退原因。它不读取共享会话历史。
 
-当前正式、可验证的入口是：
+当前正式、可验证的入口包括：
 
+- `POST /api/v1/query`
 - `POST /api/v1/safety/check`
 - `POST /api/v1/safety/explain`
 
-将 React 切换到 V1、移除共享 session 并显示证据状态属于下一阶段工作。
+旧 `/api/query` 与 `/api/query/stream` 仅为兼容早期原型保留；其默认请求会生成独立
+session ID，不再落入全局共享命名空间，但不属于 V1 安全结论的演示入口。
 
 ## 仓库结构
 
@@ -214,7 +231,7 @@ eval/                 开发集、对抗集和锁定 contract test
 reports/              指标、失败分析和真实模型原始记录
 scripts/              数据校验、评测和 Neo4j 导入入口
 test/                 单元、契约、API 和隔离集成测试
-frontend/             React 原型界面（当前仍是 legacy 链路）
+frontend/             React V1 状态、澄清与证据界面
 docs/                 安全边界、数据卡、评测协议和项目状态
 ```
 
@@ -223,7 +240,8 @@ docs/                 安全边界、数据卡、评测协议和项目状态
 - 只有 3 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
-- React 仍使用 legacy 自由生成链路和共享 session。
+- 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
+- 正式 V1 查询当前无持久会话；旧接口虽已移除共享默认值，但尚未实现 TTL 和清除接口。
 - `/api/health` 当前只检查配置，尚不是真实依赖 readiness。
 - 尚无 Neo4j、Redis、Ollama 同时在线的完整端到端基线。
 - 当前不是 ReAct、多 Agent、MCP 平台或生产高并发系统。

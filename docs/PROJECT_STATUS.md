@@ -1,14 +1,36 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-24
-当前阶段：P0——公开入口与自动化质量门
-状态：本地质量门通过；远程结果以面向 `main` 的 PR checks 为准
+当前阶段：P1——正式产品链路第一批：输入边界、V1 前端与会话默认值
+状态：第一批实现完成，本地回归和前端生产构建通过；依赖故障注入与浏览器 E2E 尚未开始
 
 ## 当前目标
 
-将已经完成的 Evidence Packet、Safety Engine、Neo4j Repository 和真实模型失败证据
-整理为招聘者可以从默认 GitHub 入口直接验证的 AI 应用项目。当前阶段不改变医学数据、
-不扩展 Agent，也不把 legacy React 页面描述为 V1 正式链路。
+把自然语言输入可靠地接入正式 V1 Safety Engine，并让 React 展示可追溯证据和明确
+失败状态。当前阶段不改变医学数据、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P1 第一批进展
+
+- [x] 新增版本化 `entity-resolution-v1` 契约，显式区分 `resolved`、`ambiguous`、
+  `unknown`、`needs_clarification` 和 `rejected_input`；
+- [x] 新增只消费 `data/v1/` catalog 的确定性实体解析器，覆盖中英文别名、上下文规则、
+  模糊药名、未知药名、跨轮代词和指令式文本标记；
+- [x] 新增 `POST /api/v1/query`，串联实体解析、Safety Engine 与 Evidence Explanation；
+- [x] 缺少阿司匹林用途等事实适用条件时返回澄清问题，而不是给出“无风险”；
+- [x] React 从 legacy 自由回答链路切换到正式 V1，展示五种结论状态、事实 ID、来源、
+  定位、数据版本、生成模式和确定性回退原因；
+- [x] FastAPI legacy 请求默认生成独立 UUID，Streamlit 为每个浏览器会话生成独立 UUID，
+  Redis 历史方法不再提供 `"shared"` 默认值；
+- [x] 新增输入边界、API 序列化和默认会话唯一性测试；
+- [x] 本地全量回归 `102 passed, 1 skipped`，Vite 生产构建通过。
+
+当前明确未完成：
+
+- Redis 会话 TTL、清除接口和真实并行客户端隔离集成测试；
+- Neo4j、Redis、Ollama 的独立故障注入及真实 readiness；
+- request ID、结构化阶段耗时与 trace；
+- React 组件测试和浏览器 E2E；
+- 跨轮指代消解。正式 V1 当前保持无状态，代词会要求用户重新写出药品名称。
 
 ## P0 公开可见性进展
 
@@ -31,7 +53,7 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 85 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 102 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
@@ -84,7 +106,7 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 
 1. V1 事实只有 `source_aligned` 状态，没有医生或药师临床审核签名。
 2. V1 仅覆盖 3 条事实，不能外推到未收录药品、剂量或人群。
-3. legacy `/api/query` 仍使用默认共享会话和自由文本生成，不具备 V1 护栏。
+3. legacy `/api/query` 仍是自由文本生成，不具备 V1 护栏；默认共享会话已移除。
 4. 当前真实模型数据集已经用于 v1/v2 调优，不能再作为独立测试集。
 5. 健康检查和完整依赖故障注入仍未完成。
 6. 尚无 Neo4j、Redis、Ollama 同时在线的端到端基线。
@@ -168,4 +190,6 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - 服务端新增 `FATAL > RED > ORANGE > INFO` 顺序不变量，违规计划与未知、遗漏、重复 ID 一样确定性回退；
 - `explanation_guardrails-v2` 的 10 个脚本化场景全部通过，历史 v1 数据和报告未被覆盖。
 
-下一验收门：开始实体抽取边界重构，先定义歧义药名、未知实体、提示注入与必须澄清状态的版本化契约；不再扩展当前解释排序 prompt。
+该验收门已经通过 P1 第一批完成。下一验收门：在不扩大医学事实范围的前提下，完成
+Redis 会话生命周期、真实依赖 readiness、故障注入与 request trace；随后增加浏览器 E2E，
+验证风险、未知、澄清和知识不可用四条用户链路。
