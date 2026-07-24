@@ -439,6 +439,33 @@ textarea {
   font-size: 13px;
 }
 
+.trace-details {
+  border-top: 1px solid #e3e8ef;
+  color: #4f6072;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.trace-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trace-details ol {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding-left: 22px;
+}
+
+.trace-details li {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 100px 90px;
+  gap: 10px;
+  font-size: 13px;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -476,5 +503,10 @@ textarea {
 
   .primary-button {
     width: 100%;
+  }
+
+  .trace-details li {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 }

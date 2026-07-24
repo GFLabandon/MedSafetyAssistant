@@ -29,6 +29,8 @@ MANIFEST
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

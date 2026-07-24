@@ -85,6 +85,8 @@ export default function ResultPanel({ result }) {
   const claims = explanation.claims || [];
   const limitations = explanation.limitations || [];
   const safetyFlags = resolution.safety_flags || [];
+  const trace = result.trace || {};
+  const stages = trace.stages || [];
 
   return (
     <div className="panel result-panel">
@@ -138,6 +140,7 @@ export default function ResultPanel({ result }) {
       ) : null}
 
       <section className="result-metadata">
+        <span>Request ID：<code>{trace.request_id || 'unavailable'}</code></span>
         <span>数据版本：<code>{explanation.data_version || 'unavailable'}</code></span>
         <span>生成模式：<code>{explanation.generation_mode}</code></span>
         <span>Prompt：<code>{explanation.prompt_version}</code></span>
@@ -145,6 +148,20 @@ export default function ResultPanel({ result }) {
           <span>回退原因：<code>{explanation.fallback_reason}</code></span>
         ) : null}
       </section>
+      {stages.length > 0 ? (
+        <details className="trace-details">
+          <summary>查看阶段 Trace（总耗时 {trace.total_duration_ms} ms）</summary>
+          <ol>
+            {stages.map((stage) => (
+              <li key={stage.name}>
+                <code>{stage.name}</code>
+                <span>{stage.status}</span>
+                <span>{stage.duration_ms} ms</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
     </div>
   );
 }

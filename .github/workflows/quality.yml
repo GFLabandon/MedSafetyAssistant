@@ -86,3 +86,11 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser contract tests
+        working-directory: frontend
+        run: npm run test:e2e
