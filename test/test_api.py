@@ -59,6 +59,25 @@ class ApiContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             QueryRequest(question="   ")
 
+    def test_query_request_defaults_to_unique_session_ids(self):
+        from api import QueryRequest
+
+        first = QueryRequest(question="第一位用户")
+        second = QueryRequest(question="第二位用户")
+
+        self.assertTrue(first.session_id)
+        self.assertTrue(second.session_id)
+        self.assertNotEqual(first.session_id, second.session_id)
+        self.assertNotEqual(first.session_id, "shared")
+
+    def test_query_request_replaces_blank_session_id(self):
+        from api import QueryRequest
+
+        request = QueryRequest(question="测试", session_id="   ")
+
+        self.assertTrue(request.session_id)
+        self.assertNotEqual(request.session_id, "shared")
+
     def test_health_returns_environment_diagnostics(self):
         from api import health
 

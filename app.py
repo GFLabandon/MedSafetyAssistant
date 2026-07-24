@@ -1,6 +1,6 @@
 import streamlit as st
 
-from logic_layer.assistant_service import DEFAULT_SESSION_ID, answer_medication_question
+from logic_layer.assistant_service import answer_medication_question, create_session_id
 from logic_layer.vector_store import VectorStore
 
 st.set_page_config(page_title="家庭用药安全助手1", layout="centered")
@@ -18,10 +18,10 @@ if "messages" not in st.session_state:
 if "vector_store" not in st.session_state:
     st.session_state.vector_store = VectorStore()
 
-# 使用共享的会话ID（所有用户共享同一个历史对话库）
-# 这样所有用户都能查询到所有历史对话记录
-SHARED_SESSION_ID = DEFAULT_SESSION_ID
-session_id = SHARED_SESSION_ID
+# 每个 Streamlit 浏览器会话使用独立命名空间，避免历史记录跨用户串线。
+if "session_id" not in st.session_state:
+    st.session_state.session_id = create_session_id()
+session_id = st.session_state.session_id
 
 # 聊天记录
 for message in st.session_state.messages:

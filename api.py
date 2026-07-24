@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from config import Config
 from logic_layer.assistant_service import (
-    DEFAULT_SESSION_ID,
     answer_medication_question,
+    create_session_id,
     prepare_medication_context,
     save_conversation_result,
 )
@@ -21,8 +21,10 @@ from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import stream_safety_response
 from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
+from medsafety.entity_resolution import V1EntityResolver
 from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.ollama_planner import OllamaExplanationPlanner
+from medsafety.query_service import SafetyQueryService
 from medsafety.safety_engine import SafetyEngine
 
 
@@ -32,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
-    session_id: str = DEFAULT_SESSION_ID
+    session_id: str = Field(default_factory=create_session_id)
 
     @field_validator("question")
     @classmethod
@@ -45,7 +47,7 @@ class QueryRequest(BaseModel):
     @classmethod
     def session_id_must_not_be_blank(cls, value):
         if not value.strip():
-            return DEFAULT_SESSION_ID
+            return create_session_id()
         return value.strip()
 
 
@@ -71,8 +73,28 @@ class SafetyExplainRequest(SafetyCheckRequest):
     use_llm_plan: bool = True
 
 
-def build_safety_engine():
-    return SafetyEngine(KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY))
+class NaturalLanguageSafetyRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    use_llm_plan: bool = True
+
+    @field_validator("question")
+    @classmethod
+    def question_must_not_be_blank(cls, value):
+        if not value.strip():
+            raise ValueError("question must not be blank")
+        return value.strip()
+
+
+def build_v1_catalog():
+    return KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY)
+
+
+def build_safety_engine(catalog=None):
+    return SafetyEngine(catalog or build_v1_catalog())
+
+
+def build_entity_resolver(catalog=None):
+    return V1EntityResolver(catalog or build_v1_catalog())
 
 
 def build_safety_explainer():
@@ -86,7 +108,9 @@ def build_safety_explainer():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.safety_engine = build_safety_engine()
+    catalog = build_v1_catalog()
+    app.state.safety_engine = build_safety_engine(catalog)
+    app.state.entity_resolver = build_entity_resolver(catalog)
     app.state.safety_explainer = build_safety_explainer()
     app.state.vector_store = VectorStore()
     try:
@@ -144,6 +168,12 @@ def get_safety_explainer(request: Request | None):
     if request is None:
         return build_safety_explainer()
     return getattr(request.app.state, "safety_explainer", None) or build_safety_explainer()
+
+
+def get_entity_resolver(request: Request | None):
+    if request is None:
+        return build_entity_resolver()
+    return getattr(request.app.state, "entity_resolver", None) or build_entity_resolver()
 
 
 def sse_event(payload):
@@ -240,3 +270,20 @@ async def explain_v1_safety(payload: SafetyExplainRequest, request: Request = No
         use_llm_plan=payload.use_llm_plan,
     )
     return explanation.model_dump(mode="json")
+
+
+@app.post("/api/v1/query")
+async def query_v1_safety(
+    payload: NaturalLanguageSafetyRequest,
+    request: Request = None,
+):
+    service = SafetyQueryService(
+        resolver=get_entity_resolver(request),
+        engine=get_safety_engine(request),
+        explainer=get_safety_explainer(request),
+    )
+    response = service.query(
+        payload.question,
+        use_llm_plan=payload.use_llm_plan,
+    )
+    return response.model_dump(mode="json")

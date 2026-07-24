@@ -31,8 +31,10 @@ class FakeVectorStore:
 
     def __init__(self):
         self.saved = None
+        self.searched_session_id = None
 
     def get_conversation_context(self, query, session_id, top_k):
+        self.searched_session_id = session_id
         return "【相关历史对话】\n1. 用户: 历史问题"
 
     def store_conversation(self, user_query, assistant_response, session_id):
@@ -82,6 +84,9 @@ class AssistantServiceTests(unittest.TestCase):
         self.assertEqual(result["risks"], [])
         self.assertEqual(result["drug_infos"], [])
         self.assertEqual(result["response_text"], "历史回答")
+        self.assertTrue(vector_store.searched_session_id)
+        self.assertNotEqual(vector_store.searched_session_id, "shared")
+        self.assertEqual(vector_store.saved[2], vector_store.searched_session_id)
 
     def test_prepare_medication_context_returns_metadata_without_generating_answer(self):
         from logic_layer.assistant_service import prepare_medication_context

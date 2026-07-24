@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -69,6 +69,66 @@ class LabelStatus(str, Enum):
     LEGACY_UNREVIEWED = "legacy_unreviewed"
     SOURCE_ALIGNED = "source_aligned"
     CLINICALLY_REVIEWED = "clinically_reviewed"
+
+
+class InputResolutionStatus(str, Enum):
+    RESOLVED = "resolved"
+    AMBIGUOUS = "ambiguous"
+    UNKNOWN = "unknown"
+    NEEDS_CLARIFICATION = "needs_clarification"
+    REJECTED_INPUT = "rejected_input"
+
+
+class ResolvedEntityKind(str, Enum):
+    MEDICATION = "medication"
+    CONTEXT = "context"
+
+
+class EntityMatchType(str, Enum):
+    ALIAS = "alias"
+    CONTEXT_RULE = "context_rule"
+
+
+class InputSafetyFlag(str, Enum):
+    INSTRUCTION_LIKE_TEXT_IGNORED = "instruction_like_text_ignored"
+    INPUT_TOO_LONG = "input_too_long"
+    CONTROL_CHARACTER_REJECTED = "control_character_rejected"
+
+
+class ResolvedEntity(StrictModel):
+    kind: ResolvedEntityKind
+    record_id: str = Field(min_length=1)
+    canonical_name: str = Field(min_length=1)
+    matched_text: str = Field(min_length=1)
+    match_type: EntityMatchType
+
+
+class InputResolution(StrictModel):
+    schema_version: Literal["entity-resolution-v1"] = "entity-resolution-v1"
+    status: InputResolutionStatus
+    medications: list[str] = Field(default_factory=list)
+    contexts: list[str] = Field(default_factory=list)
+    entities: list[ResolvedEntity] = Field(default_factory=list)
+    unresolved_mentions: list[str] = Field(default_factory=list)
+    clarification_question: str | None = None
+    safety_flags: list[InputSafetyFlag] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def status_matches_resolution_shape(self):
+        if self.status == InputResolutionStatus.RESOLVED and not self.medications:
+            raise ValueError("resolved input requires at least one medication")
+        if self.status in {
+            InputResolutionStatus.AMBIGUOUS,
+            InputResolutionStatus.UNKNOWN,
+            InputResolutionStatus.NEEDS_CLARIFICATION,
+        } and not self.clarification_question:
+            raise ValueError("unresolved input requires a clarification question")
+        if self.status == InputResolutionStatus.REJECTED_INPUT:
+            if self.medications or self.contexts or self.entities:
+                raise ValueError("rejected input cannot contain resolved entities")
+            if not self.safety_flags:
+                raise ValueError("rejected input requires a safety flag")
+        return self
 
 
 class SourceRecord(StrictModel):
@@ -273,6 +333,13 @@ class SafetyExplanation(StrictModel):
         ):
             raise ValueError("available knowledge explanations require a data version")
         return self
+
+
+class SafetyQueryResponse(StrictModel):
+    """Natural-language V1 response with explicit input and evidence boundaries."""
+
+    resolution: InputResolution
+    explanation: SafetyExplanation
 
 
 class ConversationTurn(StrictModel):

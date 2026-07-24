@@ -162,14 +162,14 @@ class VectorStore:
                 ranked.append(item)
         return ranked[:top_k]
     
-    def store_conversation(self, user_query: str, assistant_response: str, session_id: str = "shared"):
+    def store_conversation(self, user_query: str, assistant_response: str, session_id: str):
         """
         存储用户查询和助手回复
         
         Args:
             user_query: 用户查询
             assistant_response: 助手回复
-            session_id: 会话ID（共享会话ID，所有用户使用同一个）
+            session_id: 调用方显式提供的独立会话 ID
         """
         if not self.redis_client or not self.embedding_service:
             print("⚠️ [Redis] 存储失败: Redis 客户端或向量化服务未初始化")
@@ -181,7 +181,7 @@ class VectorStore:
             
             print("\n" + "=" * 60)
             print("💾 [Redis] 开始存储对话记录...")
-            print(f"   📝 会话ID: {session_id} (共享会话)")
+            print(f"   📝 会话ID: {session_id}")
             print(f"   ⏰ 时间戳: {timestamp}")
             
             # 向量化用户查询
@@ -245,13 +245,13 @@ class VectorStore:
             import traceback
             traceback.print_exc()
     
-    def search_similar_conversations(self, query: str, session_id: str = "shared", top_k: int = 3) -> List[Dict]:
+    def search_similar_conversations(self, query: str, session_id: str, top_k: int = 3) -> List[Dict]:
         """
         搜索与查询最相似的历史对话
         
         Args:
             query: 查询文本
-            session_id: 会话ID（共享会话ID，所有用户使用同一个）
+            session_id: 调用方显式提供的独立会话 ID
             top_k: 返回最相似的K条记录
             
         Returns:
@@ -264,7 +264,7 @@ class VectorStore:
         try:
             print("\n" + "=" * 60)
             print("🔍 [Redis] 开始搜索相似历史对话...")
-            print(f"   📝 会话ID: {session_id} (共享会话，查询所有用户的历史记录)")
+            print(f"   📝 会话ID: {session_id}")
             print(f"   🔢 返回数量: top_{top_k}")
             
             # 向量化查询
@@ -364,13 +364,13 @@ class VectorStore:
             traceback.print_exc()
             return []
     
-    def get_conversation_context(self, query: str, session_id: str = "shared", top_k: int = 3) -> str:
+    def get_conversation_context(self, query: str, session_id: str, top_k: int = 3) -> str:
         """
         获取与查询相关的历史对话上下文，用于提示词
         
         Args:
             query: 当前查询
-            session_id: 会话ID（共享会话ID，所有用户使用同一个）
+            session_id: 调用方显式提供的独立会话 ID
             top_k: 返回最相似的K条记录
             
         Returns:
