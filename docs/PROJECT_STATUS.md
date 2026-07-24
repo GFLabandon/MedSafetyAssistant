@@ -1,14 +1,62 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-24
-当前阶段：P0——公开入口与自动化质量门
-状态：本地质量门通过；远程结果以面向 `main` 的 PR checks 为准
+当前阶段：P1——正式产品链路
+状态：P1 验收完成；P2 暂停，先修复 Neo4j 兼容链路与投影运行边界
 
 ## 当前目标
 
-将已经完成的 Evidence Packet、Safety Engine、Neo4j Repository 和真实模型失败证据
-整理为招聘者可以从默认 GitHub 入口直接验证的 AI 应用项目。当前阶段不改变医学数据、
-不扩展 Agent，也不把 legacy React 页面描述为 V1 正式链路。
+把自然语言输入可靠地接入正式 V1 Safety Engine，并让 React 展示可追溯证据和明确
+失败状态。当前阶段不改变医学数据、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P1 完成项
+
+- [x] 新增版本化 `entity-resolution-v1` 契约，显式区分 `resolved`、`ambiguous`、
+  `unknown`、`needs_clarification` 和 `rejected_input`；
+- [x] 新增只消费 `data/v1/` catalog 的确定性实体解析器，覆盖中英文别名、上下文规则、
+  模糊药名、未知药名、跨轮代词和指令式文本标记；
+- [x] 新增 `POST /api/v1/query`，串联实体解析、Safety Engine 与 Evidence Explanation；
+- [x] 缺少阿司匹林用途等事实适用条件时返回澄清问题，而不是给出“无风险”；
+- [x] React 从 legacy 自由回答链路切换到正式 V1，展示五种结论状态、事实 ID、来源、
+  定位、数据版本、生成模式和确定性回退原因；
+- [x] FastAPI legacy 请求默认生成独立 UUID，Streamlit 为每个浏览器会话生成独立 UUID，
+  Redis 历史方法不再提供 `"shared"` 默认值；
+- [x] 新增输入边界、API 序列化和默认会话唯一性测试；
+- [x] Redis 会话键使用独立 UUID turn ID，默认 TTL 为 86400 秒；增加单会话清除接口、
+  session ID 字符约束和并行隔离测试；
+- [x] 将过时 `/api/embeddings` 适配器迁移到 Ollama 官方 `/api/embed` 契约，并支持
+  单次批量 embedding；
+- [x] 新增 `/api/live` 与真实 `/api/ready`；catalog 为必需依赖，Redis、Neo4j、
+  Ollama 为可选能力，探测并发且有 1.5 秒默认超时；
+- [x] 新增 `X-Request-ID`、结构化请求日志和 `request-trace-v1`，记录实体解析、
+  Safety Engine 与证据解释三阶段状态和耗时；
+- [x] Playwright 浏览器契约测试覆盖风险、澄清、未知和知识不可用四条路径，并接入 CI；
+- [x] Vite 升级到 7.3.6，完整 npm audit 为 0 vulnerability；
+- [x] 本地全量回归 `115 passed, 1 skipped`，Vite 生产构建和 4 项浏览器 E2E 通过；
+- [x] 临时 Redis、Neo4j 与本机 Ollama 同时在线时 readiness 全部为 ready，真实 V1
+  请求返回 `risk_found`、正确事实 ID、`llm_planned` 和完整 trace；
+- [x] 临时容器与测试 Redis 键已清理。
+
+## Neo4j 兼容链路修复（P2 暂停期间）
+
+- [x] legacy `/api/query`、`/api/query/stream` 与 Streamlit 在 Neo4j 驱动或会话失败时
+  返回稳定的 `knowledge_unavailable`，不再把空风险列表交给 LLM 生成疑似安全结论；
+- [x] Neo4j 连接超时、数据库名进入统一配置，导入脚本默认使用 `NEO4J_DATABASE`；
+- [x] 导入器在同一写事务内重建专用 `Safety*` 投影，旧事实不会在成功导入后残留，失败时
+  清理会随事务回滚；
+- [x] 新增 `docker-compose.local.yml`，默认映射 `7474/7687` 与 `6379`，健康检查使用
+  Neo4j 镜像内绝对路径；隔离 Compose 健康检查同步修正；
+- [x] 临时真实验证：Neo4j/Redis 健康、catalog 导入、旧 `SafetyFact` 清理和
+  `泰诺 + 感康 -> fact-duplicate-acetaminophen-001` 均通过；验证栈已清理，现有
+  `distracted_benz` 未修改。
+
+仍保留的边界：
+
+- 正式 V1 保持无状态，跨轮代词要求用户重新写出药品名称；
+- legacy Redis 会话没有认证、用户账户绑定或生产级并发/SLO；
+- Playwright 使用 API fixture 验证前端契约；真实依赖 smoke test 验证 API，两者不包装
+  为生产环境浏览器全链路；
+- readiness 证明单次连接可用，不代表持续可用性。
 
 ## P0 公开可见性进展
 
@@ -17,13 +65,14 @@
 - [x] README 首屏改为项目问题、核心架构、真实指标、解释边界和三条 V1 API 演示；
 - [x] README 删除“推荐更大模型”等无评测依据的表述，并明确当前不是 ReAct、MCP、
   多 Agent、临床系统或生产高并发系统；
-- [x] 明确 V1 API 是正式可验证入口，React 仍是使用共享 session 的 legacy 链路；
+- [x] 明确 V1 API 是正式可验证入口，React 已切换到 V1 evidence flow；legacy API 仅保留兼容；
 - [x] 本地复验 V1 校验和、catalog、全量 pytest 和 Vite build；
 
 远程验收门：当前分支必须通过面向 `main` 的 PR 暴露完整差异，并在 GitHub Actions
 全绿后才能合并默认分支。
 
-P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
+P0 没有修改 `data/v1/`、评测集或评测报告；本节之后的 Neo4j 兼容修复是独立的
+P2 暂停期变更。
 
 ## 已验证基线
 
@@ -31,9 +80,11 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 85 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 117 passed，1 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
+| 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
+| 前端完整依赖审计 | 0 vulnerability | `npm audit`，Vite 7.3.6 |
 | V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
 | V1 catalog | 7 Source、4 Medication、2 Context、3 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
@@ -84,10 +135,10 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 
 1. V1 事实只有 `source_aligned` 状态，没有医生或药师临床审核签名。
 2. V1 仅覆盖 3 条事实，不能外推到未收录药品、剂量或人群。
-3. legacy `/api/query` 仍使用默认共享会话和自由文本生成，不具备 V1 护栏。
+3. legacy `/api/query` 仍是自由文本生成，不具备 V1 护栏；默认共享会话已移除。
 4. 当前真实模型数据集已经用于 v1/v2 调优，不能再作为独立测试集。
 5. 健康检查和完整依赖故障注入仍未完成。
-6. 尚无 Neo4j、Redis、Ollama 同时在线的端到端基线。
+6. P1 已有单机同时在线 API smoke baseline，但尚无负载、持续可用性或生产 SLO。
 
 ## 下一验收门
 
@@ -168,4 +219,6 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - 服务端新增 `FATAL > RED > ORANGE > INFO` 顺序不变量，违规计划与未知、遗漏、重复 ID 一样确定性回退；
 - `explanation_guardrails-v2` 的 10 个脚本化场景全部通过，历史 v1 数据和报告未被覆盖。
 
-下一验收门：开始实体抽取边界重构，先定义歧义药名、未知实体、提示注入与必须澄清状态的版本化契约；不再扩展当前解释排序 prompt。
+该验收门及 P1 可靠性验收均已完成。下一阶段进入 P2：重构 Neo4j 为事实节点中心的
+真实图遍历模型，扩充小而可追溯的知识内容，并继续禁止把未定位来源的医学主张升级为
+正式 V1 事实。

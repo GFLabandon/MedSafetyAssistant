@@ -10,7 +10,7 @@
 运行离线基线：
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+python scripts/evaluate.py \
   --dataset eval/dev_cases.jsonl \
   --runner rule_entities \
   --format markdown
@@ -21,7 +21,7 @@
 `safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，覆盖 V1 alpha.2 的 3 条事实。运行：
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+python scripts/evaluate.py \
   --dataset eval/safety_engine_dev.jsonl \
   --runner safety_engine \
   --data-dir data/v1 \
@@ -33,7 +33,7 @@
 `explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+python scripts/evaluate.py \
   --dataset eval/explanation_guardrails_v1.jsonl \
   --runner explanation_guardrails \
   --data-dir data/v1 \
@@ -47,7 +47,7 @@
 `explanation_model_dev_v1.jsonl` 是真实 Ollama 开发探针。它包含 5 个实际模型规划场景和 2 个必须跳过模型的非风险场景，运行 3 次会产生 15 次模型请求：
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+python scripts/evaluate.py \
   --dataset eval/explanation_model_dev_v1.jsonl \
   --runner ollama_explanation \
   --model deepseek-r1:1.5b \
@@ -61,7 +61,7 @@
 `opaque_id_test_v1.jsonl` 是在 v2 prompt/schema 完成后冻结的合成 contract test，SHA-256 为 `ced2daf4cabbc4cb4c1d0238b35e352a485515a9764207d89fdc2c4035d99f5a`。它只测试未见 fact_id 的逐字符复制、完整集合、严重度排序和三轮一致性，不包含医学事实：
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/evaluate.py \
+python scripts/evaluate.py \
   --dataset eval/opaque_id_test_v1.jsonl \
   --runner ollama_opaque_ids \
   --model deepseek-r1:1.5b \

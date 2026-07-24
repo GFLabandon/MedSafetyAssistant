@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
         description="Validate data/v1 and upsert it into the Neo4j safety projection."
     )
     parser.add_argument("--data-dir", type=Path, default=REPOSITORY_ROOT / "data/v1")
-    parser.add_argument("--database", default=None)
+    parser.add_argument("--database", default=Config.NEO4J_DATABASE)
     return parser.parse_args()
 
 
@@ -40,6 +40,8 @@ def main() -> int:
     driver = GraphDatabase.driver(
         Config.NEO4J_URI,
         auth=(Config.NEO4J_USER, Config.NEO4J_PASSWORD),
+        connection_timeout=Config.NEO4J_CONNECTION_TIMEOUT_SECONDS,
+        connection_acquisition_timeout=Config.NEO4J_CONNECTION_TIMEOUT_SECONDS,
     )
     try:
         try:

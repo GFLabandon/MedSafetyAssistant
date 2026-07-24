@@ -6,10 +6,12 @@ Redis 向量数据库服务模块
 import json
 import redis
 from typing import List, Dict, Optional
+from uuid import uuid4
 import ollama
 from config import Config
 from logic_layer.embedding_service import EmbeddingService
 from logic_layer.json_utils import parse_llm_json
+from logic_layer.session import normalize_session_id
 
 
 class VectorStore:
@@ -34,7 +36,9 @@ class VectorStore:
                 port=redis_port,
                 password=redis_password,
                 db=redis_db,
-                decode_responses=True
+                decode_responses=True,
+                socket_connect_timeout=Config.REDIS_SOCKET_TIMEOUT_SECONDS,
+                socket_timeout=Config.REDIS_SOCKET_TIMEOUT_SECONDS,
             )
             # 测试连接
             print("   🔍 测试连接...")
@@ -59,6 +63,10 @@ class VectorStore:
             self.redis_client = None
             self.embedding_service = None
             self.ollama_client = None
+
+    @property
+    def available(self) -> bool:
+        return self.redis_client is not None
     
     def _ensure_index(self):
         """确保 Redis 向量索引存在"""
@@ -162,26 +170,28 @@ class VectorStore:
                 ranked.append(item)
         return ranked[:top_k]
     
-    def store_conversation(self, user_query: str, assistant_response: str, session_id: str = "shared"):
+    def store_conversation(self, user_query: str, assistant_response: str, session_id: str):
         """
         存储用户查询和助手回复
         
         Args:
             user_query: 用户查询
             assistant_response: 助手回复
-            session_id: 会话ID（共享会话ID，所有用户使用同一个）
+            session_id: 调用方显式提供的独立会话 ID
         """
+        session_id = normalize_session_id(session_id, generate_if_blank=False)
         if not self.redis_client or not self.embedding_service:
             print("⚠️ [Redis] 存储失败: Redis 客户端或向量化服务未初始化")
-            return
+            return False
         
         try:
             import time
             timestamp = int(time.time())
+            turn_id = f"{time.time_ns()}-{uuid4().hex}"
             
             print("\n" + "=" * 60)
             print("💾 [Redis] 开始存储对话记录...")
-            print(f"   📝 会话ID: {session_id} (共享会话)")
+            print(f"   📝 会话ID: {session_id}")
             print(f"   ⏰ 时间戳: {timestamp}")
             
             # 向量化用户查询
@@ -190,7 +200,7 @@ class VectorStore:
             user_vector = self.embedding_service.embed_text(user_query)
             if not user_vector:
                 print("      ❌ 用户查询向量化失败")
-                return
+                return False
             print(f"      ✅ 用户查询向量化完成 (维度: {len(user_vector)})")
             
             # 向量化助手回复
@@ -199,12 +209,12 @@ class VectorStore:
             assistant_vector = self.embedding_service.embed_text(assistant_response)
             if not assistant_vector:
                 print("      ❌ 助手回复向量化失败")
-                return
+                return False
             print(f"      ✅ 助手回复向量化完成 (维度: {len(assistant_vector)})")
             
             # 存储用户查询
             print(f"   🔄 步骤 3/4: 存储用户查询到 Redis...")
-            user_key = f"conv:{session_id}:user:{timestamp}"
+            user_key = f"conv:{session_id}:user:{turn_id}"
             user_data = {
                 "text": user_query,
                 "role": "user",
@@ -213,11 +223,12 @@ class VectorStore:
                 "timestamp": str(timestamp)
             }
             self.redis_client.hset(user_key, mapping=user_data)
+            self.redis_client.expire(user_key, Config.SESSION_TTL_SECONDS)
             print(f"      ✅ 用户查询已存储 (Key: {user_key})")
             
             # 存储助手回复
             print(f"   🔄 步骤 4/4: 存储助手回复到 Redis...")
-            assistant_key = f"conv:{session_id}:assistant:{timestamp}"
+            assistant_key = f"conv:{session_id}:assistant:{turn_id}"
             assistant_data = {
                 "text": assistant_response,
                 "role": "assistant",
@@ -226,37 +237,42 @@ class VectorStore:
                 "timestamp": str(timestamp)
             }
             self.redis_client.hset(assistant_key, mapping=assistant_data)
+            self.redis_client.expire(assistant_key, Config.SESSION_TTL_SECONDS)
             print(f"      ✅ 助手回复已存储 (Key: {assistant_key})")
             
             # 存储对话对关系
             print(f"   🔄 额外步骤: 存储对话对关系...")
-            pair_key = f"conv_pair:{session_id}:{timestamp}"
+            pair_key = f"conv_pair:{session_id}:{turn_id}"
             self.redis_client.hset(pair_key, mapping={
                 "user_key": user_key,
                 "assistant_key": assistant_key,
                 "timestamp": str(timestamp)
             })
+            self.redis_client.expire(pair_key, Config.SESSION_TTL_SECONDS)
             print(f"      ✅ 对话对关系已存储 (Key: {pair_key})")
             print("   ✅ [Redis] 对话记录存储完成！")
             print("=" * 60 + "\n")
+            return True
             
         except Exception as e:
             print(f"⚠️ [Redis] 存储对话失败: {e}")
             import traceback
             traceback.print_exc()
+            return False
     
-    def search_similar_conversations(self, query: str, session_id: str = "shared", top_k: int = 3) -> List[Dict]:
+    def search_similar_conversations(self, query: str, session_id: str, top_k: int = 3) -> List[Dict]:
         """
         搜索与查询最相似的历史对话
         
         Args:
             query: 查询文本
-            session_id: 会话ID（共享会话ID，所有用户使用同一个）
+            session_id: 调用方显式提供的独立会话 ID
             top_k: 返回最相似的K条记录
             
         Returns:
             相似对话列表，每个元素包含 text, role, similarity
         """
+        session_id = normalize_session_id(session_id, generate_if_blank=False)
         if not self.redis_client or not self.embedding_service:
             print("⚠️ [Redis] 搜索失败: Redis 客户端或向量化服务未初始化")
             return []
@@ -264,7 +280,7 @@ class VectorStore:
         try:
             print("\n" + "=" * 60)
             print("🔍 [Redis] 开始搜索相似历史对话...")
-            print(f"   📝 会话ID: {session_id} (共享会话，查询所有用户的历史记录)")
+            print(f"   📝 会话ID: {session_id}")
             print(f"   🔢 返回数量: top_{top_k}")
             
             # 向量化查询
@@ -364,13 +380,13 @@ class VectorStore:
             traceback.print_exc()
             return []
     
-    def get_conversation_context(self, query: str, session_id: str = "shared", top_k: int = 3) -> str:
+    def get_conversation_context(self, query: str, session_id: str, top_k: int = 3) -> str:
         """
         获取与查询相关的历史对话上下文，用于提示词
         
         Args:
             query: 当前查询
-            session_id: 会话ID（共享会话ID，所有用户使用同一个）
+            session_id: 调用方显式提供的独立会话 ID
             top_k: 返回最相似的K条记录
             
         Returns:
@@ -391,6 +407,19 @@ class VectorStore:
         context_str = "\n".join(context_parts)
         print(f"   ✅ [Redis] 上下文格式化完成 (长度: {len(context_str)} 字符)")
         return context_str
+
+    def clear_session(self, session_id: str) -> int:
+        """Delete only keys belonging to one validated conversation namespace."""
+
+        session_id = normalize_session_id(session_id, generate_if_blank=False)
+        if not self.redis_client:
+            raise ConnectionError("Redis session store is unavailable")
+
+        keys = set(self.redis_client.scan_iter(match=f"conv:{session_id}:*"))
+        keys.update(self.redis_client.scan_iter(match=f"conv_pair:{session_id}:*"))
+        if not keys:
+            return 0
+        return int(self.redis_client.delete(*sorted(keys)))
     
     def close(self):
         """关闭 Redis 连接"""

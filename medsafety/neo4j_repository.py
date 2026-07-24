@@ -1,8 +1,9 @@
 """Neo4j projection and read repository for source-aligned V1 knowledge.
 
 The JSON catalog in ``data/v1`` remains the canonical source. Neo4j is a
-derived, rebuildable read model. Import statements are parameterized and use
-``MERGE`` so rerunning an import does not duplicate nodes or relationships.
+derived, rebuildable read model. Each import transaction clears only the
+dedicated ``Safety*`` projection before parameterized upserts, so removed
+catalog records cannot remain queryable after a successful rebuild.
 """
 
 from __future__ import annotations
@@ -34,6 +35,12 @@ _CONSTRAINT_QUERIES = (
     "CREATE CONSTRAINT safety_snapshot_name IF NOT EXISTS "
     "FOR (snapshot:SafetyKnowledgeSnapshot) REQUIRE snapshot.name IS UNIQUE",
 )
+
+_RESET_PROJECTION = """
+MATCH (node)
+WHERE any(label IN labels(node) WHERE label STARTS WITH 'Safety')
+DETACH DELETE node
+"""
 
 _UPSERT_SNAPSHOT = """
 MERGE (snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name})
@@ -188,6 +195,9 @@ class Neo4jCatalogImporter:
 
     @staticmethod
     def _upsert_catalog(transaction: Any, catalog: KnowledgeCatalog) -> ImportSummary:
+        # This runs in the same write transaction as all upserts. If any
+        # validation or write fails, Neo4j rolls the reset back as well.
+        transaction.run(_RESET_PROJECTION).consume()
         transaction.run(
             _UPSERT_SNAPSHOT,
             snapshot_name=_SNAPSHOT_NAME,

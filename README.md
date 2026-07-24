@@ -24,7 +24,7 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `85 passed, 1 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `115 passed, 1 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 9/9 whole-case match | 仅覆盖 3 条来源对齐事实 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -40,12 +40,15 @@
 - [输出护栏 v2 基线](reports/baseline-explanation-guardrails-v2.md)
 - [真实 Ollama 开发基线](reports/baseline-ollama-evidence-order-v2.md)
 - [锁定 opaque-ID 失败报告](reports/baseline-ollama-opaque-id-test-v1.md)
+- [P1 产品链路验收](reports/p1-product-flow-acceptance.md)
 
 ## 核心架构
 
 ```mermaid
 flowchart LR
-    A["结构化药品与上下文"] --> B["Safety Engine"]
+    A["自然语言问题"] --> R["确定性实体解析"]
+    R -->|"已解析"| B["Safety Engine"]
+    R -->|"歧义或未知"| Q["澄清或范围外状态"]
     J["data/v1 权威 JSON"] --> B
     J --> C["幂等导入"]
     C --> D["Neo4j 查询投影"]
@@ -56,6 +59,7 @@ flowchart LR
     G -->|"合法"| H["抽取式证据解释"]
     G -->|"违规或故障"| I["确定性回退"]
     E --> I
+    Q --> H
 ```
 
 LLM 可以排列证据，但不能：
@@ -116,6 +120,28 @@ uvicorn api:app --reload --port 8000
 
 交互文档：`http://127.0.0.1:8000/docs`
 
+自然语言正式入口：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
+```
+
+响应同时返回版本化 `resolution`、`explanation` 与 `request-trace-v1`：实体解析只匹配 `data/v1/` 中的受控
+别名和上下文规则；模糊药名、未知药名、缺失适用条件和指令式注入文本不会进入开放域
+医学生成。
+
+### 运行状态
+
+- `GET /api/live`：仅表示 API 进程存活，不访问外部依赖；
+- `GET /api/ready`：并发、限时探测 V1 catalog、Redis、Neo4j 和 Ollama；
+- `GET /api/health`：为兼容旧客户端保留，等价于 `/api/ready`。
+
+V1 catalog 是正式确定性链路的必需依赖；Redis、Neo4j 和 Ollama 是可选能力。可选依赖
+离线时状态为 `degraded`，不会伪装成全依赖就绪，也不会阻止 Safety Engine 使用本地
+catalog 返回可验证结果。Ollama 生成失败时仍走确定性解释回退。
+
 ### 演示 1：重复成分风险
 
 ```bash
@@ -170,14 +196,24 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 
 `data/v1/` 是唯一权威源。Neo4j 只作为可删除、可重建的读取投影，不允许反向覆盖 JSON。
 
-配置 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD` 并启动 Neo4j 后：
+本地开发可以使用仓库提供的 Compose 依赖（会把 Neo4j 暴露到项目默认的
+`localhost:7687`，Redis 暴露到 `localhost:6379`）：
+
+```bash
+export NEO4J_PASSWORD=medsafety-local
+docker compose -f docker-compose.local.yml up -d --wait
+```
+
+也可以自行提供 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD` 和可选的
+`NEO4J_DATABASE`。连接密码只用于本地开发，不要提交真实凭据。依赖准备好后：
 
 ```bash
 python scripts/import_v1_to_neo4j.py
 ```
 
-导入器先校验 catalog，再通过唯一约束、参数化查询和 `MERGE` 写入独立的 `Safety*`
-命名空间。真实隔离集成测试：
+导入器先校验 catalog，然后在单个写事务中清理并重建独立的 `Safety*` 命名空间；
+如果导入失败，清理也会回滚，不会留下半套投影。重复导入不会残留已从 JSON
+目录删除的旧事实。真实隔离集成测试：
 
 ```bash
 MEDSAFETY_PYTHON=python bash scripts/test_neo4j_integration.sh
@@ -186,7 +222,7 @@ MEDSAFETY_PYTHON=python bash scripts/test_neo4j_integration.sh
 测试使用临时实例和数据目录，连续导入两次并比较 JSON/Neo4j Repository 的完整
 `EvidencePacket`，结束后移除专用容器与网络。
 
-## 前端与 legacy 边界
+## V1 证据前端
 
 ```bash
 cd frontend
@@ -194,15 +230,30 @@ npm ci
 npm run dev
 ```
 
-当前 React 页面仍调用 legacy `/api/query` 流式链路，用于保留早期全栈原型。它尚未接入
-V1 Evidence Packet 和服务端护栏，因此**不能作为当前正式安全链路的演示依据**。
+React 页面调用自然语言 V1 入口，明确展示五种结论状态、实体解析状态、澄清问题、
+`fact_id`、来源 ID、来源定位、数据版本、生成模式、回退原因、request ID 和三阶段
+耗时。它不读取共享会话历史。
 
-当前正式、可验证的入口是：
+当前正式、可验证的入口包括：
 
+- `POST /api/v1/query`
 - `POST /api/v1/safety/check`
 - `POST /api/v1/safety/explain`
 
-将 React 切换到 V1、移除共享 session 并显示证据状态属于下一阶段工作。
+旧 `/api/query` 与 `/api/query/stream` 仅为兼容早期原型保留；其默认请求会生成独立
+session ID，不再落入全局共享命名空间，但不属于 V1 安全结论的演示入口。
+
+可重复浏览器契约测试：
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e
+```
+
+四条用例覆盖风险证据、缺失上下文澄清、未知药品和知识不可用。测试使用受控 API
+fixture 验证前端状态契约；真实后端与外部依赖由 Python 故障测试和 P1 实机 smoke
+test 分别验证。
 
 ## 仓库结构
 
@@ -214,7 +265,7 @@ eval/                 开发集、对抗集和锁定 contract test
 reports/              指标、失败分析和真实模型原始记录
 scripts/              数据校验、评测和 Neo4j 导入入口
 test/                 单元、契约、API 和隔离集成测试
-frontend/             React 原型界面（当前仍是 legacy 链路）
+frontend/             React V1 状态、澄清与证据界面
 docs/                 安全边界、数据卡、评测协议和项目状态
 ```
 
@@ -223,9 +274,11 @@ docs/                 安全边界、数据卡、评测协议和项目状态
 - 只有 3 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
-- React 仍使用 legacy 自由生成链路和共享 session。
-- `/api/health` 当前只检查配置，尚不是真实依赖 readiness。
-- 尚无 Neo4j、Redis、Ollama 同时在线的完整端到端基线。
+- 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
+- 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
+  没有认证或用户账户绑定，不能作为生产会话系统。
+- P1 已完成 Neo4j、Redis、Ollama 同时在线的 API smoke baseline；它是单机开发验收，
+  不是负载、可用性或生产 SLO 证据。
 - 当前不是 ReAct、多 Agent、MCP 平台或生产高并发系统。
 
 下一阶段与验收门见 [项目状态](docs/PROJECT_STATUS.md) 和

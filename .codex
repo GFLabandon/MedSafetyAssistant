@@ -1,4 +1,0 @@
-Use conda environment: medsafety
-Python path: /opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python
-Run tests with: python -m pytest
-Start app with: python -m streamlit run app.py

@@ -10,12 +10,20 @@ class Config:
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+    NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
+    NEO4J_CONNECTION_TIMEOUT_SECONDS = float(
+        os.getenv("NEO4J_CONNECTION_TIMEOUT_SECONDS", "1.5")
+    )
 
-    # Ollama 配置：默认 deepseek（开箱即用）；推荐 qwen2.5-coder:14b（效果更好）
+    # Ollama 配置：模型版本必须与评测报告或本地验收记录一致。
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_EXPLANATION_TIMEOUT_SECONDS = float(
         os.getenv("OLLAMA_EXPLANATION_TIMEOUT_SECONDS", "5")
+    )
+    OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", OLLAMA_MODEL)
+    OLLAMA_EMBEDDING_TIMEOUT_SECONDS = float(
+        os.getenv("OLLAMA_EMBEDDING_TIMEOUT_SECONDS", "5")
     )
     
     # Redis 配置（用于向量数据库）
@@ -23,6 +31,15 @@ class Config:
     REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
     # REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", 123456)
     REDIS_DB = int(os.getenv("REDIS_DB", 0))
+    REDIS_SOCKET_TIMEOUT_SECONDS = float(
+        os.getenv("REDIS_SOCKET_TIMEOUT_SECONDS", "1.5")
+    )
+    SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", "86400"))
+
+    # 依赖健康探测必须快速返回，不能让 readiness 长时间阻塞。
+    HEALTH_PROBE_TIMEOUT_SECONDS = float(
+        os.getenv("HEALTH_PROBE_TIMEOUT_SECONDS", "1.5")
+    )
 
     # Rerank 配置（历史对话检索）
     ENABLE_RERANK = os.getenv("ENABLE_RERANK", "true").lower() == "true"

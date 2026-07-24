@@ -29,7 +29,7 @@
 ```bash
 shasum -a 256 -c data/v1/checksums.sha256
 
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python \
+python \
   scripts/validate_v1_data.py
 ```
 

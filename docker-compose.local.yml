@@ -1,0 +1,42 @@
+name: medsafetyassistant-local
+
+# Local development dependencies only. Do not reuse this password in production.
+services:
+  neo4j:
+    image: neo4j:5.26.28
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-medsafety-local}
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-medsafety-local}
+    volumes:
+      - medsafety-neo4j-data:/data
+      - medsafety-neo4j-logs:/logs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/var/lib/neo4j/bin/cypher-shell -u neo4j -p $${NEO4J_PASSWORD:-medsafety-local} 'RETURN 1' >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - medsafety-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  medsafety-neo4j-data:
+  medsafety-neo4j-logs:
+  medsafety-redis-data:
