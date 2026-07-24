@@ -37,7 +37,7 @@ if "dotenv" not in sys.modules:
     sys.modules["dotenv"] = dotenv_stub
 
 from logic_layer.entity_utils import exact_entity_extraction
-from logic_layer.health_check import get_environment_diagnostics
+from logic_layer.health_check import get_readiness_diagnostics
 from logic_layer.json_utils import parse_llm_json
 from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import generate_safety_response
@@ -81,31 +81,45 @@ class Phase1ContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_llm_json("route: both")
 
-    def test_environment_diagnostics_reports_missing_neo4j_password(self):
-        with patch("logic_layer.health_check.Config.NEO4J_PASSWORD", None):
-            diagnostics = get_environment_diagnostics()
+    def test_readiness_is_degraded_when_optional_dependencies_are_unavailable(self):
+        def unavailable():
+            raise ConnectionError("private host detail")
 
-        self.assertFalse(diagnostics["ready"])
-        self.assertIn("NEO4J_PASSWORD", diagnostics["missing"])
-        self.assertFalse(diagnostics["services"]["neo4j"]["password_configured"])
-
-    def test_environment_diagnostics_is_ready_when_required_config_exists(self):
-        patches = [
-            patch("logic_layer.health_check.Config.NEO4J_URI", "bolt://localhost:7687"),
-            patch("logic_layer.health_check.Config.NEO4J_USER", "neo4j"),
-            patch("logic_layer.health_check.Config.NEO4J_PASSWORD", "password"),
-            patch("logic_layer.health_check.Config.OLLAMA_URL", "http://localhost:11434"),
-            patch("logic_layer.health_check.Config.OLLAMA_MODEL", "deepseek-r1:7b"),
-            patch("logic_layer.health_check.Config.REDIS_HOST", "localhost"),
-        ]
-        for item in patches:
-            item.start()
-            self.addCleanup(item.stop)
-
-        diagnostics = get_environment_diagnostics()
+        diagnostics = get_readiness_diagnostics(
+            {
+                "catalog": lambda: {"data_version": "test-v1"},
+                "redis": unavailable,
+                "neo4j": unavailable,
+                "ollama": unavailable,
+            }
+        )
 
         self.assertTrue(diagnostics["ready"])
-        self.assertEqual(diagnostics["missing"], [])
+        self.assertEqual(diagnostics["status"], "degraded")
+        self.assertFalse(diagnostics["all_dependencies_ready"])
+        self.assertEqual(diagnostics["services"]["redis"]["status"], "connection_failed")
+        self.assertNotIn("private host detail", str(diagnostics))
+
+    def test_readiness_is_not_ready_when_required_catalog_fails(self):
+        def catalog_unavailable():
+            raise ValueError("private file detail")
+
+        diagnostics = get_readiness_diagnostics(
+            {
+                "catalog": catalog_unavailable,
+                "redis": lambda: {},
+                "neo4j": lambda: {},
+                "ollama": lambda: {},
+            }
+        )
+
+        self.assertFalse(diagnostics["ready"])
+        self.assertEqual(diagnostics["status"], "not_ready")
+        self.assertEqual(
+            diagnostics["services"]["catalog"]["status"],
+            "connection_failed",
+        )
+        self.assertNotIn("private file detail", str(diagnostics))
 
     def test_rule_entity_extraction_finds_drugs_and_conditions(self):
         drugs, conditions = exact_entity_extraction("我喝酒了，还能吃头孢和布洛芬吗？")

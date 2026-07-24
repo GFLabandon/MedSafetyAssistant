@@ -130,7 +130,11 @@ def test_unsafe_input_shape_is_rejected_before_resolution(resolver, question, fl
 
 
 def test_query_service_returns_grounded_duplicate_risk(service):
-    response = service.query("泰诺和感康能一起吃吗？", use_llm_plan=False)
+    response = service.query(
+        "泰诺和感康能一起吃吗？",
+        use_llm_plan=False,
+        request_id="request-test-001",
+    )
 
     assert response.resolution.status == InputResolutionStatus.RESOLVED
     assert response.explanation.conclusion_status == ConclusionStatus.RISK_FOUND
@@ -138,6 +142,13 @@ def test_query_service_returns_grounded_duplicate_risk(service):
         "fact-duplicate-acetaminophen-001"
     )
     assert response.explanation.generation_mode.value == "deterministic"
+    assert response.trace.request_id == "request-test-001"
+    assert [stage.name for stage in response.trace.stages] == [
+        "entity_resolution",
+        "safety_engine",
+        "evidence_explanation",
+    ]
+    assert all(stage.duration_ms >= 0 for stage in response.trace.stages)
 
 
 def test_query_service_turns_missing_required_context_into_clarification(service):
@@ -156,6 +167,7 @@ def test_query_service_keeps_unknown_input_out_of_scope(service):
     assert response.resolution.status == InputResolutionStatus.UNKNOWN
     assert response.explanation.conclusion_status == ConclusionStatus.OUT_OF_SCOPE
     assert response.explanation.claims == []
+    assert response.trace.stages[1].status == "skipped"
 
 
 def test_query_service_ignores_prompt_injection_and_preserves_fact(service):
@@ -168,6 +180,13 @@ def test_query_service_ignores_prompt_injection_and_preserves_fact(service):
     assert [claim.fact_id for claim in response.explanation.claims] == [
         "fact-duplicate-acetaminophen-001"
     ]
+
+
+def test_query_trace_marks_planner_fallback_as_degraded(service):
+    response = service.query("泰诺和感康能一起吃吗？", use_llm_plan=True)
+
+    assert response.explanation.generation_mode.value == "deterministic_fallback"
+    assert response.trace.stages[2].status == "degraded"
 
 
 def test_natural_language_v1_api_serializes_resolution_and_explanation():

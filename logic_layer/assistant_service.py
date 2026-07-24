@@ -5,22 +5,20 @@ The Streamlit UI and FastAPI BFF both call this module. UI code should render
 results; this module owns backend orchestration.
 """
 
-from uuid import uuid4
+import logging
 
 from logic_layer.entity_utils import exact_entity_extraction
 from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import generate_safety_response, extract_entities_with_llm
 from logic_layer.router_service import decide_tools
+from logic_layer.session import normalize_session_id
 
 
-def create_session_id():
-    """Create an opaque per-client conversation namespace."""
-    return uuid4().hex
+logger = logging.getLogger(__name__)
 
 
 def _effective_session_id(session_id):
-    normalized = (session_id or "").strip()
-    return normalized or create_session_id()
+    return normalize_session_id(session_id)
 
 
 def prepare_medication_context(prompt, session_id=None, vector_store=None, kg=None):
@@ -75,10 +73,21 @@ def save_conversation_result(vector_store, prompt, response_text, session_id=Non
     save_error = None
     if vector_store and vector_store.redis_client:
         try:
-            vector_store.store_conversation(prompt, response_text, session_id)
-            conversation_saved = True
+            conversation_saved = bool(
+                vector_store.store_conversation(
+                    prompt,
+                    response_text,
+                    session_id,
+                )
+            )
+            if not conversation_saved:
+                save_error = "conversation_store_rejected"
         except Exception as exc:
-            save_error = str(exc)
+            logger.warning(
+                "conversation store unavailable (%s)",
+                type(exc).__name__,
+            )
+            save_error = "conversation_store_unavailable"
 
     return {
         "conversation_saved": conversation_saved,

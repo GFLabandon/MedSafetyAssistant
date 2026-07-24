@@ -1,6 +1,7 @@
 import asyncio
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -78,18 +79,101 @@ class ApiContractTests(unittest.TestCase):
         self.assertTrue(request.session_id)
         self.assertNotEqual(request.session_id, "shared")
 
+    def test_query_request_rejects_session_key_metacharacters(self):
+        from pydantic import ValidationError
+        from api import QueryRequest
+
+        with self.assertRaises(ValidationError):
+            QueryRequest(question="测试", session_id="user:*")
+
+    def test_clear_session_has_stable_success_and_unavailable_contracts(self):
+        from api import clear_conversation_session
+
+        store = unittest.mock.Mock()
+        store.available = True
+        store.clear_session.return_value = 3
+        with patch("api.get_vector_store", return_value=store):
+            success = asyncio.run(clear_conversation_session("session-a"))
+
+        self.assertEqual(success["session_id"], "session-a")
+        self.assertEqual(success["deleted_keys"], 3)
+
+        with patch("api.get_vector_store", return_value=None):
+            unavailable = asyncio.run(clear_conversation_session("session-a"))
+
+        payload = json.loads(unavailable.body)
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertEqual(payload["error"], "session_store_unavailable")
+        self.assertNotIn("Redis", payload["detail"])
+
     def test_health_returns_environment_diagnostics(self):
         from api import health
 
         fake_diagnostics = {
             "ready": True,
-            "missing": [],
+            "status": "degraded",
             "services": {"ollama": {"ready": True}},
         }
-        with patch("api.get_environment_diagnostics", return_value=fake_diagnostics):
+        with patch("api.get_readiness_diagnostics", return_value=fake_diagnostics):
             response = asyncio.run(health())
 
         self.assertEqual(response, fake_diagnostics)
+
+    def test_liveness_does_not_probe_external_dependencies(self):
+        from api import live
+
+        with patch(
+            "api.get_liveness_diagnostics",
+            return_value={"status": "alive"},
+        ) as diagnostic:
+            response = asyncio.run(live())
+
+        self.assertEqual(response, {"status": "alive"})
+        diagnostic.assert_called_once_with()
+
+    def test_request_middleware_preserves_valid_id_and_sets_response_header(self):
+        from starlette.responses import Response
+        from api import request_observability
+
+        request = SimpleNamespace(
+            headers={"X-Request-ID": "client-request-001"},
+            state=SimpleNamespace(),
+            method="POST",
+            url=SimpleNamespace(path="/api/v1/query"),
+        )
+
+        async def call_next(received_request):
+            self.assertEqual(
+                received_request.state.request_id,
+                "client-request-001",
+            )
+            return Response(status_code=200)
+
+        response = asyncio.run(request_observability(request, call_next))
+
+        self.assertEqual(response.headers["X-Request-ID"], "client-request-001")
+
+    def test_request_middleware_replaces_invalid_id(self):
+        from starlette.responses import Response
+        from api import request_observability
+
+        request = SimpleNamespace(
+            headers={"X-Request-ID": "invalid request id with spaces"},
+            state=SimpleNamespace(),
+            method="GET",
+            url=SimpleNamespace(path="/api/live"),
+        )
+
+        async def call_next(received_request):
+            return Response(status_code=200)
+
+        response = asyncio.run(request_observability(request, call_next))
+
+        self.assertNotEqual(
+            response.headers["X-Request-ID"],
+            "invalid request id with spaces",
+        )
+        self.assertTrue(response.headers["X-Request-ID"])
 
     def test_v1_safety_check_returns_source_aligned_evidence(self):
         from api import SafetyCheckRequest, check_v1_safety

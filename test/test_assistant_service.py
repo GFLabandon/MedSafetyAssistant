@@ -39,6 +39,7 @@ class FakeVectorStore:
 
     def store_conversation(self, user_query, assistant_response, session_id):
         self.saved = (user_query, assistant_response, session_id)
+        return True
 
 
 class AssistantServiceTests(unittest.TestCase):
@@ -139,7 +140,25 @@ class AssistantServiceTests(unittest.TestCase):
         )
 
         self.assertFalse(failure["conversation_saved"])
-        self.assertEqual(failure["save_error"], "redis offline")
+        self.assertEqual(failure["save_error"], "conversation_store_unavailable")
+        self.assertNotIn("redis offline", str(failure))
+
+    def test_save_conversation_result_does_not_report_false_success(self):
+        from logic_layer.assistant_service import save_conversation_result
+
+        class RejectingVectorStore(FakeVectorStore):
+            def store_conversation(self, user_query, assistant_response, session_id):
+                return False
+
+        result = save_conversation_result(
+            RejectingVectorStore(),
+            "问题",
+            "回答",
+            "test-session",
+        )
+
+        self.assertFalse(result["conversation_saved"])
+        self.assertEqual(result["save_error"], "conversation_store_rejected")
 
 
 if __name__ == "__main__":

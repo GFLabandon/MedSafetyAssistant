@@ -335,11 +335,27 @@ class SafetyExplanation(StrictModel):
         return self
 
 
+class PipelineStageTrace(StrictModel):
+    name: Literal["entity_resolution", "safety_engine", "evidence_explanation"]
+    status: Literal["completed", "skipped", "degraded"]
+    duration_ms: float = Field(ge=0)
+
+
+class RequestTrace(StrictModel):
+    schema_version: Literal["request-trace-v1"] = "request-trace-v1"
+    request_id: str = Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")
+    total_duration_ms: float = Field(ge=0)
+    stages: list[PipelineStageTrace] = Field(min_length=3, max_length=3)
+    resolution_status: InputResolutionStatus
+    conclusion_status: ConclusionStatus
+
+
 class SafetyQueryResponse(StrictModel):
     """Natural-language V1 response with explicit input and evidence boundaries."""
 
     resolution: InputResolution
     explanation: SafetyExplanation
+    trace: RequestTrace
 
 
 class ConversationTurn(StrictModel):

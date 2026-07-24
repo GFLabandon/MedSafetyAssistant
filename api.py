@@ -1,8 +1,10 @@
 # api.py - FastAPI wrapper layer
 from contextlib import asynccontextmanager
+import asyncio
 import json
 import logging
 from pathlib import Path
+from time import perf_counter
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,18 +14,22 @@ from pydantic import BaseModel, Field, field_validator
 from config import Config
 from logic_layer.assistant_service import (
     answer_medication_question,
-    create_session_id,
     prepare_medication_context,
     save_conversation_result,
 )
-from logic_layer.health_check import get_environment_diagnostics
+from logic_layer.health_check import (
+    get_liveness_diagnostics,
+    get_readiness_diagnostics,
+)
 from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import stream_safety_response
+from logic_layer.session import create_session_id, normalize_session_id
 from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.entity_resolution import V1EntityResolver
 from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.ollama_planner import OllamaExplanationPlanner
+from medsafety.observability import normalize_request_id, structured_event
 from medsafety.query_service import SafetyQueryService
 from medsafety.safety_engine import SafetyEngine
 
@@ -46,9 +52,7 @@ class QueryRequest(BaseModel):
     @field_validator("session_id")
     @classmethod
     def session_id_must_not_be_blank(cls, value):
-        if not value.strip():
-            return create_session_id()
-        return value.strip()
+        return normalize_session_id(value)
 
 
 class SafetyCheckRequest(BaseModel):
@@ -137,10 +141,36 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def request_observability(request: Request, call_next):
+    request_id = normalize_request_id(request.headers.get("X-Request-ID"))
+    request.state.request_id = request_id
+    started = perf_counter()
+    response = await call_next(request)
+    duration_ms = round((perf_counter() - started) * 1000, 3)
+    response.headers["X-Request-ID"] = request_id
+    logger.info(
+        structured_event(
+            "http_request_completed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
+    )
+    return response
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    request_id = getattr(getattr(request, "state", None), "request_id", None)
     logger.error(
-        "unhandled API exception",
+        structured_event(
+            "http_request_failed",
+            request_id=request_id or "unavailable",
+            error_type=type(exc).__name__,
+        ),
         exc_info=(type(exc), exc, exc.__traceback__),
     )
     return JSONResponse(
@@ -148,6 +178,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         content={
             "error": "internal_server_error",
             "detail": "An unexpected error occurred.",
+            "request_id": request_id,
         },
     )
 
@@ -174,6 +205,12 @@ def get_entity_resolver(request: Request | None):
     if request is None:
         return build_entity_resolver()
     return getattr(request.app.state, "entity_resolver", None) or build_entity_resolver()
+
+
+def get_request_id(request: Request | None):
+    if request is None:
+        return normalize_request_id(None)
+    return normalize_request_id(getattr(request.state, "request_id", None))
 
 
 def sse_event(payload):
@@ -251,9 +288,68 @@ async def stream_query_medication(payload: QueryRequest, request: Request = None
     )
 
 
+@app.delete("/api/sessions/{session_id}")
+async def clear_conversation_session(session_id: str, request: Request = None):
+    try:
+        normalized_session_id = normalize_session_id(
+            session_id,
+            generate_if_blank=False,
+        )
+    except ValueError:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "invalid_session_id",
+                "detail": "session_id has an invalid format.",
+            },
+        )
+
+    vector_store = get_vector_store(request)
+    if vector_store is None or not vector_store.available:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "session_store_unavailable",
+                "detail": "Conversation history is currently unavailable.",
+            },
+        )
+
+    try:
+        deleted_keys = vector_store.clear_session(normalized_session_id)
+    except Exception as exc:
+        logger.error(
+            "session clear failed",
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "session_store_unavailable",
+                "detail": "Conversation history is currently unavailable.",
+            },
+        )
+    return {
+        "session_id": normalized_session_id,
+        "cleared": True,
+        "deleted_keys": deleted_keys,
+    }
+
+
+@app.get("/api/live")
+async def live():
+    return get_liveness_diagnostics()
+
+
+@app.get("/api/ready")
+async def ready():
+    return await asyncio.to_thread(get_readiness_diagnostics)
+
+
 @app.get("/api/health")
 async def health():
-    return get_environment_diagnostics()
+    """Backward-compatible alias for the real readiness response."""
+
+    return await ready()
 
 
 @app.post("/api/v1/safety/check")
@@ -285,5 +381,6 @@ async def query_v1_safety(
     response = service.query(
         payload.question,
         use_llm_plan=payload.use_llm_plan,
+        request_id=get_request_id(request),
     )
     return response.model_dump(mode="json")

@@ -1,6 +1,7 @@
 import streamlit as st
 
-from logic_layer.assistant_service import answer_medication_question, create_session_id
+from logic_layer.assistant_service import answer_medication_question
+from logic_layer.session import create_session_id
 from logic_layer.vector_store import VectorStore
 
 st.set_page_config(page_title="家庭用药安全助手1", layout="centered")
