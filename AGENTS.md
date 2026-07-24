@@ -1,9 +1,5 @@
 # Project Instructions
 
-This project uses the conda environment medsafety.
-
-Use this Python interpreter for all Python commands:
-
-```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python
-```
+Use the project conda environment `medsafety` for Python commands when it is
+available. Keep commands portable; do not commit machine-specific interpreter
+paths or credentials.

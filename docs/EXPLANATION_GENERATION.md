@@ -49,7 +49,7 @@ V1 不把原始问题、未解析输入、事实正文、来源正文或历史�
 ## 验证命令
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python \
+python \
   -m pytest test/test_explanation.py test/test_api.py -q
 
 curl -X POST http://localhost:8000/api/v1/safety/explain \

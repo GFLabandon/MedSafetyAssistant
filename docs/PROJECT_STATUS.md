@@ -80,7 +80,7 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 117 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 117 passed，1 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |

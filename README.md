@@ -208,7 +208,7 @@ docker compose -f docker-compose.local.yml up -d --wait
 `NEO4J_DATABASE`。连接密码只用于本地开发，不要提交真实凭据。依赖准备好后：
 
 ```bash
-/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/import_v1_to_neo4j.py
+python scripts/import_v1_to_neo4j.py
 ```
 
 导入器先校验 catalog，然后在单个写事务中清理并重建独立的 `Safety*` 命名空间；
