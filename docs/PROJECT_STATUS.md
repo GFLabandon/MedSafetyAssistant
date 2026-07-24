@@ -1,12 +1,29 @@
 # MedSafetyAssistant 项目状态
 
-更新时间：2026-07-20
-当前阶段：V1 第 3 周——Evidence Packet 约束生成与引用校验
-状态：`evidence-order-v2` 已完成真实 Ollama 三轮开发基线，服务端护栏保持通过
+更新时间：2026-07-24
+当前阶段：P0——公开入口与自动化质量门
+状态：本地质量门通过；远程结果以面向 `main` 的 PR checks 为准
 
 ## 当前目标
 
-将现有本地演示升级为一个范围明确、事实可追溯、结果可评测、故障可解释的 AI 应用。当前阶段不扩展 Agent 能力，先建立数据、证据和评测基础。
+将已经完成的 Evidence Packet、Safety Engine、Neo4j Repository 和真实模型失败证据
+整理为招聘者可以从默认 GitHub 入口直接验证的 AI 应用项目。当前阶段不改变医学数据、
+不扩展 Agent，也不把 legacy React 页面描述为 V1 正式链路。
+
+## P0 公开可见性进展
+
+- [x] 新增 `.github/workflows/quality.yml`，在 PR 和 `main` push 上运行仓库差异、
+  V1 校验和、catalog 校验、离线 pytest 和前端生产构建；
+- [x] README 首屏改为项目问题、核心架构、真实指标、解释边界和三条 V1 API 演示；
+- [x] README 删除“推荐更大模型”等无评测依据的表述，并明确当前不是 ReAct、MCP、
+  多 Agent、临床系统或生产高并发系统；
+- [x] 明确 V1 API 是正式可验证入口，React 仍是使用共享 session 的 legacy 链路；
+- [x] 本地复验 V1 校验和、catalog、全量 pytest 和 Vite build；
+
+远程验收门：当前分支必须通过面向 `main` 的 PR 暴露完整差异，并在 GitHub Actions
+全绿后才能合并默认分支。
+
+P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 
 ## 已验证基线
 
@@ -17,6 +34,9 @@
 | Python 当前回归 | 85 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
+| V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
+| V1 catalog | 7 Source、4 Medication、2 Context、3 Fact，状态有效 | `scripts/validate_v1_data.py` |
+| 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 1 passed，61 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
