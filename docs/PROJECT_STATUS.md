@@ -1,15 +1,15 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-24
-当前阶段：P1——正式产品链路第一批：输入边界、V1 前端与会话默认值
-状态：第一批实现完成，本地回归和前端生产构建通过；依赖故障注入与浏览器 E2E 尚未开始
+当前阶段：P1——正式产品链路
+状态：P1 验收完成；下一阶段进入 P2 Neo4j 知识图谱模型与内容扩充
 
 ## 当前目标
 
 把自然语言输入可靠地接入正式 V1 Safety Engine，并让 React 展示可追溯证据和明确
 失败状态。当前阶段不改变医学数据、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
 
-## P1 第一批进展
+## P1 完成项
 
 - [x] 新增版本化 `entity-resolution-v1` 契约，显式区分 `resolved`、`ambiguous`、
   `unknown`、`needs_clarification` 和 `rejected_input`；
@@ -22,15 +22,28 @@
 - [x] FastAPI legacy 请求默认生成独立 UUID，Streamlit 为每个浏览器会话生成独立 UUID，
   Redis 历史方法不再提供 `"shared"` 默认值；
 - [x] 新增输入边界、API 序列化和默认会话唯一性测试；
-- [x] 本地全量回归 `102 passed, 1 skipped`，Vite 生产构建通过。
+- [x] Redis 会话键使用独立 UUID turn ID，默认 TTL 为 86400 秒；增加单会话清除接口、
+  session ID 字符约束和并行隔离测试；
+- [x] 将过时 `/api/embeddings` 适配器迁移到 Ollama 官方 `/api/embed` 契约，并支持
+  单次批量 embedding；
+- [x] 新增 `/api/live` 与真实 `/api/ready`；catalog 为必需依赖，Redis、Neo4j、
+  Ollama 为可选能力，探测并发且有 1.5 秒默认超时；
+- [x] 新增 `X-Request-ID`、结构化请求日志和 `request-trace-v1`，记录实体解析、
+  Safety Engine 与证据解释三阶段状态和耗时；
+- [x] Playwright 浏览器契约测试覆盖风险、澄清、未知和知识不可用四条路径，并接入 CI；
+- [x] Vite 升级到 7.3.6，完整 npm audit 为 0 vulnerability；
+- [x] 本地全量回归 `115 passed, 1 skipped`，Vite 生产构建和 4 项浏览器 E2E 通过；
+- [x] 临时 Redis、Neo4j 与本机 Ollama 同时在线时 readiness 全部为 ready，真实 V1
+  请求返回 `risk_found`、正确事实 ID、`llm_planned` 和完整 trace；
+- [x] 临时容器与测试 Redis 键已清理。
 
-当前明确未完成：
+仍保留的边界：
 
-- Redis 会话 TTL、清除接口和真实并行客户端隔离集成测试；
-- Neo4j、Redis、Ollama 的独立故障注入及真实 readiness；
-- request ID、结构化阶段耗时与 trace；
-- React 组件测试和浏览器 E2E；
-- 跨轮指代消解。正式 V1 当前保持无状态，代词会要求用户重新写出药品名称。
+- 正式 V1 保持无状态，跨轮代词要求用户重新写出药品名称；
+- legacy Redis 会话没有认证、用户账户绑定或生产级并发/SLO；
+- Playwright 使用 API fixture 验证前端契约；真实依赖 smoke test 验证 API，两者不包装
+  为生产环境浏览器全链路；
+- readiness 证明单次连接可用，不代表持续可用性。
 
 ## P0 公开可见性进展
 
@@ -53,9 +66,11 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 102 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 115 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
+| 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
+| 前端完整依赖审计 | 0 vulnerability | `npm audit`，Vite 7.3.6 |
 | V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
 | V1 catalog | 7 Source、4 Medication、2 Context、3 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
@@ -109,7 +124,7 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 3. legacy `/api/query` 仍是自由文本生成，不具备 V1 护栏；默认共享会话已移除。
 4. 当前真实模型数据集已经用于 v1/v2 调优，不能再作为独立测试集。
 5. 健康检查和完整依赖故障注入仍未完成。
-6. 尚无 Neo4j、Redis、Ollama 同时在线的端到端基线。
+6. P1 已有单机同时在线 API smoke baseline，但尚无负载、持续可用性或生产 SLO。
 
 ## 下一验收门
 
@@ -190,6 +205,6 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - 服务端新增 `FATAL > RED > ORANGE > INFO` 顺序不变量，违规计划与未知、遗漏、重复 ID 一样确定性回退；
 - `explanation_guardrails-v2` 的 10 个脚本化场景全部通过，历史 v1 数据和报告未被覆盖。
 
-该验收门已经通过 P1 第一批完成。下一验收门：在不扩大医学事实范围的前提下，完成
-Redis 会话生命周期、真实依赖 readiness、故障注入与 request trace；随后增加浏览器 E2E，
-验证风险、未知、澄清和知识不可用四条用户链路。
+该验收门及 P1 可靠性验收均已完成。下一阶段进入 P2：重构 Neo4j 为事实节点中心的
+真实图遍历模型，扩充小而可追溯的知识内容，并继续禁止把未定位来源的医学主张升级为
+正式 V1 事实。
