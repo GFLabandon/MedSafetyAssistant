@@ -104,15 +104,38 @@ class KnowledgeCatalog:
                 raise CatalogValidationError(f"context is not reviewed: {context.context_id}")
 
         canonical_contexts = {context.canonical_name for context in self.contexts.values()}
+        canonical_ingredients = {
+            ingredient
+            for medication in self.medications.values()
+            for ingredient in medication.active_ingredients
+        }
+        supported_predicates = {
+            "DUPLICATE_INGREDIENT",
+            "INTERACTS_WITH",
+            "CONTRAINDICATED_IN",
+        }
         for fact in self.facts.values():
+            if fact.predicate not in supported_predicates:
+                raise CatalogValidationError(
+                    f"fact uses unsupported predicate: {fact.predicate}"
+                )
             unknown_contexts = set(fact.required_context) - canonical_contexts
             if unknown_contexts:
                 raise CatalogValidationError(
                     f"fact references unknown contexts: {sorted(unknown_contexts)}"
                 )
-            if fact.predicate == "CONTRAINDICATED_IN" and fact.object not in canonical_contexts:
+            if fact.subject not in canonical_ingredients:
                 raise CatalogValidationError(
-                    f"contraindication references unknown context: {fact.object}"
+                    f"fact references unknown subject ingredient: {fact.subject}"
+                )
+            if fact.predicate == "CONTRAINDICATED_IN":
+                if fact.object not in canonical_contexts:
+                    raise CatalogValidationError(
+                        f"contraindication references unknown context: {fact.object}"
+                    )
+            elif fact.object not in canonical_ingredients:
+                raise CatalogValidationError(
+                    f"fact references unknown object ingredient: {fact.object}"
                 )
 
         _ = self.data_version

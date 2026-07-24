@@ -133,6 +133,30 @@ def test_catalog_rejects_unknown_required_context(tmp_path):
         KnowledgeCatalog.from_directory(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("predicate", "UNSUPPORTED_RELATION", "unsupported predicate"),
+        ("subject", "不存在的成分", "unknown subject ingredient"),
+        ("object", "不存在的成分", "unknown object ingredient"),
+    ],
+)
+def test_catalog_rejects_fact_endpoints_that_cannot_form_the_graph(
+    tmp_path,
+    field,
+    value,
+    message,
+):
+    for name in ("sources.json", "medications.json", "contexts.json", "facts.json"):
+        payload = json.loads((DATA_DIRECTORY / name).read_text(encoding="utf-8"))
+        if name == "facts.json":
+            payload[0][field] = value
+        (tmp_path / name).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(CatalogValidationError, match=message):
+        KnowledgeCatalog.from_directory(tmp_path)
+
+
 def test_catalog_rejects_duplicate_stable_ids(tmp_path):
     for name in ("sources.json", "medications.json", "contexts.json", "facts.json"):
         payload = json.loads((DATA_DIRECTORY / name).read_text(encoding="utf-8"))

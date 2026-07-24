@@ -14,7 +14,11 @@ import pytest
 from neo4j import GraphDatabase
 
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.neo4j_repository import Neo4jCatalogImporter, Neo4jKnowledgeRepository
+from medsafety.neo4j_repository import (
+    Neo4jCatalogImporter,
+    Neo4jKnowledgeRepository,
+    Neo4jProjectionAuditor,
+)
 from medsafety.safety_engine import SafetyEngine
 
 
@@ -79,6 +83,18 @@ def _projection_counts(driver) -> dict[str, int]:
             "MATCH (:SafetyFact)-[link:APPLIES_IN]->(:SafetyContext) "
             "RETURN count(link) AS count"
         ),
+        "subject_links": (
+            "MATCH (:SafetyFact)-[link:SUBJECT]->(:SafetyIngredient) "
+            "RETURN count(link) AS count"
+        ),
+        "object_links": (
+            "MATCH (:SafetyFact)-[link:OBJECT]->() "
+            "RETURN count(link) AS count"
+        ),
+        "snapshot_links": (
+            "MATCH (:SafetyFact)-[link:BELONGS_TO]->(:SafetyKnowledgeSnapshot) "
+            "RETURN count(link) AS count"
+        ),
     }
     with driver.session() as session:
         return {
@@ -107,8 +123,12 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
         "snapshots": 1,
         "ingredient_links": 11,
         "support_links": 11,
-        "context_links": 1,
+        "context_links": 2,
+        "subject_links": 3,
+        "object_links": 3,
+        "snapshot_links": 3,
     }
+    assert Neo4jProjectionAuditor(driver).audit(catalog).valid is True
 
     neo4j_engine = SafetyEngine(Neo4jKnowledgeRepository(driver))
     json_engine = SafetyEngine(catalog)
@@ -126,3 +146,23 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
         expected = json_engine.assess(medications, contexts)
         actual = neo4j_engine.assess(medications, contexts)
         assert actual.model_dump(mode="json") == expected.model_dump(mode="json")
+
+
+def test_real_neo4j_auditor_detects_a_dangling_fact(driver):
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    Neo4jCatalogImporter(driver).import_catalog(catalog)
+
+    with driver.session() as session:
+        session.run(
+            """
+            MATCH (:SafetyFact {fact_id: $fact_id})-[link:SUBJECT]->()
+            DELETE link
+            """,
+            fact_id="fact-duplicate-acetaminophen-001",
+        ).consume()
+
+    report = Neo4jProjectionAuditor(driver).audit(catalog)
+
+    assert report.valid is False
+    assert report.actual.subject_links == 2
+    assert report.orphan_facts == 1
