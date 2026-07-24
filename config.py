@@ -10,6 +10,10 @@ class Config:
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+    NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
+    NEO4J_CONNECTION_TIMEOUT_SECONDS = float(
+        os.getenv("NEO4J_CONNECTION_TIMEOUT_SECONDS", "1.5")
+    )
 
     # Ollama 配置：模型版本必须与评测报告或本地验收记录一致。
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")

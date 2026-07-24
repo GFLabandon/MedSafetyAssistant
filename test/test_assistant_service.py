@@ -26,6 +26,10 @@ class FakeKG:
         self.closed = True
 
 
+class UnavailableKG(FakeKG):
+    available = False
+
+
 class FakeVectorStore:
     redis_client = object()
 
@@ -112,6 +116,19 @@ class AssistantServiceTests(unittest.TestCase):
         self.assertEqual(context["final_conditions"], ["高血压"])
         self.assertEqual(context["risks"][0]["reason"], "测试风险")
         self.assertNotIn("response_text", context)
+
+    def test_unavailable_kg_never_becomes_an_empty_safe_answer(self):
+        kg = UnavailableKG()
+
+        with patch("logic_layer.assistant_service.decide_tools", return_value="query_kg"), \
+             patch("logic_layer.assistant_service.exact_entity_extraction", return_value=(["泰诺"], ["饮酒状态"])), \
+             patch("logic_layer.assistant_service.extract_entities_with_llm", return_value=([], [])), \
+             patch("logic_layer.assistant_service.generate_safety_response") as generate:
+            result = answer_medication_question("泰诺能吃吗？", kg=kg)
+
+        generate.assert_not_called()
+        self.assertEqual(result["response_status"], "knowledge_unavailable")
+        self.assertIn("未进行风险判断", result["response_text"])
 
     def test_save_conversation_result_records_success_and_failure(self):
         from logic_layer.assistant_service import save_conversation_result

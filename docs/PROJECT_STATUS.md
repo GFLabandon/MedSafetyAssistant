@@ -2,7 +2,7 @@
 
 更新时间：2026-07-24
 当前阶段：P1——正式产品链路
-状态：P1 验收完成；下一阶段进入 P2 Neo4j 知识图谱模型与内容扩充
+状态：P1 验收完成；P2 暂停，先修复 Neo4j 兼容链路与投影运行边界
 
 ## 当前目标
 
@@ -37,6 +37,19 @@
   请求返回 `risk_found`、正确事实 ID、`llm_planned` 和完整 trace；
 - [x] 临时容器与测试 Redis 键已清理。
 
+## Neo4j 兼容链路修复（P2 暂停期间）
+
+- [x] legacy `/api/query`、`/api/query/stream` 与 Streamlit 在 Neo4j 驱动或会话失败时
+  返回稳定的 `knowledge_unavailable`，不再把空风险列表交给 LLM 生成疑似安全结论；
+- [x] Neo4j 连接超时、数据库名进入统一配置，导入脚本默认使用 `NEO4J_DATABASE`；
+- [x] 导入器在同一写事务内重建专用 `Safety*` 投影，旧事实不会在成功导入后残留，失败时
+  清理会随事务回滚；
+- [x] 新增 `docker-compose.local.yml`，默认映射 `7474/7687` 与 `6379`，健康检查使用
+  Neo4j 镜像内绝对路径；隔离 Compose 健康检查同步修正；
+- [x] 临时真实验证：Neo4j/Redis 健康、catalog 导入、旧 `SafetyFact` 清理和
+  `泰诺 + 感康 -> fact-duplicate-acetaminophen-001` 均通过；验证栈已清理，现有
+  `distracted_benz` 未修改。
+
 仍保留的边界：
 
 - 正式 V1 保持无状态，跨轮代词要求用户重新写出药品名称；
@@ -52,13 +65,14 @@
 - [x] README 首屏改为项目问题、核心架构、真实指标、解释边界和三条 V1 API 演示；
 - [x] README 删除“推荐更大模型”等无评测依据的表述，并明确当前不是 ReAct、MCP、
   多 Agent、临床系统或生产高并发系统；
-- [x] 明确 V1 API 是正式可验证入口，React 仍是使用共享 session 的 legacy 链路；
+- [x] 明确 V1 API 是正式可验证入口，React 已切换到 V1 evidence flow；legacy API 仅保留兼容；
 - [x] 本地复验 V1 校验和、catalog、全量 pytest 和 Vite build；
 
 远程验收门：当前分支必须通过面向 `main` 的 PR 暴露完整差异，并在 GitHub Actions
 全绿后才能合并默认分支。
 
-P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
+P0 没有修改 `data/v1/`、评测集或评测报告；本节之后的 Neo4j 兼容修复是独立的
+P2 暂停期变更。
 
 ## 已验证基线
 
@@ -66,7 +80,7 @@ P0 没有修改 `data/v1/`、评测集、报告或业务逻辑。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 115 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
+| Python 当前回归 | 117 passed，1 integration skipped，0 warning | `/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python -m pytest -q` |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |

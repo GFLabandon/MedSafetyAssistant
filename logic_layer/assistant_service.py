@@ -15,6 +15,18 @@ from logic_layer.session import normalize_session_id
 
 
 logger = logging.getLogger(__name__)
+KNOWLEDGE_UNAVAILABLE_MESSAGE = "知识图谱当前不可用，系统未进行风险判断，请稍后重试。"
+
+
+def _kg_is_available(kg):
+    """Avoid treating a failed legacy KG lookup as an empty, safe result."""
+
+    if hasattr(kg, "available"):
+        return bool(kg.available)
+    if hasattr(kg, "driver"):
+        return kg.driver is not None
+    # Lightweight test doubles and alternate integrations are assumed usable.
+    return True
 
 
 def _effective_session_id(session_id):
@@ -41,8 +53,10 @@ def prepare_medication_context(prompt, session_id=None, vector_store=None, kg=No
     final_conditions = []
     risks = []
     drug_infos = []
+    knowledge_status = "not_used"
 
     if route in ("query_kg", "both"):
+        knowledge_status = "available" if _kg_is_available(kg) else "unavailable"
         exact_drugs, exact_conditions = exact_entity_extraction(prompt)
         llm_drugs, llm_conditions = extract_entities_with_llm(prompt)
 
@@ -52,6 +66,8 @@ def prepare_medication_context(prompt, session_id=None, vector_store=None, kg=No
         if final_drugs or final_conditions:
             risks = kg.check_safety(final_drugs, final_conditions)
             drug_infos = kg.get_drug_info(final_drugs)
+        if not _kg_is_available(kg):
+            knowledge_status = "unavailable"
 
     return {
         "route": route,
@@ -64,6 +80,7 @@ def prepare_medication_context(prompt, session_id=None, vector_store=None, kg=No
         "final_conditions": final_conditions,
         "risks": risks,
         "drug_infos": drug_infos,
+        "knowledge_status": knowledge_status,
     }
 
 
@@ -113,12 +130,17 @@ def answer_medication_question(prompt, session_id=None, vector_store=None, kg=No
             vector_store=vector_store,
             kg=kg,
         )
-        response_text = generate_safety_response(
-            prompt,
-            context["risks"],
-            context["drug_infos"],
-            context["history_context"],
-        )
+        if context["knowledge_status"] == "unavailable":
+            response_text = KNOWLEDGE_UNAVAILABLE_MESSAGE
+            response_status = "knowledge_unavailable"
+        else:
+            response_text = generate_safety_response(
+                prompt,
+                context["risks"],
+                context["drug_infos"],
+                context["history_context"],
+            )
+            response_status = "completed"
         save_result = save_conversation_result(
             vector_store,
             prompt,
@@ -128,6 +150,7 @@ def answer_medication_question(prompt, session_id=None, vector_store=None, kg=No
         return {
             **context,
             "response_text": response_text,
+            "response_status": response_status,
             **save_result,
         }
     finally:

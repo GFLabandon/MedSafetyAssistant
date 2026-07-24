@@ -29,6 +29,16 @@ class FakeDriver:
         return FakeSession()
 
 
+class FailingSession(FakeSession):
+    def run(self, query, **kwargs):
+        raise RuntimeError("private bolt address")
+
+
+class FailingDriver:
+    def session(self):
+        return FailingSession()
+
+
 class MedicalKGTests(unittest.TestCase):
     def test_get_drug_info_returns_empty_without_driver_or_drug_names(self):
         kg = MedicalKG.__new__(MedicalKG)
@@ -40,6 +50,7 @@ class MedicalKGTests(unittest.TestCase):
     def test_get_drug_info_maps_drug_records_without_live_neo4j(self):
         kg = MedicalKG.__new__(MedicalKG)
         kg.driver = FakeDriver()
+        kg.available = True
 
         infos = kg.get_drug_info(["布洛芬"])
 
@@ -55,6 +66,14 @@ class MedicalKGTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_get_drug_info_marks_driver_failure_unavailable_without_raising(self):
+        kg = MedicalKG.__new__(MedicalKG)
+        kg.driver = FailingDriver()
+        kg.available = True
+
+        self.assertEqual(kg.get_drug_info(["布洛芬"]), [])
+        self.assertFalse(kg.available)
 
 
 if __name__ == "__main__":

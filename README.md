@@ -196,14 +196,24 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 
 `data/v1/` 是唯一权威源。Neo4j 只作为可删除、可重建的读取投影，不允许反向覆盖 JSON。
 
-配置 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD` 并启动 Neo4j 后：
+本地开发可以使用仓库提供的 Compose 依赖（会把 Neo4j 暴露到项目默认的
+`localhost:7687`，Redis 暴露到 `localhost:6379`）：
 
 ```bash
-python scripts/import_v1_to_neo4j.py
+export NEO4J_PASSWORD=medsafety-local
+docker compose -f docker-compose.local.yml up -d --wait
 ```
 
-导入器先校验 catalog，再通过唯一约束、参数化查询和 `MERGE` 写入独立的 `Safety*`
-命名空间。真实隔离集成测试：
+也可以自行提供 `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD` 和可选的
+`NEO4J_DATABASE`。连接密码只用于本地开发，不要提交真实凭据。依赖准备好后：
+
+```bash
+/opt/homebrew/Caskroom/miniconda/base/envs/medsafety/bin/python scripts/import_v1_to_neo4j.py
+```
+
+导入器先校验 catalog，然后在单个写事务中清理并重建独立的 `Safety*` 命名空间；
+如果导入失败，清理也会回滚，不会留下半套投影。重复导入不会残留已从 JSON
+目录删除的旧事实。真实隔离集成测试：
 
 ```bash
 MEDSAFETY_PYTHON=python bash scripts/test_neo4j_integration.sh

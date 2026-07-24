@@ -92,8 +92,11 @@ def test_importer_is_parameterized_and_repeat_safe():
     data_calls = [(query, params) for query, params in driver.calls if not query.startswith("CREATE")]
     assert constraint_calls
     assert all("IF NOT EXISTS" in query for query in constraint_calls)
-    assert all("MERGE" in query for query, _ in data_calls)
-    assert all("DETACH DELETE" not in query for query, _ in driver.calls)
+    reset_calls = [query for query, _ in data_calls if "DETACH DELETE" in query]
+    assert len(reset_calls) == 2
+    assert all("STARTS WITH 'Safety'" in query for query in reset_calls)
+    upsert_calls = [(query, params) for query, params in data_calls if "DETACH DELETE" not in query]
+    assert all("MERGE" in query for query, _ in upsert_calls)
 
     medication_call = next(
         (query, params)

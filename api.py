@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from config import Config
 from logic_layer.assistant_service import (
+    KNOWLEDGE_UNAVAILABLE_MESSAGE,
     answer_medication_question,
     prepare_medication_context,
     save_conversation_result,
@@ -239,8 +240,33 @@ def stream_query_events(payload, vector_store=None):
                 "final_conditions": context["final_conditions"],
                 "risks": context["risks"],
                 "drug_infos": context["drug_infos"],
+                "knowledge_status": context.get("knowledge_status", "available"),
             }
         )
+
+        if context.get("knowledge_status", "available") == "unavailable":
+            yield sse_event(
+                {
+                    "type": "knowledge_unavailable",
+                    "error": "knowledge_unavailable",
+                    "detail": KNOWLEDGE_UNAVAILABLE_MESSAGE,
+                }
+            )
+            response_text = KNOWLEDGE_UNAVAILABLE_MESSAGE
+            save_result = save_conversation_result(
+                vector_store,
+                payload.question,
+                response_text,
+                payload.session_id,
+            )
+            yield sse_event(
+                {
+                    "type": "done",
+                    "response_status": "knowledge_unavailable",
+                    **save_result,
+                }
+            )
+            return
 
         answer_parts = []
         for token in stream_safety_response(
@@ -258,7 +284,7 @@ def stream_query_events(payload, vector_store=None):
             "".join(answer_parts),
             payload.session_id,
         )
-        yield sse_event({"type": "done", **save_result})
+        yield sse_event({"type": "done", "response_status": "completed", **save_result})
     except Exception as exc:
         logger.error(
             "streaming query failed",
