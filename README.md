@@ -90,7 +90,7 @@ API 使用五种结论状态：
 要求 Python 3.10。以下步骤不需要启动 Neo4j、Redis 或 Ollama：
 
 ```bash
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 
 # Linux
 sha256sum --check data/v1/checksums.sha256
