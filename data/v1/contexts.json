@@ -8,7 +8,7 @@
     "review_status": "reviewed",
     "reviewed_by": "project-context-vocabulary-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2"
+    "data_version": "v1.0.0-alpha.3"
   },
   {
     "context_id": "context-nsaid-allergic-reaction-history",
@@ -19,6 +19,6 @@
     "review_status": "reviewed",
     "reviewed_by": "project-context-vocabulary-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2"
+    "data_version": "v1.0.0-alpha.3"
   }
 ]

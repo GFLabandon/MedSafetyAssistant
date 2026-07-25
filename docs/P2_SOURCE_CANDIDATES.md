@@ -13,6 +13,8 @@
 
 - `candidate_alias`：只调查实体或别名映射，不新增风险结论；
 - `candidate_fact`：值得进行来源核验的事实假设；
+- `accepted`：来源与当前模型均通过，已进入指定数据版本；
+- `model_blocked`：来源通过，但当前模型不能无损表达；
 - `hold`：范围或措辞歧义较大，暂不进入来源对齐；
 - `reject_as_stated`：现有 legacy 表述不能按原样迁移。
 
@@ -20,9 +22,9 @@
 
 | ID | Legacy inventory | 待审核主题 | 状态 | 为什么优先或暂停 | 进入 V1 前必须补齐 |
 |---|---|---|---|---|---|
-| `P2-A01` | 无 | 对乙酰氨基酚的中英文通用名映射 | `candidate_alias` | 可改善已有重复成分场景的实体覆盖，不新增医学结论 | 对应药品记录、权威产品标签、精确定位、别名冲突测试 |
+| `P2-A01` | 无 | 对乙酰氨基酚的中英文通用名映射 | `accepted` | alpha.3 新增 `paracetamol`、`acetaminophen`；未增加风险事实 | 国家卫健委目录印刷页13 + FDA名称映射；13条开发回归 |
 | `P2-F01` | `legacy-contraindicated_in-i_pseudo-c_hbp` | 含伪麻黄碱产品与特定高血压条件 | `candidate_fact` | 成分已存在于泰诺记录，可扩展现有产品的上下文判断 | 产品级权威标签；区分禁忌、警示和咨询措辞；明确血压条件；severity 依据 |
-| `P2-F02` | `legacy-contraindicated_in-i_chlor-c_drive` | 含氯苯那敏产品与驾驶/机械操作 | `candidate_fact` | 成分已存在于泰诺和感康记录，可验证条件型说明能力 | 产品级权威标签、精确章节、用户上下文措辞、产品间适用性差异 |
+| `P2-F02` | `legacy-contraindicated_in-i_chlor-c_drive` | 泰诺与驾驶/机械操作 | `model_blocked` | 泰诺官方说明书来源通过，但当前事实主体只能是 Ingredient，不能表达产品级活动限制 | 先增加 product-subject fact 与 activity restriction 类型；不得外推到感康 |
 | `P2-F03` | `legacy-contraindicated_in-i_acet-c_alc` | 对乙酰氨基酚与酒精相关条件 | `hold` | “饮酒状态”缺少频率、数量和适用范围，原条件过宽 | 权威标签原文、可执行但不过度推断的上下文、结论类型与 severity 依据 |
 | `P2-F04` | `legacy-contraindicated_in-i_ibu-c_stomach` | 布洛芬与特定胃肠道病史或症状 | `hold` | legacy 的“胃溃疡”不足以表达标签中的具体范围 | 产品级来源、当前/既往状态区分、症状边界、年龄和剂型限制 |
 | `P2-R01` | `legacy-contraindicated_in-i_ceph-c_alc` | “头孢菌素 + 饮酒状态”类级结论 | `reject_as_stated` | 当前 V1 没有对应产品记录，且 legacy 只有宽泛类别和来源名称 | 必须拆到具体活性成分/产品和可定位来源后重新立项 |
@@ -44,10 +46,13 @@
 
 ## 4. 下一轮来源工作停止条件
 
-下一轮最多选择 `P2-A01`、`P2-F01`、`P2-F02` 中的两项调查。若任一候选无法取得可定位
-的产品级权威来源，或来源措辞无法映射为项目现有结论类型，就记录失败原因并停止，不用
-legacy 来源名称或二手文章补齐缺口。
+本轮 `P2-A01` 已进入 alpha.3，`P2-F02` 因模型边界暂停。下一轮来源调查最多再选择一个
+候选；如果来源措辞无法映射为项目结论类型，就记录失败原因并停止，不用 legacy 来源
+名称或二手文章补齐缺口。
 
 本清单引用的 legacy ID 来自
 [`legacy-fact-source-inventory.md`](../reports/legacy-fact-source-inventory.md)；该清单本身
 没有提升任何 legacy 事实的审核状态。
+
+本轮来源、校验和与建模决定见
+[`p2-source-alignment-alpha3.md`](../reports/p2-source-alignment-alpha3.md)。

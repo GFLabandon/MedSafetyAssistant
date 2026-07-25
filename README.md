@@ -24,9 +24,9 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `134 passed, 3 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `141 passed, 3 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
-| Safety Engine 开发集 | 9/9 whole-case match | 仅覆盖 3 条来源对齐事实 |
+| Safety Engine 开发集 | 13/13 whole-case match | 仅覆盖 3 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
 | Ollama v2 开发探针 | 15/15 合法计划 | 同一开发探针上的 schema 调优结果 |
 | 锁定 opaque-ID 测试 | valid plan `0.833`，severity order `0.667` | 36 次真实请求；违规均被服务端拦截 |
@@ -36,7 +36,7 @@
 
 - [项目状态与验收记录](docs/PROJECT_STATUS.md)
 - [V1 alpha.2 数据卡](docs/DATA_CARD_V1_ALPHA_2.md)
-- [Safety Engine 基线](reports/baseline-safety-engine-v1-alpha.2.md)
+- [Safety Engine alpha.3 基线](reports/baseline-safety-engine-v1-alpha.3.md)
 - [输出护栏 v2 基线](reports/baseline-explanation-guardrails-v2.md)
 - [真实 Ollama 开发基线](reports/baseline-ollama-evidence-order-v2.md)
 - [锁定 opaque-ID 失败报告](reports/baseline-ollama-opaque-id-test-v1.md)
@@ -73,11 +73,15 @@ LLM 可以排列证据，但不能：
 
 ## V1 支持范围
 
-当前 `v1.0.0-alpha.2` 只覆盖：
+当前 `v1.0.0-alpha.3` 的风险事实只覆盖：
 
 1. 泰诺与感康共享对乙酰氨基酚的重复成分风险；
 2. 布洛芬与用于心血管保护的阿司匹林之间的条件性相互作用；
 3. 明确报告阿司匹林或其他 NSAID 相关哮喘、荨麻疹或过敏样反应史时的布洛芬禁忌。
+
+实体层额外支持来源对齐的 `paracetamol`、`acetaminophen`，两者都解析为
+“对乙酰氨基酚”。“扑热息痛”尚未通过本批来源门，仍返回范围外。alpha.3 没有增加风险
+事实，完整边界见 [alpha.3 数据卡](docs/DATA_CARD_V1_ALPHA_3.md)。
 
 API 使用五种结论状态：
 

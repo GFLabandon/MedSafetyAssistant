@@ -73,7 +73,7 @@ def test_source_aligned_safety_engine_dataset_matches_current_engine():
     catalog = KnowledgeCatalog.from_directory(REPOSITORY_ROOT / "data/v1")
     report = evaluate_safety_engine(cases, SafetyEngine(catalog))
 
-    assert len(cases) == 9
+    assert len(cases) == 13
     assert report["metrics"]["conclusion_accuracy"] == 1.0
     assert report["metrics"]["fact_set_exact_match"] == 1.0
     assert report["metrics"]["medication_set_exact_match"] == 1.0
@@ -81,7 +81,7 @@ def test_source_aligned_safety_engine_dataset_matches_current_engine():
     assert report["failures"] == []
 
     saved_report = json.loads(
-        (REPOSITORY_ROOT / "reports/baseline-safety-engine-v1-alpha.2.json").read_text(
+        (REPOSITORY_ROOT / "reports/baseline-safety-engine-v1-alpha.3.json").read_text(
             encoding="utf-8"
         )
     )
@@ -122,7 +122,8 @@ def test_saved_explanation_guardrail_v1_report_remains_historical_and_immutable(
 
     assert saved_report["code_commit"] == "a5abe1d6d032023b00fb76c9665060bf825810c3"
     assert saved_report["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
-    assert saved_report["data_version"] == catalog.data_version
+    assert saved_report["data_version"] == "v1.0.0-alpha.2"
+    assert saved_report["data_version"] != catalog.data_version
     assert saved_report["dataset_cases"] == len(cases)
     assert saved_report["prompt_version"] == "evidence-order-v1"
     assert saved_report["planner"] == "scripted_adversarial_fixtures"

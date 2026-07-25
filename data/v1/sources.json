@@ -88,5 +88,18 @@
     "review_status": "reviewed",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00"
+  },
+  {
+    "source_id": "source-nhc-essential-medicines-2018",
+    "title": "国家基本药物目录（2018年版）",
+    "publisher": "国家卫生健康委员会 / 国家中医药管理局",
+    "url": "https://www.nhc.gov.cn/ewebeditor/uploadfile/2018/10/20181025195256627.pdf",
+    "published_at": "2018-09-30",
+    "version": "国卫药政发〔2018〕31号",
+    "license_note": "政府公开文件；仅保存名称映射、文件定位和校验信息，不复制全文。",
+    "accessed_at": "2026-07-25",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-25",
+    "reviewed_at": "2026-07-25T20:15:00+08:00"
   }
 ]

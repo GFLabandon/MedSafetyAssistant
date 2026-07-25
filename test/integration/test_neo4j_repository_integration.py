@@ -131,18 +131,18 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
     assert first_summary == second_summary
     assert first_counts == second_counts
     assert second_counts == {
-        "sources": 7,
-        "medications": 4,
-        "medication_aliases": 8,
+        "sources": 8,
+        "medications": 5,
+        "medication_aliases": 11,
         "ingredients": 10,
         "contexts": 2,
         "context_aliases": 8,
         "facts": 3,
         "snapshots": 1,
-        "ingredient_links": 11,
-        "medication_alias_links": 8,
+        "ingredient_links": 12,
+        "medication_alias_links": 11,
         "context_alias_links": 8,
-        "support_links": 11,
+        "support_links": 13,
         "context_links": 2,
         "subject_links": 3,
         "object_links": 3,
@@ -154,6 +154,7 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
     json_engine = SafetyEngine(catalog)
     cases = [
         (["泰诺", "感康"], []),
+        (["paracetamol", "泰诺"], []),
         (["布洛芬", "阿司匹林"], []),
         (["ibuprofen", "aspirin"], ["阿司匹林用于心血管保护"]),
         (["泰诺"], []),

@@ -11,7 +11,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2"
+    "data_version": "v1.0.0-alpha.3"
   },
   {
     "medication_id": "medication-gankang-tablet-cn",
@@ -25,7 +25,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2"
+    "data_version": "v1.0.0-alpha.3"
   },
   {
     "medication_id": "medication-ibuprofen-substance",
@@ -39,7 +39,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2"
+    "data_version": "v1.0.0-alpha.3"
   },
   {
     "medication_id": "medication-aspirin-substance",
@@ -53,6 +53,20 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2"
+    "data_version": "v1.0.0-alpha.3"
+  },
+  {
+    "medication_id": "medication-acetaminophen-substance",
+    "canonical_name": "对乙酰氨基酚",
+    "kind": "substance",
+    "aliases": ["paracetamol", "acetaminophen"],
+    "active_ingredients": ["对乙酰氨基酚"],
+    "source_ids": ["source-nhc-essential-medicines-2018", "source-fda-acetaminophen-2025"],
+    "source_locator": "国家基本药物目录（2018年版）第一部分印刷页13（PDF第27页）列出“对乙酰氨基酚 / Paracetamol”；FDA Acetaminophen页面“What is Acetaminophen?”说明美国以外通常称为paracetamol。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-25",
+    "reviewed_at": "2026-07-25T20:15:00+08:00",
+    "data_version": "v1.0.0-alpha.3"
   }
 ]
