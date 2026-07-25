@@ -1,7 +1,7 @@
 # P2 事实节点知识图谱规格
 
 日期：2026-07-25
-状态：第一批实现
+状态：第二批实现
 
 ## 1. 目标与边界
 
@@ -16,6 +16,8 @@ P2 把 Neo4j 从“保存事实属性的数据库投影”升级为“可以沿�
 
 ```mermaid
 flowchart LR
+    M["SafetyMedication"] -->|"KNOWN_AS"| MA["SafetyMedicationAlias"]
+    C["SafetyContext"] -->|"KNOWN_AS"| CA["SafetyContextAlias"]
     M["SafetyMedication"] -->|"HAS_ACTIVE_INGREDIENT"| I["SafetyIngredient"]
     M -->|"SUPPORTED_BY"| S["SafetySource"]
     F["SafetyFact"] -->|"SUBJECT"| I
@@ -72,8 +74,28 @@ python scripts/import_v1_to_neo4j.py --audit-only
 - 人为删除一条 `SUBJECT` 边后，只读审计必须报告孤立事实；
 - 公开仓库审计和原有后端、前端、浏览器质量门保持通过。
 
-## 6. 后续内容扩充门
+## 6. 第二批：索引查询与事实溯源
 
-第二批才扩充药品和事实，目标不是追求节点数量，而是增加有明确 URL、版本、章节定位、
+- 药品和上下文的规范名、别名分别投影为 `SafetyMedicationAlias` 和
+  `SafetyContextAlias`，`normalized_name` 唯一约束负责快速、无歧义解析；
+- 导入完整性检查同时验证别名节点、`KNOWN_AS` 边、数据版本和 JSON 属性集合；
+- `GET /api/v1/knowledge/facts/{fact_id}` 沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
+  `SUPPORTED_BY` 和 `BELONGS_TO` 返回严格 `fact-provenance-v1`；
+- 接口只读取 Neo4j，不用 JSON 静默掩盖投影故障；未配置/损坏返回 503，未知事实返回
+  404；
+- `scripts/profile_neo4j_queries.py` 只注册六条只读查询，保存查询类型、算子、索引、
+  DB hits 和通知；PROFILE 结果不得包装为负载或可扩展性基准。
+
+机器可读证据见
+[`neo4j-query-plan-v1.json`](../reports/neo4j-query-plan-v1.json)，阶段报告见
+[`p2-query-and-provenance-acceptance.md`](../reports/p2-query-and-provenance-acceptance.md)。
+
+## 7. 后续内容扩充门
+
+后续批次扩充药品和事实时，目标不是追求节点数量，而是增加有明确 URL、版本、章节定位、
 访问日期和审核记录的场景。没有精确来源定位的医学主张不得进入正式 V1；达到小型、
 可评测覆盖后先冻结评测集，不无边界堆数据。
+
+当前第二批只建立了
+[`P2_SOURCE_CANDIDATES.md`](P2_SOURCE_CANDIDATES.md)，没有修改正式事实。候选完成准入
+审核后，应在新的数据版本和独立医学内容 PR 中扩充，不能直接把 legacy 关系导入。

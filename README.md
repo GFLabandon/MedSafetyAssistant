@@ -24,13 +24,13 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `126 passed, 2 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `134 passed, 3 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 9/9 whole-case match | 仅覆盖 3 条来源对齐事实 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
 | Ollama v2 开发探针 | 15/15 合法计划 | 同一开发探针上的 schema 调优结果 |
 | 锁定 opaque-ID 测试 | valid plan `0.833`，severity order `0.667` | 36 次真实请求；违规均被服务端拦截 |
-| Neo4j 事实图 | 两次导入计数一致，七类结果与 JSON 等价 | 2 项隔离 Neo4j 5.26.28 集成验收 |
+| Neo4j 事实图 | 六条只读查询均命中索引，事实可沿边溯源 | 3 项隔离 Neo4j 5.26.28 集成验收 |
 
 报告和原始失败证据：
 
@@ -42,6 +42,7 @@
 - [锁定 opaque-ID 失败报告](reports/baseline-ollama-opaque-id-test-v1.md)
 - [P1 产品链路验收](reports/p1-product-flow-acceptance.md)
 - [P2 事实节点图验收](reports/p2-graph-model-acceptance.md)
+- [P2 查询计划与事实溯源验收](reports/p2-query-and-provenance-acceptance.md)
 
 ## 核心架构
 
@@ -225,6 +226,23 @@ python scripts/import_v1_to_neo4j.py
 python scripts/import_v1_to_neo4j.py --audit-only
 ```
 
+记录六条注册只读查询的 PROFILE 与索引证据：
+
+```bash
+python scripts/profile_neo4j_queries.py \
+  --mode PROFILE \
+  --output reports/neo4j-query-plan-v1.json
+```
+
+读取一条事实的完整图谱来源链：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/knowledge/facts/fact-duplicate-acetaminophen-001
+```
+
+该接口要求 API 配置可用的 Neo4j 投影；未配置或投影损坏返回 503，未知事实 ID 返回
+404，不会静默退回 JSON catalog。
+
 真实隔离集成测试：
 
 ```bash
@@ -251,6 +269,7 @@ React 页面调用自然语言 V1 入口，明确展示五种结论状态、实�
 - `POST /api/v1/query`
 - `POST /api/v1/safety/check`
 - `POST /api/v1/safety/explain`
+- `GET /api/v1/knowledge/facts/{fact_id}`（要求 Neo4j）
 
 旧 `/api/query` 与 `/api/query/stream` 仅为兼容早期原型保留；其默认请求会生成独立
 session ID，不再落入全局共享命名空间，但不属于 V1 安全结论的演示入口。

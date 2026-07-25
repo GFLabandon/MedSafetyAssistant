@@ -2,13 +2,28 @@
 
 更新时间：2026-07-25
 当前阶段：P2——事实节点知识图谱
-状态：P1 已合并；P2 第一批验收完成，Draft PR #3 CI 全绿
+状态：P1 已合并；P2 第二批本地验收完成，Draft PR #3 待更新 CI
 
 ## 当前目标
 
 把 Neo4j 从事实属性投影升级为可沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
 `SUPPORTED_BY` 和 `BELONGS_TO` 遍历的事实节点图，并在导入提交前自动检查完整性。
-当前第一批不改变医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+P2 当前两批均不改变医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P2 第二批范围
+
+- [x] 将药品和上下文规范名/别名建模为带唯一约束的别名节点；
+- [x] 六条核心只读查询统一采集 EXPLAIN/PROFILE、索引、DB hits 和通知；
+- [x] 六条真实 PROFILE 查询全部命中索引，八个 `Safety*` 索引均为 `ONLINE`；
+- [x] 新增 `fact-provenance-v1`，严格验证事实属性与图关系；
+- [x] 新增 `GET /api/v1/knowledge/facts/{fact_id}`，区分成功、未知和知识不可用；
+- [x] 真实 Neo4j 验证全部 3 条正式事实可还原来源、上下文和快照；
+- [x] 建立来源审核候选清单，没有升级或新增医学事实；
+- [x] 生成绑定代码 SHA 与 Neo4j 版本的机器可读查询计划证据。
+
+验收报告见
+[`p2-query-and-provenance-acceptance.md`](../reports/p2-query-and-provenance-acceptance.md)，
+内容候选与停止条件见 [`P2_SOURCE_CANDIDATES.md`](P2_SOURCE_CANDIDATES.md)。
 
 ## P2 第一批范围
 
@@ -96,7 +111,7 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 126 passed，2 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 134 passed，3 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -106,7 +121,7 @@ P2 暂停期变更。
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
-| Neo4j 集成 | 2 passed，126 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
+| Neo4j 集成 | 3 passed，134 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 
 本阶段已经真实运行 Ollama 解释规划，但没有同时运行 Neo4j、Redis 和 legacy 全链路，因此结果只能称为 V1 Evidence Packet 解释层开发基线，不能称为端到端系统质量结果。
 
