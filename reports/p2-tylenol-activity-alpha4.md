@@ -50,6 +50,17 @@ ORANGE 仅表示项目界面应清楚提示避免该活动；它不是说明书�
 ## 自动化边界
 
 - 17 条开发样例全部精确匹配；
-- 普通 pytest 在数据提交前为 `148 passed, 5 skipped`；
+- 普通 pytest：`148 passed, 5 skipped`；
+- 隔离 Neo4j 5.26.28：`5 passed`；
+- 两次导入计数一致：9 Source、5 Medication、15 MedicationAlias、10 Ingredient、
+  3 Context、15 ContextAlias、4 Fact；
+- JSON 与 Neo4j 对泰诺正例、感康负例和氯苯那敏范围外用例返回相同
+  `EvidencePacket`；
+- `fact-provenance-v2` 返回泰诺稳定 medication ID、活动上下文、官方来源和 alpha.4
+  快照；
+- 绑定数据提交 `52ab9c8bce0e233e7743501b63bbf2672ed5689f` 的
+  [`neo4j-query-plan-v1-alpha4.json`](neo4j-query-plan-v1-alpha4.json) 证明七条只读查询
+  均命中索引，八个 `Safety*` 索引均为 `ONLINE`，且没有计划通知；
 - 开发集与规则共同迭代，不是锁定测试或临床准确率；
-- 真实 Neo4j 计数、JSON 等价、事实溯源和 PROFILE 证据需在提交后单独生成。
+- PROFILE 的 DB hits 和耗时只用于小图查询形状诊断，不是性能或可扩展性基准；
+- 测试结束后专用容器、网络和 tmpfs 数据已移除。

@@ -19,7 +19,9 @@ P2 不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
 - [x] 开发集从 13 条扩展到 17 条，包含 2 个正例与 2 个防外推负例；
 - [x] 自然语言查询可解析“泰诺 + 开车”，但不把事实外推到感康或氯苯那敏；
 - [x] 校验和、alpha.4 数据卡和 Safety Engine 基线已更新；
-- [ ] 完成隔离 Neo4j、事实溯源、PROFILE 和远程 Draft PR 验收。
+- [x] 隔离 Neo4j 的 5 项集成、产品事实 API 溯源和 JSON 等价通过；
+- [x] 生成绑定 alpha.4 数据提交的七查询 PROFILE 证据；
+- [ ] 推送独立 stacked Draft PR。
 
 来源审计见
 [`p2-tylenol-activity-alpha4.md`](../reports/p2-tylenol-activity-alpha4.md)，数据边界见

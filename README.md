@@ -45,6 +45,7 @@
 - [P2 查询计划与事实溯源验收](reports/p2-query-and-provenance-acceptance.md)
 - [P2 产品级事实模型验收](reports/p2-product-fact-model-acceptance.md)
 - [P2 alpha.4 泰诺活动限制来源审计](reports/p2-tylenol-activity-alpha4.md)
+- [alpha.4 Neo4j 查询计划证据](reports/neo4j-query-plan-v1-alpha4.json)
 
 ## 核心架构
 
@@ -238,7 +239,7 @@ python scripts/import_v1_to_neo4j.py --audit-only
 ```bash
 python scripts/profile_neo4j_queries.py \
   --mode PROFILE \
-  --output reports/neo4j-query-plan-product-facts-v1.json
+  --output reports/neo4j-query-plan-v1-alpha4.json
 ```
 
 读取一条事实的完整图谱来源链：

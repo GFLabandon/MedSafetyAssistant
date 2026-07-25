@@ -48,6 +48,10 @@
 
 基线见
 [`baseline-safety-engine-v1-alpha.4.md`](../reports/baseline-safety-engine-v1-alpha.4.md)。
+隔离 Neo4j 5.26.28 的 PROFILE 证据见
+[`neo4j-query-plan-v1-alpha4.json`](../reports/neo4j-query-plan-v1-alpha4.json)；该文件
+绑定 alpha.4 数据提交，七条注册只读查询均命中索引。DB hits 和耗时只用于小图查询形状
+诊断，不是性能基准。
 
 ## 完整性校验
 
