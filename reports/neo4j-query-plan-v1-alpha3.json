@@ -1,0 +1,320 @@
+{
+  "schema_version": "neo4j-query-plan-evidence-v1",
+  "captured_at": "2026-07-25T12:25:21.027160+00:00",
+  "code_commit": "06b60eabc184396a460a870e65fbdbe56670619c",
+  "neo4j_agent": "Neo4j/5.26.28",
+  "mode": "PROFILE",
+  "data_version": "v1.0.0-alpha.3",
+  "case_count": 6,
+  "indexes": [
+    {
+      "name": "safety_context_alias_normalized",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyContextAlias"
+      ],
+      "properties": [
+        "normalized_name"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_context_alias_normalized"
+    },
+    {
+      "name": "safety_context_id",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyContext"
+      ],
+      "properties": [
+        "context_id"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_context_id"
+    },
+    {
+      "name": "safety_fact_id",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyFact"
+      ],
+      "properties": [
+        "fact_id"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_fact_id"
+    },
+    {
+      "name": "safety_ingredient_name",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyIngredient"
+      ],
+      "properties": [
+        "name"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_ingredient_name"
+    },
+    {
+      "name": "safety_medication_alias_normalized",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyMedicationAlias"
+      ],
+      "properties": [
+        "normalized_name"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_medication_alias_normalized"
+    },
+    {
+      "name": "safety_medication_id",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyMedication"
+      ],
+      "properties": [
+        "medication_id"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_medication_id"
+    },
+    {
+      "name": "safety_snapshot_name",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetyKnowledgeSnapshot"
+      ],
+      "properties": [
+        "name"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_snapshot_name"
+    },
+    {
+      "name": "safety_source_id",
+      "type": "RANGE",
+      "entity_type": "NODE",
+      "labels_or_types": [
+        "SafetySource"
+      ],
+      "properties": [
+        "source_id"
+      ],
+      "state": "ONLINE",
+      "owning_constraint": "safety_source_id"
+    }
+  ],
+  "cases": [
+    {
+      "case_name": "resolve_medication",
+      "mode": "PROFILE",
+      "query_type": "r",
+      "planner": "COST",
+      "runtime": "SLOTTED",
+      "operators": [
+        "ProduceResults",
+        "Projection",
+        "Limit",
+        "Filter",
+        "Expand(All)",
+        "Filter",
+        "NodeIndexScan"
+      ],
+      "index_details": [
+        "RANGE INDEX alias:SafetyMedicationAlias(normalized_name) WHERE normalized_name IS NOT NULL, cache[alias.normalized_name]"
+      ],
+      "db_hits": 30,
+      "rows": 1,
+      "result_available_after_ms": 38,
+      "result_consumed_after_ms": 3,
+      "notification_codes": [],
+      "uses_index": true
+    },
+    {
+      "case_name": "resolve_context",
+      "mode": "PROFILE",
+      "query_type": "r",
+      "planner": "COST",
+      "runtime": "SLOTTED",
+      "operators": [
+        "ProduceResults",
+        "Projection",
+        "Limit",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek"
+      ],
+      "index_details": [
+        "UNIQUE alias:SafetyContextAlias(normalized_name) WHERE normalized_name = $normalized_name"
+      ],
+      "db_hits": 18,
+      "rows": 1,
+      "result_available_after_ms": 21,
+      "result_consumed_after_ms": 1,
+      "notification_codes": [],
+      "uses_index": true
+    },
+    {
+      "case_name": "duplicate_fact",
+      "mode": "PROFILE",
+      "query_type": "r",
+      "planner": "COST",
+      "runtime": "SLOTTED",
+      "operators": [
+        "ProduceResults",
+        "Projection",
+        "Limit",
+        "NodeHashJoin",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek",
+        "NodeHashJoin",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek"
+      ],
+      "index_details": [
+        "UNIQUE subject:SafetyIngredient(name) WHERE name = $ingredient",
+        "UNIQUE object:SafetyIngredient(name) WHERE name = $ingredient",
+        "UNIQUE snapshot:SafetyKnowledgeSnapshot(name) WHERE name = $snapshot_name"
+      ],
+      "db_hits": 56,
+      "rows": 1,
+      "result_available_after_ms": 62,
+      "result_consumed_after_ms": 2,
+      "notification_codes": [],
+      "uses_index": true
+    },
+    {
+      "case_name": "interaction_facts",
+      "mode": "PROFILE",
+      "query_type": "r",
+      "planner": "COST",
+      "runtime": "SLOTTED",
+      "operators": [
+        "ProduceResults",
+        "Sort",
+        "Projection",
+        "Projection",
+        "Filter",
+        "NodeHashJoin",
+        "Filter",
+        "Expand(All)",
+        "Distinct",
+        "Union",
+        "NodeUniqueIndexSeek",
+        "NodeUniqueIndexSeek",
+        "NodeHashJoin",
+        "Filter",
+        "Expand(All)",
+        "Distinct",
+        "Union",
+        "NodeUniqueIndexSeek",
+        "NodeUniqueIndexSeek",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek"
+      ],
+      "index_details": [
+        "UNIQUE subject:SafetyIngredient(name) WHERE name = $left[0], cache[subject.name]",
+        "UNIQUE subject:SafetyIngredient(name) WHERE name = $right[0], cache[subject.name]",
+        "UNIQUE object:SafetyIngredient(name) WHERE name = $right[0], cache[object.name]",
+        "UNIQUE object:SafetyIngredient(name) WHERE name = $left[0], cache[object.name]",
+        "UNIQUE snapshot:SafetyKnowledgeSnapshot(name) WHERE name = $snapshot_name"
+      ],
+      "db_hits": 66,
+      "rows": 1,
+      "result_available_after_ms": 102,
+      "result_consumed_after_ms": 3,
+      "notification_codes": [],
+      "uses_index": true
+    },
+    {
+      "case_name": "contraindication_facts",
+      "mode": "PROFILE",
+      "query_type": "r",
+      "planner": "COST",
+      "runtime": "SLOTTED",
+      "operators": [
+        "ProduceResults",
+        "Sort",
+        "Projection",
+        "Projection",
+        "NodeHashJoin",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek",
+        "Expand(Into)",
+        "Filter",
+        "Expand(All)",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek"
+      ],
+      "index_details": [
+        "UNIQUE subject:SafetyIngredient(name) WHERE name = $ingredients[0]",
+        "UNIQUE snapshot:SafetyKnowledgeSnapshot(name) WHERE name = $snapshot_name"
+      ],
+      "db_hits": 64,
+      "rows": 1,
+      "result_available_after_ms": 122,
+      "result_consumed_after_ms": 2,
+      "notification_codes": [],
+      "uses_index": true
+    },
+    {
+      "case_name": "fact_provenance",
+      "mode": "PROFILE",
+      "query_type": "r",
+      "planner": "COST",
+      "runtime": "SLOTTED",
+      "operators": [
+        "ProduceResults",
+        "EagerAggregation",
+        "CacheProperties",
+        "Filter",
+        "Expand(All)",
+        "EagerAggregation",
+        "OptionalExpand(All)",
+        "NodeHashJoin",
+        "Filter",
+        "Expand(All)",
+        "Filter",
+        "NodeUniqueIndexSeek",
+        "NodeHashJoin",
+        "Expand(All)",
+        "Filter",
+        "NodeUniqueIndexSeek",
+        "Filter",
+        "Expand(All)",
+        "NodeUniqueIndexSeek"
+      ],
+      "index_details": [
+        "UNIQUE fact:SafetyFact(fact_id) WHERE fact_id = $fact_id, cache[fact.fact_id]",
+        "UNIQUE fact:SafetyFact(fact_id) WHERE fact_id = $fact_id, cache[fact.fact_id]",
+        "UNIQUE snapshot:SafetyKnowledgeSnapshot(name) WHERE name = $snapshot_name, cache[snapshot.name]"
+      ],
+      "db_hits": 89,
+      "rows": 1,
+      "result_available_after_ms": 81,
+      "result_consumed_after_ms": 3,
+      "notification_codes": [],
+      "uses_index": true
+    }
+  ],
+  "limitations": [
+    "The V1 graph is intentionally tiny; db_hits and timings are diagnostic, not a scalability benchmark.",
+    "PROFILE executes only the registered read-only queries and does not mutate the projection."
+  ]
+}

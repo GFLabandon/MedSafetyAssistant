@@ -41,6 +41,10 @@ PDF 第 27 页、目录印刷页 13；FDA 页面 `What is Acetaminophen?` 段落
 
 基线见
 [`baseline-safety-engine-v1-alpha.3.md`](../reports/baseline-safety-engine-v1-alpha.3.md)。
+隔离 Neo4j 5.26.28 的 PROFILE 证据见
+[`neo4j-query-plan-v1-alpha3.json`](../reports/neo4j-query-plan-v1-alpha3.json)；该文件
+绑定 alpha.3 数据提交，六条注册只读查询均命中索引。由于图谱规模很小，DB hits 和耗时
+只用于查询形状诊断，不是性能或可扩展性基准。
 
 ## 完整性校验
 

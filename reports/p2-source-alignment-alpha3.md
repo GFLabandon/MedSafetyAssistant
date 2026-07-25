@@ -63,5 +63,7 @@
 - 两次导入计数一致：8 Source、5 Medication、11 MedicationAlias、10 Ingredient、
   2 Context、8 ContextAlias、3 Fact；
 - `paracetamol + 泰诺` 的完整 `EvidencePacket` 与 JSON Repository 一致；
-- 六条注册只读查询继续命中索引；
+- 绑定数据提交 `06b60eabc184396a460a870e65fbdbe56670619c` 的
+  [`neo4j-query-plan-v1-alpha3.json`](neo4j-query-plan-v1-alpha3.json) 证明六条注册
+  只读查询继续命中索引，八个 `Safety*` 索引均为 `ONLINE`，且没有计划通知；
 - 测试结束后专用容器和网络已移除。
