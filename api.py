@@ -36,6 +36,10 @@ from medsafety.observability import normalize_request_id, structured_event
 from medsafety.query_service import SafetyQueryService
 from medsafety.repositories import KnowledgeUnavailableError
 from medsafety.safety_engine import SafetyEngine
+from medsafety.tool_workflow import (
+    ToolWorkflowExecutionError,
+    TypedSafetyWorkflow,
+)
 
 
 V1_DATA_DIRECTORY = Path(__file__).resolve().parent / "data/v1"
@@ -112,6 +116,14 @@ def build_safety_explainer():
         timeout_seconds=Config.OLLAMA_EXPLANATION_TIMEOUT_SECONDS,
     )
     return EvidenceGroundedExplainer(planner)
+
+
+def build_typed_safety_workflow(request: Request | None = None):
+    return TypedSafetyWorkflow(
+        resolver=get_entity_resolver(request),
+        engine=get_safety_engine(request),
+        explainer=get_safety_explainer(request),
+    )
 
 
 def build_neo4j_repository():
@@ -438,6 +450,48 @@ async def query_v1_safety(
         use_llm_plan=payload.use_llm_plan,
         request_id=get_request_id(request),
     )
+    return response.model_dump(mode="json")
+
+
+@app.get("/api/v1/workflows/safety/tools")
+async def list_v1_safety_workflow_tools(request: Request = None):
+    workflow = build_typed_safety_workflow(request)
+    return [
+        definition.model_dump(mode="json")
+        for definition in workflow.registry.definitions()
+    ]
+
+
+@app.post("/api/v1/workflows/safety/query")
+async def query_v1_typed_safety_workflow(
+    payload: NaturalLanguageSafetyRequest,
+    request: Request = None,
+):
+    workflow = build_typed_safety_workflow(request)
+    try:
+        response = await asyncio.to_thread(
+            workflow.run,
+            payload.question,
+            use_llm_plan=payload.use_llm_plan,
+            request_id=get_request_id(request),
+        )
+    except ToolWorkflowExecutionError as exc:
+        logger.warning(
+            structured_event(
+                "typed_tool_workflow_failed",
+                request_id=get_request_id(request),
+                error=exc.code,
+                executed_steps=len(exc.traces),
+            )
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "tool_workflow_failed",
+                "detail": "The bounded safety workflow could not complete.",
+                "reason": exc.code,
+            },
+        )
     return response.model_dump(mode="json")
 
 
