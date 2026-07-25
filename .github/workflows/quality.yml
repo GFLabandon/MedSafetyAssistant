@@ -23,6 +23,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Audit public repository contents
+        run: python scripts/audit_public_repository.py
+
       - name: Check changed lines for whitespace errors
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

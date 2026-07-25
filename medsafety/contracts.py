@@ -84,6 +84,11 @@ class ResolvedEntityKind(str, Enum):
     CONTEXT = "context"
 
 
+class KnowledgeEntityKind(str, Enum):
+    INGREDIENT = "ingredient"
+    CONTEXT = "context"
+
+
 class EntityMatchType(str, Enum):
     ALIAS = "alias"
     CONTEXT_RULE = "context_rule"
@@ -235,6 +240,58 @@ class ClinicalContextRecord(StrictModel):
         if self.review_status == ReviewStatus.REVIEWED:
             if not self.reviewed_by or not self.reviewed_at:
                 raise ValueError("reviewed contexts require reviewer metadata")
+        return self
+
+
+class KnowledgeEntityReference(StrictModel):
+    kind: KnowledgeEntityKind
+    identifier: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+
+
+class KnowledgeSnapshotReference(StrictModel):
+    name: str = Field(min_length=1)
+    data_version: str = Field(min_length=1)
+
+
+class FactProvenance(StrictModel):
+    """One reviewed fact and every graph edge needed to audit its conclusion."""
+
+    schema_version: Literal["fact-provenance-v1"] = "fact-provenance-v1"
+    fact: FactRecord
+    subject: KnowledgeEntityReference
+    object: KnowledgeEntityReference
+    applies_in: list[ClinicalContextRecord] = Field(default_factory=list)
+    sources: list[SourceRecord] = Field(min_length=1)
+    snapshot: KnowledgeSnapshotReference
+
+    @model_validator(mode="after")
+    def graph_edges_match_fact_properties(self):
+        if self.subject.kind != KnowledgeEntityKind.INGREDIENT:
+            raise ValueError("fact subjects must be ingredient nodes")
+        if self.subject.name != self.fact.subject:
+            raise ValueError("SUBJECT relationship disagrees with the fact subject")
+        if self.object.name != self.fact.object:
+            raise ValueError("OBJECT relationship disagrees with the fact object")
+        expected_object_kind = (
+            KnowledgeEntityKind.CONTEXT
+            if self.fact.predicate == "CONTRAINDICATED_IN"
+            else KnowledgeEntityKind.INGREDIENT
+        )
+        if self.object.kind != expected_object_kind:
+            raise ValueError("OBJECT relationship has the wrong endpoint kind")
+        source_ids = [source.source_id for source in self.sources]
+        if len(source_ids) != len(set(source_ids)) or set(source_ids) != set(
+            self.fact.source_ids
+        ):
+            raise ValueError("SUPPORTED_BY relationships disagree with fact source IDs")
+        context_names = [context.canonical_name for context in self.applies_in]
+        if len(context_names) != len(set(context_names)) or set(context_names) != set(
+            self.fact.required_context
+        ):
+            raise ValueError("APPLIES_IN relationships disagree with required contexts")
+        if self.snapshot.data_version != self.fact.data_version:
+            raise ValueError("BELONGS_TO snapshot version disagrees with fact version")
         return self
 
 

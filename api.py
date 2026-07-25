@@ -6,9 +6,10 @@ import logging
 from pathlib import Path
 from time import perf_counter
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Path as ApiPath, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from neo4j import GraphDatabase
 from pydantic import BaseModel, Field, field_validator
 
 from config import Config
@@ -30,8 +31,10 @@ from medsafety.catalog import KnowledgeCatalog
 from medsafety.entity_resolution import V1EntityResolver
 from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.ollama_planner import OllamaExplanationPlanner
+from medsafety.neo4j_repository import Neo4jKnowledgeRepository
 from medsafety.observability import normalize_request_id, structured_event
 from medsafety.query_service import SafetyQueryService
+from medsafety.repositories import KnowledgeUnavailableError
 from medsafety.safety_engine import SafetyEngine
 
 
@@ -111,6 +114,21 @@ def build_safety_explainer():
     return EvidenceGroundedExplainer(planner)
 
 
+def build_neo4j_repository():
+    if not Config.NEO4J_PASSWORD:
+        return None, None
+    driver = GraphDatabase.driver(
+        Config.NEO4J_URI,
+        auth=(Config.NEO4J_USER, Config.NEO4J_PASSWORD),
+        connection_timeout=Config.NEO4J_CONNECTION_TIMEOUT_SECONDS,
+        connection_acquisition_timeout=Config.NEO4J_CONNECTION_TIMEOUT_SECONDS,
+    )
+    return driver, Neo4jKnowledgeRepository(
+        driver,
+        database=Config.NEO4J_DATABASE,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     catalog = build_v1_catalog()
@@ -118,9 +136,14 @@ async def lifespan(app: FastAPI):
     app.state.entity_resolver = build_entity_resolver(catalog)
     app.state.safety_explainer = build_safety_explainer()
     app.state.vector_store = VectorStore()
+    neo4j_driver, neo4j_repository = build_neo4j_repository()
+    app.state.neo4j_driver = neo4j_driver
+    app.state.neo4j_repository = neo4j_repository
     try:
         yield
     finally:
+        if neo4j_driver is not None:
+            neo4j_driver.close()
         vector_store = getattr(app.state, "vector_store", None)
         if vector_store is not None:
             vector_store.close()
@@ -206,6 +229,12 @@ def get_entity_resolver(request: Request | None):
     if request is None:
         return build_entity_resolver()
     return getattr(request.app.state, "entity_resolver", None) or build_entity_resolver()
+
+
+def get_neo4j_repository(request: Request | None):
+    if request is None:
+        return None
+    return getattr(request.app.state, "neo4j_repository", None)
 
 
 def get_request_id(request: Request | None):
@@ -410,3 +439,41 @@ async def query_v1_safety(
         request_id=get_request_id(request),
     )
     return response.model_dump(mode="json")
+
+
+@app.get("/api/v1/knowledge/facts/{fact_id}")
+async def get_v1_fact_provenance(
+    fact_id: str = ApiPath(
+        ...,
+        pattern=r"^[a-z0-9][a-z0-9-]{2,127}$",
+    ),
+    request: Request = None,
+):
+    repository = get_neo4j_repository(request)
+    if repository is None:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "knowledge_unavailable",
+                "detail": "Neo4j fact provenance is not configured.",
+            },
+        )
+    try:
+        provenance = await asyncio.to_thread(repository.fact_provenance, fact_id)
+    except KnowledgeUnavailableError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "knowledge_unavailable",
+                "detail": "Neo4j fact provenance is currently unavailable.",
+            },
+        )
+    if provenance is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": "fact_not_found",
+                "detail": "No reviewed fact exists for this identifier.",
+            },
+        )
+    return provenance.model_dump(mode="json")

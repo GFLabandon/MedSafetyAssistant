@@ -24,13 +24,13 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `115 passed, 1 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `134 passed, 3 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 9/9 whole-case match | 仅覆盖 3 条来源对齐事实 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
 | Ollama v2 开发探针 | 15/15 合法计划 | 同一开发探针上的 schema 调优结果 |
 | 锁定 opaque-ID 测试 | valid plan `0.833`，severity order `0.667` | 36 次真实请求；违规均被服务端拦截 |
-| Neo4j 投影 | 两次导入计数一致，七类结果与 JSON 等价 | 隔离 Neo4j 5.26.28 集成验收 |
+| Neo4j 事实图 | 六条只读查询均命中索引，事实可沿边溯源 | 3 项隔离 Neo4j 5.26.28 集成验收 |
 
 报告和原始失败证据：
 
@@ -41,6 +41,8 @@
 - [真实 Ollama 开发基线](reports/baseline-ollama-evidence-order-v2.md)
 - [锁定 opaque-ID 失败报告](reports/baseline-ollama-opaque-id-test-v1.md)
 - [P1 产品链路验收](reports/p1-product-flow-acceptance.md)
+- [P2 事实节点图验收](reports/p2-graph-model-acceptance.md)
+- [P2 查询计划与事实溯源验收](reports/p2-query-and-provenance-acceptance.md)
 
 ## 核心架构
 
@@ -50,8 +52,8 @@ flowchart LR
     R -->|"已解析"| B["Safety Engine"]
     R -->|"歧义或未知"| Q["澄清或范围外状态"]
     J["data/v1 权威 JSON"] --> B
-    J --> C["幂等导入"]
-    C --> D["Neo4j 查询投影"]
+    J --> C["事务化导入与完整性审计"]
+    C --> D["Neo4j 事实节点图"]
     D --> B
     B --> E["Evidence Packet"]
     E --> F["Ollama 事实排序"]
@@ -213,14 +215,42 @@ python scripts/import_v1_to_neo4j.py
 
 导入器先校验 catalog，然后在单个写事务中清理并重建独立的 `Safety*` 命名空间；
 如果导入失败，清理也会回滚，不会留下半套投影。重复导入不会残留已从 JSON
-目录删除的旧事实。真实隔离集成测试：
+目录删除的旧事实。`SafetyFact` 通过 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
+`SUPPORTED_BY` 和 `BELONGS_TO` 连接成分、上下文、来源与数据快照；风险查询走真实
+关系而不是扫描 `subject/object` 属性。图模型与不变量见
+[P2 知识图谱规格](docs/KNOWLEDGE_GRAPH_P2.md)。
+
+只读检查现有 Docker 投影：
+
+```bash
+python scripts/import_v1_to_neo4j.py --audit-only
+```
+
+记录六条注册只读查询的 PROFILE 与索引证据：
+
+```bash
+python scripts/profile_neo4j_queries.py \
+  --mode PROFILE \
+  --output reports/neo4j-query-plan-v1.json
+```
+
+读取一条事实的完整图谱来源链：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/knowledge/facts/fact-duplicate-acetaminophen-001
+```
+
+该接口要求 API 配置可用的 Neo4j 投影；未配置或投影损坏返回 503，未知事实 ID 返回
+404，不会静默退回 JSON catalog。
+
+真实隔离集成测试：
 
 ```bash
 MEDSAFETY_PYTHON=python bash scripts/test_neo4j_integration.sh
 ```
 
-测试使用临时实例和数据目录，连续导入两次并比较 JSON/Neo4j Repository 的完整
-`EvidencePacket`，结束后移除专用容器与网络。
+测试使用临时实例和数据目录，连续导入两次、比较 JSON/Neo4j Repository 的完整
+`EvidencePacket`，并人为删除事实关系以确认审计可以发现损坏；结束后移除专用容器与网络。
 
 ## V1 证据前端
 
@@ -239,6 +269,7 @@ React 页面调用自然语言 V1 入口，明确展示五种结论状态、实�
 - `POST /api/v1/query`
 - `POST /api/v1/safety/check`
 - `POST /api/v1/safety/explain`
+- `GET /api/v1/knowledge/facts/{fact_id}`（要求 Neo4j）
 
 旧 `/api/query` 与 `/api/query/stream` 仅为兼容早期原型保留；其默认请求会生成独立
 session ID，不再落入全局共享命名空间，但不属于 V1 安全结论的演示入口。
@@ -266,7 +297,7 @@ reports/              指标、失败分析和真实模型原始记录
 scripts/              数据校验、评测和 Neo4j 导入入口
 test/                 单元、契约、API 和隔离集成测试
 frontend/             React V1 状态、澄清与证据界面
-docs/                 安全边界、数据卡、评测协议和项目状态
+docs/                 安全边界、图模型、数据卡、评测协议和项目状态
 ```
 
 ## 已知限制

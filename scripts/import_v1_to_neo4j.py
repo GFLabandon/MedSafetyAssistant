@@ -18,7 +18,11 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from config import Config
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.neo4j_repository import Neo4jCatalogImporter
+from medsafety.neo4j_repository import (
+    Neo4jCatalogImporter,
+    Neo4jProjectionAuditor,
+    ProjectionIntegrityError,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,6 +31,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--data-dir", type=Path, default=REPOSITORY_ROOT / "data/v1")
     parser.add_argument("--database", default=Config.NEO4J_DATABASE)
+    parser.add_argument(
+        "--audit-only",
+        action="store_true",
+        help="inspect the existing Safety* projection without rebuilding it",
+    )
     return parser.parse_args()
 
 
@@ -46,15 +55,28 @@ def main() -> int:
     try:
         try:
             driver.verify_connectivity()
-            summary = Neo4jCatalogImporter(driver, database=args.database).import_catalog(catalog)
-        except (DriverError, Neo4jError) as exc:
+            if args.audit_only:
+                summary = Neo4jProjectionAuditor(
+                    driver,
+                    database=args.database,
+                ).audit(catalog)
+            else:
+                summary = Neo4jCatalogImporter(
+                    driver,
+                    database=args.database,
+                ).import_catalog(catalog)
+        except (DriverError, Neo4jError, ProjectionIntegrityError) as exc:
             print(f"Neo4j import failed: {type(exc).__name__}", file=sys.stderr)
             return 3
     finally:
         driver.close()
 
-    print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))
-    return 0
+    payload = asdict(summary)
+    if args.audit_only:
+        payload["valid"] = summary.valid
+        payload["issues"] = list(summary.issues)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0 if not args.audit_only or summary.valid else 4
 
 
 if __name__ == "__main__":
