@@ -8,7 +8,7 @@
 `EvidencePacket`，LLM 只能为已有事实排序，服务端随后校验结论、事实 ID、引用完整性和
 严重度顺序；任何违规或模型故障都会触发确定性回退。
 
-> **安全边界：**这是工程验证项目，不是医疗器械或临床决策系统。当前 V1 只有 3 条
+> **安全边界：**这是工程验证项目，不是医疗器械或临床决策系统。当前 V1 只有 4 条
 > `source_aligned` 风险事实，没有医生或药师临床审核签名。
 
 ## 为什么这个项目不只是一次 LLM API 调用
@@ -17,6 +17,8 @@
   不由模型决定。
 - **可追溯证据：**每条正式结论都携带 `fact_id`、`source_id`、来源定位、数据版本和限制。
 - **模型输出不可信：**未知、遗漏、重复事实 ID，结论篡改和严重度错序都会被服务端拒绝。
+- **受限工具执行：**P3 typed workflow 只执行四个注册工具，使用严格 schema、
+  服务端 artifact 引用和最多 4 步的执行上限。
 - **可重建图投影：**版本化 JSON 是权威源，Neo4j 是带唯一约束和幂等导入的查询投影。
 - **失败也是评测结果：**仓库保留真实 Ollama 的 ID 复制与排序失败，而不是只展示成功样例。
 
@@ -24,7 +26,8 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `148 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `160 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Typed tool 契约 | 12/12 | 确定性控制面测试；模型尚不选择工具 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -46,12 +49,14 @@
 - [P2 产品级事实模型验收](reports/p2-product-fact-model-acceptance.md)
 - [P2 alpha.4 泰诺活动限制来源审计](reports/p2-tylenol-activity-alpha4.md)
 - [alpha.4 Neo4j 查询计划证据](reports/neo4j-query-plan-v1-alpha4.json)
+- [P3 typed tool workflow 验收](reports/p3-typed-tool-workflow-acceptance.md)
 
 ## 核心架构
 
 ```mermaid
 flowchart LR
-    A["自然语言问题"] --> R["确定性实体解析"]
+    A["自然语言问题"] --> W["Bounded Typed Tool Controller"]
+    W --> R["确定性实体解析"]
     R -->|"已解析"| B["Safety Engine"]
     R -->|"歧义或未知"| Q["澄清或范围外状态"]
     J["data/v1 权威 JSON"] --> B
@@ -66,6 +71,9 @@ flowchart LR
     E --> I
     Q --> H
 ```
+
+P3 controller 只允许注册工具，工具间使用服务端 `call_id` 引用产物；调用方不能把自己
+构造的实体结果或 `EvidencePacket` 交给后续工具。当前控制流仍是确定性的，不是 ReAct。
 
 LLM 可以排列证据，但不能：
 
@@ -141,6 +149,17 @@ curl -X POST http://127.0.0.1:8000/api/v1/query \
 响应同时返回版本化 `resolution`、`explanation` 与 `request-trace-v1`：实体解析只匹配 `data/v1/` 中的受控
 别名和上下文规则；模糊药名、未知药名、缺失适用条件和指令式注入文本不会进入开放域
 医学生成。
+
+P3 typed workflow 入口：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
+```
+
+工具 schema 可通过 `GET /api/v1/workflows/safety/tools` 查看。响应增加
+`tool-workflow-trace-v1`，只记录工具、参数键、状态、schema 和耗时，不记录参数值。
 
 ### 运行状态
 
@@ -275,6 +294,8 @@ React 页面调用自然语言 V1 入口，明确展示五种结论状态、实�
 当前正式、可验证的入口包括：
 
 - `POST /api/v1/query`
+- `POST /api/v1/workflows/safety/query`
+- `GET /api/v1/workflows/safety/tools`
 - `POST /api/v1/safety/check`
 - `POST /api/v1/safety/explain`
 - `GET /api/v1/knowledge/facts/{fact_id}`（要求 Neo4j）
@@ -313,6 +334,8 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - 只有 4 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
+- P3 controller 当前是确定性的；尚无冻结的模型工具选择评测集或 Function Calling
+  shadow baseline。
 - 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。

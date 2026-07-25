@@ -1,14 +1,31 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-25
-当前阶段：P2——alpha.4 泰诺产品级活动限制
-状态：产品事实模型 Draft PR #5 全绿；alpha.4 本地数据与开发回归通过
+当前阶段：P3——受约束 typed tool workflow
+状态：P2 PR #3—#6 已合并；P3 首批确定性工具控制面通过本地验收
 
 ## 当前目标
 
-把 Neo4j 从事实属性投影升级为可沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
-`SUPPORTED_BY` 和 `BELONGS_TO` 遍历的事实节点图，并在导入提交前自动检查完整性。
-P2 不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+在不扩大 LLM 医学权限的前提下，把实体解析、Safety Engine、澄清和证据解释封装为
+严格 typed tools，建立注册、参数校验、服务端 artifact、步数上限和 trace 边界。模型
+工具选择必须先经过独立 shadow 评测，不能直接获得任意执行权。
+
+## P3 typed tool workflow 首批
+
+- [x] 新增四个版本化工具定义和严格输入/输出 schema；
+- [x] 新增固定注册表，拒绝未知工具、额外参数和非法输出；
+- [x] 工具间使用单请求服务端 artifact `call_id`，不接受调用方构造的领域对象；
+- [x] 默认最多 4 步，当前正常与澄清路径均固定执行 3 步；
+- [x] 新增 `tool-workflow-trace-v1`，只记录参数键，不记录参数值；
+- [x] 新增工具 schema 与 typed workflow 两个 API；
+- [x] 同步调用在线程池执行，不直接阻塞 FastAPI 事件循环；
+- [x] 12 项专项契约覆盖未知工具、参数注入、artifact 伪造、非法输出、提示注入和步数上限；
+- [x] 完整回归 `160 passed, 5 skipped`，数据校验和与 catalog 保持 alpha.4；
+- [ ] 冻结 50—80 条模型工具选择与恶意调用评测集；
+- [ ] 接入只记录、不执行的 Ollama Function Calling shadow planner。
+
+规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，验收见
+[`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md)。
 
 ## P2 alpha.4 泰诺活动限制
 
@@ -21,7 +38,7 @@ P2 不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
 - [x] 校验和、alpha.4 数据卡和 Safety Engine 基线已更新；
 - [x] 隔离 Neo4j 的 5 项集成、产品事实 API 溯源和 JSON 等价通过；
 - [x] 生成绑定 alpha.4 数据提交的七查询 PROFILE 证据；
-- [ ] 推送独立 stacked Draft PR。
+- [x] PR #6 已按依赖顺序合并到默认 `main`。
 
 来源审计见
 [`p2-tylenol-activity-alpha4.md`](../reports/p2-tylenol-activity-alpha4.md)，数据边界见
@@ -40,8 +57,8 @@ P2 不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
 - [x] 生成绑定提交的七条查询 PROFILE 证据；
 - [x] 推送独立 stacked Draft PR #5，Quality Gate 全绿。
 
-规格见 [`P2_PRODUCT_FACT_MODEL.md`](P2_PRODUCT_FACT_MODEL.md)。本批测试夹具不进入
-`data/v1/`；泰诺正式活动限制仍需独立数据版本。验收见
+规格见 [`P2_PRODUCT_FACT_MODEL.md`](P2_PRODUCT_FACT_MODEL.md)。该批测试夹具未进入
+`data/v1/`，随后已由 alpha.4 正式事实替换。验收见
 [`p2-product-fact-model-acceptance.md`](../reports/p2-product-fact-model-acceptance.md)。
 
 ## P2 alpha.3 来源对齐
@@ -160,9 +177,9 @@ P2 暂停期变更。
 
 | 检查 | 结果 | 命令或依据 |
 |---|---|---|
-| Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
+| Git 状态 | P3 实现基线 `68cb5d9` 上工作树干净 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 141 passed，3 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 160 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -216,7 +233,7 @@ P2 暂停期变更。
 ## 已知 P0 风险
 
 1. V1 事实只有 `source_aligned` 状态，没有医生或药师临床审核签名。
-2. V1 仅覆盖 3 条事实，不能外推到未收录药品、剂量或人群。
+2. V1 仅覆盖 4 条事实，不能外推到未收录药品、剂量或人群。
 3. legacy `/api/query` 仍是自由文本生成，不具备 V1 护栏；默认共享会话已移除。
 4. 当前真实模型数据集已经用于 v1/v2 调优，不能再作为独立测试集。
 5. 健康检查和完整依赖故障注入仍未完成。
@@ -301,6 +318,6 @@ alpha.2 的数据卡、校验和与可复现基线现已冻结；本阶段继续
 - 服务端新增 `FATAL > RED > ORANGE > INFO` 顺序不变量，违规计划与未知、遗漏、重复 ID 一样确定性回退；
 - `explanation_guardrails-v2` 的 10 个脚本化场景全部通过，历史 v1 数据和报告未被覆盖。
 
-该验收门及 P1 可靠性验收均已完成。下一阶段进入 P2：重构 Neo4j 为事实节点中心的
-真实图遍历模型，扩充小而可追溯的知识内容，并继续禁止把未定位来源的医学主张升级为
-正式 V1 事实。
+该验收门、P1 可靠性验收和 P2 事实图验收均已完成。当前进入 P3：先冻结工具选择与
+恶意调用评测集，再接入不执行真实工具的 Function Calling shadow planner；继续禁止
+模型创建医学事实、提交 Evidence Packet 或生成 Cypher。
