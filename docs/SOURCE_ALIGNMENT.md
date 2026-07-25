@@ -8,7 +8,25 @@
 - `source_aligned`：项目记录的措辞和适用条件已与指定公开来源逐项对齐；
 - `clinically_reviewed`：具备资质的医生或药师完成审核。
 
-本轮新增数据全部是 `source_aligned`，不是 `clinically_reviewed`。
+本项目正式 V1 数据全部是 `source_aligned`，不是 `clinically_reviewed`。
+
+## V1 alpha.4 新增范围
+
+alpha.4 在 alpha.3 三个场景之外增加一个产品级活动限制：
+
+4. 用户明确询问驾驶、高空、机械或精密仪器相关活动时，泰诺酚麻美敏片产品说明书要求
+   服药期间避免这些活动。
+
+该结论只属于泰诺产品：
+
+- 主体为 `medication-tyno-cold-tablet-cn`，不是氯苯那敏成分；
+- 来源为上海强生制药有限公司泰诺酚麻美敏片说明书；
+- 精确定位为 PDF 第 3 页 `[注意事项]` 第 9 项；
+- PDF 第 1 页核对产品身份，第 8 页核对批准文号和 2021-03-19 修订日期；
+- 不外推到感康或其他产品。
+
+详细审计见
+[`p2-tylenol-activity-alpha4.md`](../reports/p2-tylenol-activity-alpha4.md)。
 
 ## V1 alpha.3 覆盖范围
 
@@ -55,9 +73,17 @@ alpha.3 没有增加风险事实，只增加“对乙酰氨基酚”的成分药
 - 单独的“哮喘”保持未解析，不能触发禁忌；
 - 旧图谱中的布洛芬高血压、胃溃疡和儿童禁忌没有迁移，原因记录在 `reports/contraindication-source-audit-v1.md`。
 
+### 泰诺 + 驾驶或高风险操作活动
+
+- 泰诺酚麻美敏片说明书 PDF 第 1 页核对商品名与通用名；
+- PDF 第 3 页 `[注意事项]` 第 9 项支持服药期间的活动限制；
+- PDF 第 8 页记录批准文号与说明书修订日期；
+- 事实主体保持产品级，不能按共享成分迁移到感康；
+- ORANGE 是项目沟通策略，不是来源中的临床分级。
+
 ## 工程审核记录
 
-- 审核者 ID：`project-source-audit-2026-07-20`；
+- 审核者 ID：`project-source-audit-2026-07-20`、`project-source-audit-2026-07-25`；
 - 审核内容：URL 可访问、发布机构、页面/行定位、记录措辞与条件；
 - 未完成：临床分级、临床适用性和全量药品覆盖；
 - severity 是项目风险沟通策略，不宣称来自监管来源的标准等级。

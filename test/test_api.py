@@ -270,7 +270,7 @@ class ApiContractTests(unittest.TestCase):
             "sources": [{"source_id": "source-fda-acetaminophen-2025"}],
             "snapshot": {
                 "name": "source-aligned-v1",
-                "data_version": "v1.0.0-alpha.3",
+                "data_version": "v1.0.0-alpha.4",
             },
         }
         provenance = SimpleNamespace(model_dump=lambda mode: payload)

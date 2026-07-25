@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,17 +17,7 @@ from neo4j import GraphDatabase
 
 from api import get_v1_fact_provenance
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.contracts import (
-    ClinicalContextRecord,
-    ContextKind,
-    FactRecord,
-    KnowledgeEntityKind,
-    LabelStatus,
-    ReviewStatus,
-    RiskType,
-    Severity,
-    SourceRecord,
-)
+from medsafety.contracts import KnowledgeEntityKind
 from medsafety.neo4j_query_plans import (
     collect_query_plan_evidence,
     collect_safety_index_evidence,
@@ -144,22 +133,22 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
     assert first_summary == second_summary
     assert first_counts == second_counts
     assert second_counts == {
-        "sources": 8,
+        "sources": 9,
         "medications": 5,
         "medication_aliases": 11,
         "ingredients": 10,
-        "contexts": 2,
-        "context_aliases": 8,
-        "facts": 3,
+        "contexts": 3,
+        "context_aliases": 15,
+        "facts": 4,
         "snapshots": 1,
         "ingredient_links": 12,
         "medication_alias_links": 11,
-        "context_alias_links": 8,
-        "support_links": 13,
-        "context_links": 2,
-        "subject_links": 3,
-        "object_links": 3,
-        "snapshot_links": 3,
+        "context_alias_links": 15,
+        "support_links": 15,
+        "context_links": 3,
+        "subject_links": 4,
+        "object_links": 4,
+        "snapshot_links": 4,
     }
     assert Neo4jProjectionAuditor(driver).audit(catalog).valid is True
 
@@ -173,6 +162,9 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
         (["泰诺"], []),
         (["布洛芬"], ["NSAID过敏"]),
         (["布洛芬"], ["哮喘"]),
+        (["泰诺"], ["开车"]),
+        (["感康"], ["驾驶"]),
+        (["氯苯那敏"], ["驾驶"]),
         (["未收录药"], []),
     ]
 
@@ -225,63 +217,12 @@ def test_real_neo4j_auditor_detects_a_dangling_fact(driver):
     report = Neo4jProjectionAuditor(driver).audit(catalog)
 
     assert report.valid is False
-    assert report.actual.subject_links == 2
+    assert report.actual.subject_links == 3
     assert report.orphan_facts == 1
 
 
-def _catalog_with_test_only_activity_restriction() -> KnowledgeCatalog:
-    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
-    source = SourceRecord(
-        source_id="source-test-product-label",
-        title="Test-only product label",
-        publisher="Test fixture",
-        url="https://example.invalid/test-product-label",
-        accessed_at=date(2026, 7, 25),
-        review_status=ReviewStatus.REVIEWED,
-        reviewed_by="test-fixture",
-        reviewed_at=datetime(2026, 7, 25, 12, 0),
-    )
-    activity = ClinicalContextRecord(
-        context_id="context-driving-or-machinery",
-        canonical_name="驾驶或操作机械",
-        kind=ContextKind.ACTIVITY,
-        aliases=["开车", "操作机械"],
-        description="测试夹具：用户明确询问驾驶或机械操作。",
-        review_status=ReviewStatus.REVIEWED,
-        reviewed_by="test-fixture",
-        reviewed_at=datetime(2026, 7, 25, 12, 0),
-        data_version=catalog.data_version,
-    )
-    fact = FactRecord(
-        fact_id="fact-test-tyno-activity-restriction",
-        subject="泰诺",
-        subject_kind=KnowledgeEntityKind.MEDICATION,
-        predicate="ACTIVITY_RESTRICTION",
-        object=activity.canonical_name,
-        object_kind=KnowledgeEntityKind.CONTEXT,
-        risk_type=RiskType.ACTIVITY_RESTRICTION,
-        severity=Severity.ORANGE,
-        severity_rationale="测试夹具分级，不是临床分级。",
-        reason="测试夹具：该产品存在活动限制。",
-        source_ids=[source.source_id],
-        source_locator="测试说明书注意事项",
-        review_status=ReviewStatus.REVIEWED,
-        label_status=LabelStatus.SOURCE_ALIGNED,
-        reviewed_by="test-fixture",
-        reviewed_at=datetime(2026, 7, 25, 12, 0),
-        data_version=catalog.data_version,
-        required_context=[activity.canonical_name],
-    )
-    return KnowledgeCatalog(
-        sources=[*catalog.sources.values(), source],
-        medications=list(catalog.medications.values()),
-        contexts=[*catalog.contexts.values(), activity],
-        facts=[*catalog.facts.values(), fact],
-    )
-
-
 def test_real_neo4j_product_subject_fact_matches_json_and_provenance(driver):
-    catalog = _catalog_with_test_only_activity_restriction()
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
     Neo4jCatalogImporter(driver).import_catalog(catalog)
     repository = Neo4jKnowledgeRepository(driver)
 
@@ -289,10 +230,12 @@ def test_real_neo4j_product_subject_fact_matches_json_and_provenance(driver):
     actual = SafetyEngine(repository).assess(["泰诺"], contexts=["开车"])
 
     assert actual.model_dump(mode="json") == expected.model_dump(mode="json")
-    assert actual.facts[0].fact_id == "fact-test-tyno-activity-restriction"
+    assert actual.facts[0].fact_id == (
+        "fact-activity-restriction-tyno-driving-machinery-001"
+    )
 
     provenance = repository.fact_provenance(
-        "fact-test-tyno-activity-restriction"
+        "fact-activity-restriction-tyno-driving-machinery-001"
     )
     assert provenance is not None
     assert provenance.schema_version == "fact-provenance-v2"
@@ -300,11 +243,29 @@ def test_real_neo4j_product_subject_fact_matches_json_and_provenance(driver):
     assert provenance.subject.identifier == "medication-tyno-cold-tablet-cn"
     assert provenance.subject.name == "泰诺"
     assert provenance.object.kind == KnowledgeEntityKind.CONTEXT
-    assert provenance.object.identifier == "context-driving-or-machinery"
+    assert provenance.object.identifier == "context-driving-or-hazardous-operation"
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(neo4j_repository=repository),
+        ),
+    )
+    response = asyncio.run(
+        get_v1_fact_provenance(
+            fact_id="fact-activity-restriction-tyno-driving-machinery-001",
+            request=request,
+        )
+    )
+    assert response["schema_version"] == "fact-provenance-v2"
+    assert response["subject"] == {
+        "kind": "medication",
+        "identifier": "medication-tyno-cold-tablet-cn",
+        "name": "泰诺",
+    }
 
 
 def test_real_neo4j_auditor_rejects_product_fact_linked_to_ingredient(driver):
-    catalog = _catalog_with_test_only_activity_restriction()
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
     Neo4jCatalogImporter(driver).import_catalog(catalog)
 
     with driver.session() as session:
@@ -316,7 +277,7 @@ def test_real_neo4j_auditor_rejects_product_fact_linked_to_ingredient(driver):
             MATCH (ingredient:SafetyIngredient {name: $ingredient})
             CREATE (fact)-[:SUBJECT]->(ingredient)
             """,
-            fact_id="fact-test-tyno-activity-restriction",
+            fact_id="fact-activity-restriction-tyno-driving-machinery-001",
             ingredient="马来酸氯苯那敏",
         ).consume()
 

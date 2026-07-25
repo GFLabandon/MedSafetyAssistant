@@ -5,13 +5,13 @@
     "kind": "product",
     "aliases": ["酚麻美敏片"],
     "active_ingredients": ["对乙酰氨基酚", "盐酸伪麻黄碱", "氢溴酸右美沙芬", "氯苯那敏"],
-    "source_ids": ["source-shanghai-mpa-2021-176", "source-nmpa-cold-medicine-2020"],
-    "source_locator": "上海市药监局目录第3页序号29确认商品名映射；国家药监局转载页面第17行列出酚麻美敏成分。",
+    "source_ids": ["source-shanghai-mpa-2021-176", "source-nmpa-cold-medicine-2020", "source-xian-janssen-tylenol-label-2021"],
+    "source_locator": "上海市药监局目录第3页序号29确认商品名映射；国家药监局转载页面第17行列出酚麻美敏成分；泰诺酚麻美敏片说明书PDF第1页[药品名称]确认商品名、通用名和成分。",
     "review_status": "reviewed",
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
   },
   {
     "medication_id": "medication-gankang-tablet-cn",
@@ -25,7 +25,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
   },
   {
     "medication_id": "medication-ibuprofen-substance",
@@ -39,7 +39,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
   },
   {
     "medication_id": "medication-aspirin-substance",
@@ -53,7 +53,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
   },
   {
     "medication_id": "medication-acetaminophen-substance",
@@ -67,6 +67,6 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-25",
     "reviewed_at": "2026-07-25T20:15:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
   }
 ]

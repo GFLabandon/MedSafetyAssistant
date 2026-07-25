@@ -109,6 +109,19 @@ python scripts/import_v1_to_neo4j.py --audit-only
 
 ## 8. 后续内容扩充门
 
+alpha.4 已通过独立数据批把产品主体模型用于一条正式泰诺活动限制事实：
+
+- `SafetyFact(fact-activity-restriction-tyno-driving-machinery-001)`
+  的 `SUBJECT` 指向 `SafetyMedication(泰诺)`；
+- `OBJECT` 与 `APPLIES_IN` 指向 activity context；
+- `SUPPORTED_BY` 只指向泰诺官方产品说明书；
+- JSON/Neo4j 等价测试包含泰诺正例、感康负例和氯苯那敏范围外用例；
+- 该事实仍为 `source_aligned`，不是 `clinically_reviewed`。
+
+来源与数据边界见
+[`DATA_CARD_V1_ALPHA_4.md`](DATA_CARD_V1_ALPHA_4.md) 和
+[`p2-tylenol-activity-alpha4.md`](../reports/p2-tylenol-activity-alpha4.md)。
+
 后续批次扩充药品和事实时，目标不是追求节点数量，而是增加有明确 URL、版本、章节定位、
 访问日期和审核记录的场景。没有精确来源定位的医学主张不得进入正式 V1；达到小型、
 可评测覆盖后先冻结评测集，不无边界堆数据。

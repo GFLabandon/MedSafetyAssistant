@@ -24,9 +24,9 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `145 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `148 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
-| Safety Engine 开发集 | 13/13 whole-case match | 仅覆盖 3 条来源对齐事实；开发集共同迭代 |
+| Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
 | Ollama v2 开发探针 | 15/15 合法计划 | 同一开发探针上的 schema 调优结果 |
 | 锁定 opaque-ID 测试 | valid plan `0.833`，severity order `0.667` | 36 次真实请求；违规均被服务端拦截 |
@@ -35,8 +35,8 @@
 报告和原始失败证据：
 
 - [项目状态与验收记录](docs/PROJECT_STATUS.md)
-- [V1 alpha.3 数据卡](docs/DATA_CARD_V1_ALPHA_3.md)
-- [Safety Engine alpha.3 基线](reports/baseline-safety-engine-v1-alpha.3.md)
+- [V1 alpha.4 数据卡](docs/DATA_CARD_V1_ALPHA_4.md)
+- [Safety Engine alpha.4 基线](reports/baseline-safety-engine-v1-alpha.4.md)
 - [输出护栏 v2 基线](reports/baseline-explanation-guardrails-v2.md)
 - [真实 Ollama 开发基线](reports/baseline-ollama-evidence-order-v2.md)
 - [锁定 opaque-ID 失败报告](reports/baseline-ollama-opaque-id-test-v1.md)
@@ -44,6 +44,8 @@
 - [P2 事实节点图验收](reports/p2-graph-model-acceptance.md)
 - [P2 查询计划与事实溯源验收](reports/p2-query-and-provenance-acceptance.md)
 - [P2 产品级事实模型验收](reports/p2-product-fact-model-acceptance.md)
+- [P2 alpha.4 泰诺活动限制来源审计](reports/p2-tylenol-activity-alpha4.md)
+- [alpha.4 Neo4j 查询计划证据](reports/neo4j-query-plan-v1-alpha4.json)
 
 ## 核心架构
 
@@ -74,15 +76,16 @@ LLM 可以排列证据，但不能：
 
 ## V1 支持范围
 
-当前 `v1.0.0-alpha.3` 的风险事实只覆盖：
+当前 `v1.0.0-alpha.4` 的风险事实只覆盖：
 
 1. 泰诺与感康共享对乙酰氨基酚的重复成分风险；
 2. 布洛芬与用于心血管保护的阿司匹林之间的条件性相互作用；
 3. 明确报告阿司匹林或其他 NSAID 相关哮喘、荨麻疹或过敏样反应史时的布洛芬禁忌。
+4. 明确询问驾驶、高空、机械或精密仪器活动时的泰诺产品级活动限制。
 
 实体层额外支持来源对齐的 `paracetamol`、`acetaminophen`，两者都解析为
-“对乙酰氨基酚”。“扑热息痛”尚未通过本批来源门，仍返回范围外。alpha.3 没有增加风险
-事实，完整边界见 [alpha.3 数据卡](docs/DATA_CARD_V1_ALPHA_3.md)。
+“对乙酰氨基酚”。“扑热息痛”尚未通过来源门，仍返回范围外。泰诺活动限制不外推到
+感康或氯苯那敏成分，完整边界见 [alpha.4 数据卡](docs/DATA_CARD_V1_ALPHA_4.md)。
 
 API 使用五种结论状态：
 
@@ -236,7 +239,7 @@ python scripts/import_v1_to_neo4j.py --audit-only
 ```bash
 python scripts/profile_neo4j_queries.py \
   --mode PROFILE \
-  --output reports/neo4j-query-plan-product-facts-v1.json
+  --output reports/neo4j-query-plan-v1-alpha4.json
 ```
 
 读取一条事实的完整图谱来源链：
@@ -307,7 +310,7 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 
 ## 已知限制
 
-- 只有 3 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
+- 只有 4 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
 - 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。

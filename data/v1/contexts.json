@@ -8,7 +8,7 @@
     "review_status": "reviewed",
     "reviewed_by": "project-context-vocabulary-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
   },
   {
     "context_id": "context-nsaid-allergic-reaction-history",
@@ -19,6 +19,17 @@
     "review_status": "reviewed",
     "reviewed_by": "project-context-vocabulary-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3"
+    "data_version": "v1.0.0-alpha.4"
+  },
+  {
+    "context_id": "context-driving-or-hazardous-operation",
+    "canonical_name": "驾驶或从事高空、机械及精密仪器作业",
+    "kind": "activity",
+    "aliases": ["开车", "驾驶", "驾驶车辆", "高空作业", "机械作业", "操作精密仪器"],
+    "description": "用户明确询问服药期间驾驶交通工具，或从事高空、机械、精密仪器相关作业；只表达活动场景，不推断职业、嗜睡程度或其他产品适用性。",
+    "review_status": "reviewed",
+    "reviewed_by": "project-context-vocabulary-2026-07-25",
+    "reviewed_at": "2026-07-25T21:15:00+08:00",
+    "data_version": "v1.0.0-alpha.4"
   }
 ]

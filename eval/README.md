@@ -18,8 +18,8 @@ python scripts/evaluate.py \
 
 校验规则由 `medsafety.contracts.EvaluationCase` 定义。正式 test split 将在来源对齐并按 fact_id 分组后建立，防止同一事实的改写跨 split 泄漏。
 
-`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，覆盖 V1 alpha.3 的
-3 条事实和来源对齐别名边界。运行：
+`safety_engine_dev.jsonl` 是独立的 `source_aligned` 小型开发集，覆盖 V1 alpha.4 的
+4 条事实、来源对齐别名和产品活动限制边界。运行：
 
 ```bash
 python scripts/evaluate.py \

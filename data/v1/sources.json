@@ -101,5 +101,18 @@
     "review_status": "reviewed",
     "reviewed_by": "project-source-audit-2026-07-25",
     "reviewed_at": "2026-07-25T20:15:00+08:00"
+  },
+  {
+    "source_id": "source-xian-janssen-tylenol-label-2021",
+    "title": "泰诺®酚麻美敏片说明书",
+    "publisher": "上海强生制药有限公司；西安杨森官方网站发布",
+    "url": "https://www.xian-janssen.com.cn/sites/default/files/PDF/8_tai_nuo_20210319_fen_ma_mei_min_pian_shuo_ming_shu_.pdf",
+    "published_at": "2021-03-19",
+    "version": "说明书修订日期2021-03-19；国药准字H20010115",
+    "license_note": "企业官方网站公开产品说明书；仅保存项目释义、精确定位和原始文件校验信息，不复制PDF。",
+    "accessed_at": "2026-07-25",
+    "review_status": "reviewed",
+    "reviewed_by": "project-source-audit-2026-07-25",
+    "reviewed_at": "2026-07-25T21:15:00+08:00"
   }
 ]

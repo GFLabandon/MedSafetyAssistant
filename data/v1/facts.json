@@ -14,7 +14,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3",
+    "data_version": "v1.0.0-alpha.4",
     "required_context": []
   },
   {
@@ -32,7 +32,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3",
+    "data_version": "v1.0.0-alpha.4",
     "required_context": ["阿司匹林用于心血管保护"]
   },
   {
@@ -50,7 +50,27 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00",
-    "data_version": "v1.0.0-alpha.3",
+    "data_version": "v1.0.0-alpha.4",
     "required_context": ["服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"]
+  },
+  {
+    "fact_id": "fact-activity-restriction-tyno-driving-machinery-001",
+    "subject": "泰诺",
+    "subject_kind": "medication",
+    "predicate": "ACTIVITY_RESTRICTION",
+    "object": "驾驶或从事高空、机械及精密仪器作业",
+    "object_kind": "context",
+    "risk_type": "ACTIVITY_RESTRICTION",
+    "severity": "ORANGE",
+    "severity_rationale": "项目风险沟通策略：来源说明书明确要求服药期间不得进行相关活动，因此标为需要避免活动的ORANGE；ORANGE不是来源中的临床分级，也不表示必须停药。",
+    "reason": "该泰诺产品说明书要求，服药期间避免驾驶交通工具，以及从事高空、机械或精密仪器相关作业。",
+    "source_ids": ["source-xian-janssen-tylenol-label-2021"],
+    "source_locator": "泰诺酚麻美敏片说明书，PDF第3页[注意事项]第9项；产品身份见PDF第1页[药品名称]；修订日期与批准文号见PDF第8页。",
+    "review_status": "reviewed",
+    "label_status": "source_aligned",
+    "reviewed_by": "project-source-audit-2026-07-25",
+    "reviewed_at": "2026-07-25T21:15:00+08:00",
+    "data_version": "v1.0.0-alpha.4",
+    "required_context": ["驾驶或从事高空、机械及精密仪器作业"]
   }
 ]

@@ -23,7 +23,7 @@ function responseFor(question) {
       resolved_contexts: [],
       unresolved_contexts: [],
       missing_context: [],
-      data_version: 'v1.0.0-alpha.3',
+      data_version: 'v1.0.0-alpha.4',
       generation_mode: 'deterministic',
       prompt_version: 'evidence-order-v2',
       fallback_reason: null,
