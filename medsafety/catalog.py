@@ -9,6 +9,8 @@ from medsafety.contracts import (
     ClinicalContextRecord,
     FactRecord,
     LabelStatus,
+    KnowledgeEntityKind,
+    MedicationKind,
     MedicationRecord,
     ReviewStatus,
     SourceRecord,
@@ -109,10 +111,15 @@ class KnowledgeCatalog:
             for medication in self.medications.values()
             for ingredient in medication.active_ingredients
         }
+        medications_by_name = {
+            medication.canonical_name: medication
+            for medication in self.medications.values()
+        }
         supported_predicates = {
             "DUPLICATE_INGREDIENT",
             "INTERACTS_WITH",
             "CONTRAINDICATED_IN",
+            "ACTIVITY_RESTRICTION",
         }
         for fact in self.facts.values():
             if fact.predicate not in supported_predicates:
@@ -124,18 +131,42 @@ class KnowledgeCatalog:
                 raise CatalogValidationError(
                     f"fact references unknown contexts: {sorted(unknown_contexts)}"
                 )
-            if fact.subject not in canonical_ingredients:
+            if fact.subject_kind == KnowledgeEntityKind.INGREDIENT:
+                if fact.subject not in canonical_ingredients:
+                    raise CatalogValidationError(
+                        f"fact references unknown subject ingredient: {fact.subject}"
+                    )
+            elif fact.subject_kind == KnowledgeEntityKind.MEDICATION:
+                subject_medication = medications_by_name.get(fact.subject)
+                if subject_medication is None:
+                    raise CatalogValidationError(
+                        f"fact references unknown subject medication: {fact.subject}"
+                    )
+                if subject_medication.kind != MedicationKind.PRODUCT:
+                    raise CatalogValidationError(
+                        "product-subject facts require a product medication record"
+                    )
+            else:
                 raise CatalogValidationError(
-                    f"fact references unknown subject ingredient: {fact.subject}"
+                    f"fact uses unsupported subject kind: {fact.subject_kind}"
                 )
-            if fact.predicate == "CONTRAINDICATED_IN":
+            if fact.object_kind == KnowledgeEntityKind.CONTEXT:
                 if fact.object not in canonical_contexts:
                     raise CatalogValidationError(
-                        f"contraindication references unknown context: {fact.object}"
+                        f"fact references unknown object context: {fact.object}"
                     )
-            elif fact.object not in canonical_ingredients:
+                if fact.object not in fact.required_context:
+                    raise CatalogValidationError(
+                        "context-object facts must include the object in required_context"
+                    )
+            elif fact.object_kind == KnowledgeEntityKind.INGREDIENT:
+                if fact.object not in canonical_ingredients:
+                    raise CatalogValidationError(
+                        f"fact references unknown object ingredient: {fact.object}"
+                    )
+            else:
                 raise CatalogValidationError(
-                    f"fact references unknown object ingredient: {fact.object}"
+                    f"fact uses unsupported object kind: {fact.object_kind}"
                 )
 
         _ = self.data_version
@@ -205,5 +236,23 @@ class KnowledgeCatalog:
             for fact in self.facts.values()
             if fact.predicate == "CONTRAINDICATED_IN"
             and fact.subject in ingredients
+            and fact.object in contexts
+        ]
+
+    def activity_restriction_facts_for(
+        self,
+        medication_ids: set[str],
+        contexts: set[str],
+    ) -> list[FactRecord]:
+        medication_names = {
+            self.medications[medication_id].canonical_name
+            for medication_id in medication_ids
+            if medication_id in self.medications
+        }
+        return [
+            fact
+            for fact in self.facts.values()
+            if fact.predicate == "ACTIVITY_RESTRICTION"
+            and fact.subject in medication_names
             and fact.object in contexts
         ]

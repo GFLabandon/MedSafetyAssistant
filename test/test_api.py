@@ -262,7 +262,7 @@ class ApiContractTests(unittest.TestCase):
         from api import get_v1_fact_provenance
 
         payload = {
-            "schema_version": "fact-provenance-v1",
+            "schema_version": "fact-provenance-v2",
             "fact": {"fact_id": "fact-duplicate-acetaminophen-001"},
             "subject": {"kind": "ingredient", "name": "对乙酰氨基酚"},
             "object": {"kind": "ingredient", "name": "对乙酰氨基酚"},
@@ -282,7 +282,7 @@ class ApiContractTests(unittest.TestCase):
                 get_v1_fact_provenance("fact-duplicate-acetaminophen-001")
             )
 
-        self.assertEqual(response["schema_version"], "fact-provenance-v1")
+        self.assertEqual(response["schema_version"], "fact-provenance-v2")
         self.assertEqual(response["subject"]["name"], "对乙酰氨基酚")
         repository.fact_provenance.assert_called_once_with(
             "fact-duplicate-acetaminophen-001"
