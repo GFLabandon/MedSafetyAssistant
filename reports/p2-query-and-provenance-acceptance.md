@@ -57,6 +57,7 @@ JSON fallback，因此可以真实暴露 Neo4j 投影问题。
 | 前端生产构建 | 通过 | Vite 7.3.6，26 modules transformed |
 | 浏览器契约 | 4/4 通过 | API fixture；不包装为真实依赖端到端 |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev` |
+| GitHub Actions | 3/3 通过 | `d67484a`：Repository、Backend、Frontend |
 | `git diff --check` | 通过 | 无空白错误 |
 
 集成测试结束后，专用容器和网络均已移除；没有访问或修改其他 Neo4j 实例。
