@@ -24,18 +24,18 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `141 passed, 3 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `145 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 13/13 whole-case match | 仅覆盖 3 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
 | Ollama v2 开发探针 | 15/15 合法计划 | 同一开发探针上的 schema 调优结果 |
 | 锁定 opaque-ID 测试 | valid plan `0.833`，severity order `0.667` | 36 次真实请求；违规均被服务端拦截 |
-| Neo4j 事实图 | 六条只读查询均命中索引，事实可沿边溯源 | 3 项隔离 Neo4j 5.26.28 集成验收 |
+| Neo4j 事实图 | 七条只读查询均命中索引，支持 Ingredient/Medication 主体溯源 | 5 项隔离 Neo4j 5.26.28 集成验收 |
 
 报告和原始失败证据：
 
 - [项目状态与验收记录](docs/PROJECT_STATUS.md)
-- [V1 alpha.2 数据卡](docs/DATA_CARD_V1_ALPHA_2.md)
+- [V1 alpha.3 数据卡](docs/DATA_CARD_V1_ALPHA_3.md)
 - [Safety Engine alpha.3 基线](reports/baseline-safety-engine-v1-alpha.3.md)
 - [输出护栏 v2 基线](reports/baseline-explanation-guardrails-v2.md)
 - [真实 Ollama 开发基线](reports/baseline-ollama-evidence-order-v2.md)
@@ -43,6 +43,7 @@
 - [P1 产品链路验收](reports/p1-product-flow-acceptance.md)
 - [P2 事实节点图验收](reports/p2-graph-model-acceptance.md)
 - [P2 查询计划与事实溯源验收](reports/p2-query-and-provenance-acceptance.md)
+- [P2 产品级事实模型验收](reports/p2-product-fact-model-acceptance.md)
 
 ## 核心架构
 
@@ -220,7 +221,7 @@ python scripts/import_v1_to_neo4j.py
 导入器先校验 catalog，然后在单个写事务中清理并重建独立的 `Safety*` 命名空间；
 如果导入失败，清理也会回滚，不会留下半套投影。重复导入不会残留已从 JSON
 目录删除的旧事实。`SafetyFact` 通过 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
-`SUPPORTED_BY` 和 `BELONGS_TO` 连接成分、上下文、来源与数据快照；风险查询走真实
+`SUPPORTED_BY` 和 `BELONGS_TO` 连接药品、成分、上下文、来源与数据快照；风险查询走真实
 关系而不是扫描 `subject/object` 属性。图模型与不变量见
 [P2 知识图谱规格](docs/KNOWLEDGE_GRAPH_P2.md)。
 
@@ -230,12 +231,12 @@ python scripts/import_v1_to_neo4j.py
 python scripts/import_v1_to_neo4j.py --audit-only
 ```
 
-记录六条注册只读查询的 PROFILE 与索引证据：
+记录七条注册只读查询的 PROFILE 与索引证据：
 
 ```bash
 python scripts/profile_neo4j_queries.py \
   --mode PROFILE \
-  --output reports/neo4j-query-plan-v1.json
+  --output reports/neo4j-query-plan-product-facts-v1.json
 ```
 
 读取一条事实的完整图谱来源链：

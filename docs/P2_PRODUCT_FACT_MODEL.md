@@ -80,3 +80,6 @@ flowchart LR
 3. 增加一条泰诺产品主体的 `ACTIVITY_RESTRICTION`；
 4. 提升数据版本、校验和、数据卡和开发评测集；
 5. 明确不外推到感康或氯苯那敏成分。
+
+工程验收与机器可读查询证据见
+[`p2-product-fact-model-acceptance.md`](../reports/p2-product-fact-model-acceptance.md)。

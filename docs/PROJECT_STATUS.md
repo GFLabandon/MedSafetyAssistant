@@ -20,10 +20,12 @@ P2 当前工程批不改变正式医学事实、不扩展 Agent，也不让 LLM 
 - [x] 完整性审计可识别产品事实被错误连接到 Ingredient 的损坏；
 - [x] 隔离 Neo4j 5.26.28 的 5 项真实集成测试通过；
 - [x] alpha.3 的 JSON、校验和、3 条正式事实和 13 条开发集保持不变；
-- [ ] 生成绑定提交的七条查询 PROFILE 证据并推送独立 stacked Draft PR。
+- [x] 生成绑定提交的七条查询 PROFILE 证据；
+- [ ] 推送独立 stacked Draft PR。
 
 规格见 [`P2_PRODUCT_FACT_MODEL.md`](P2_PRODUCT_FACT_MODEL.md)。本批测试夹具不进入
-`data/v1/`；泰诺正式活动限制仍需独立数据版本。
+`data/v1/`；泰诺正式活动限制仍需独立数据版本。验收见
+[`p2-product-fact-model-acceptance.md`](../reports/p2-product-fact-model-acceptance.md)。
 
 ## P2 alpha.3 来源对齐
 
