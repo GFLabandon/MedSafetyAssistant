@@ -53,6 +53,7 @@ class RiskType(str, Enum):
     DUPLICATE_THERAPY = "DUPLICATE_THERAPY"
     CONTRAINDICATION = "CONTRAINDICATION"
     INTERACTION = "INTERACTION"
+    ACTIVITY_RESTRICTION = "ACTIVITY_RESTRICTION"
 
 
 class MedicationKind(str, Enum):
@@ -63,6 +64,7 @@ class MedicationKind(str, Enum):
 class ContextKind(str, Enum):
     MEDICATION_USE = "medication_use"
     REACTION_HISTORY = "reaction_history"
+    ACTIVITY = "activity"
 
 
 class LabelStatus(str, Enum):
@@ -86,6 +88,7 @@ class ResolvedEntityKind(str, Enum):
 
 class KnowledgeEntityKind(str, Enum):
     INGREDIENT = "ingredient"
+    MEDICATION = "medication"
     CONTEXT = "context"
 
 
@@ -161,8 +164,10 @@ class SourceRecord(StrictModel):
 class FactRecord(StrictModel):
     fact_id: str = Field(min_length=1)
     subject: str = Field(min_length=1)
+    subject_kind: KnowledgeEntityKind = KnowledgeEntityKind.INGREDIENT
     predicate: str = Field(min_length=1)
     object: str = Field(min_length=1)
+    object_kind: KnowledgeEntityKind | None = None
     risk_type: RiskType
     severity: Severity
     severity_rationale: str = Field(min_length=1)
@@ -176,6 +181,22 @@ class FactRecord(StrictModel):
     data_version: str = Field(min_length=1)
     required_context: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def infer_legacy_endpoint_kinds(cls, values):
+        if not isinstance(values, dict):
+            return values
+        normalized = dict(values)
+        normalized.setdefault("subject_kind", KnowledgeEntityKind.INGREDIENT)
+        if normalized.get("object_kind") is None:
+            normalized["object_kind"] = (
+                KnowledgeEntityKind.CONTEXT
+                if normalized.get("predicate")
+                in {"CONTRAINDICATED_IN", "ACTIVITY_RESTRICTION"}
+                else KnowledgeEntityKind.INGREDIENT
+            )
+        return normalized
+
     @model_validator(mode="after")
     def reviewed_facts_have_evidence(self):
         if self.review_status == ReviewStatus.REVIEWED:
@@ -183,6 +204,42 @@ class FactRecord(StrictModel):
                 raise ValueError("reviewed facts require sources, a locator, and reviewer metadata")
             if self.label_status == LabelStatus.LEGACY_UNREVIEWED:
                 raise ValueError("reviewed facts cannot retain a legacy_unreviewed label status")
+        return self
+
+    @model_validator(mode="after")
+    def predicate_matches_endpoint_and_risk_types(self):
+        expected = {
+            "DUPLICATE_INGREDIENT": (
+                KnowledgeEntityKind.INGREDIENT,
+                KnowledgeEntityKind.INGREDIENT,
+                RiskType.DUPLICATE_THERAPY,
+            ),
+            "INTERACTS_WITH": (
+                KnowledgeEntityKind.INGREDIENT,
+                KnowledgeEntityKind.INGREDIENT,
+                RiskType.INTERACTION,
+            ),
+            "CONTRAINDICATED_IN": (
+                KnowledgeEntityKind.INGREDIENT,
+                KnowledgeEntityKind.CONTEXT,
+                RiskType.CONTRAINDICATION,
+            ),
+            "ACTIVITY_RESTRICTION": (
+                KnowledgeEntityKind.MEDICATION,
+                KnowledgeEntityKind.CONTEXT,
+                RiskType.ACTIVITY_RESTRICTION,
+            ),
+        }.get(self.predicate)
+        if expected is None:
+            return self
+        expected_subject, expected_object, expected_risk = expected
+        if (self.subject_kind, self.object_kind) != (
+            expected_subject,
+            expected_object,
+        ):
+            raise ValueError("fact predicate has incompatible endpoint kinds")
+        if self.risk_type != expected_risk:
+            raise ValueError("fact predicate has incompatible risk type")
         return self
 
 
@@ -257,7 +314,7 @@ class KnowledgeSnapshotReference(StrictModel):
 class FactProvenance(StrictModel):
     """One reviewed fact and every graph edge needed to audit its conclusion."""
 
-    schema_version: Literal["fact-provenance-v1"] = "fact-provenance-v1"
+    schema_version: Literal["fact-provenance-v2"] = "fact-provenance-v2"
     fact: FactRecord
     subject: KnowledgeEntityReference
     object: KnowledgeEntityReference
@@ -267,19 +324,14 @@ class FactProvenance(StrictModel):
 
     @model_validator(mode="after")
     def graph_edges_match_fact_properties(self):
-        if self.subject.kind != KnowledgeEntityKind.INGREDIENT:
-            raise ValueError("fact subjects must be ingredient nodes")
+        if self.subject.kind != self.fact.subject_kind:
+            raise ValueError("SUBJECT endpoint kind disagrees with the fact contract")
         if self.subject.name != self.fact.subject:
             raise ValueError("SUBJECT relationship disagrees with the fact subject")
         if self.object.name != self.fact.object:
             raise ValueError("OBJECT relationship disagrees with the fact object")
-        expected_object_kind = (
-            KnowledgeEntityKind.CONTEXT
-            if self.fact.predicate == "CONTRAINDICATED_IN"
-            else KnowledgeEntityKind.INGREDIENT
-        )
-        if self.object.kind != expected_object_kind:
-            raise ValueError("OBJECT relationship has the wrong endpoint kind")
+        if self.object.kind != self.fact.object_kind:
+            raise ValueError("OBJECT endpoint kind disagrees with the fact contract")
         source_ids = [source.source_id for source in self.sources]
         if len(source_ids) != len(set(source_ids)) or set(source_ids) != set(
             self.fact.source_ids

@@ -7,7 +7,12 @@ import pytest
 from neo4j.exceptions import ServiceUnavailable
 
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.contracts import ConclusionStatus
+from medsafety.contracts import (
+    ConclusionStatus,
+    FactRecord,
+    KnowledgeEntityKind,
+    RiskType,
+)
 from medsafety.neo4j_repository import (
     Neo4jCatalogImporter,
     Neo4jKnowledgeRepository,
@@ -333,9 +338,11 @@ def test_neo4j_repository_returns_complete_fact_provenance():
         if "RETURN properties(fact) AS fact" in query and "subject_name" in query:
             assert parameters["fact_id"] == fact["fact_id"]
             return [
-                {
-                    "fact": fact,
-                    "subject_name": "布洛芬",
+                    {
+                        "fact": fact,
+                        "subject_kind": "ingredient",
+                        "subject_identifier": "布洛芬",
+                        "subject_name": "布洛芬",
                     "object_kind": "ingredient",
                     "object_identifier": "阿司匹林",
                     "object_name": "阿司匹林",
@@ -353,7 +360,7 @@ def test_neo4j_repository_returns_complete_fact_provenance():
     provenance = Neo4jKnowledgeRepository(driver).fact_provenance(fact["fact_id"])
 
     assert provenance is not None
-    assert provenance.schema_version == "fact-provenance-v1"
+    assert provenance.schema_version == "fact-provenance-v2"
     assert provenance.subject.name == "布洛芬"
     assert provenance.object.name == "阿司匹林"
     assert [item.context_id for item in provenance.applies_in] == [
@@ -389,6 +396,48 @@ def test_neo4j_repository_rejects_incomplete_fact_provenance():
 
     with pytest.raises(KnowledgeUnavailableError, match="invalid provenance"):
         Neo4jKnowledgeRepository(FakeDriver(responder)).fact_provenance(fact["fact_id"])
+
+
+def test_neo4j_activity_restriction_query_uses_stable_product_ids():
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    base = catalog.facts["fact-duplicate-acetaminophen-001"].model_dump(mode="json")
+    activity_fact = FactRecord.model_validate(
+        {
+            **base,
+            "fact_id": "fact-test-tyno-activity-restriction",
+            "subject": "泰诺",
+            "subject_kind": KnowledgeEntityKind.MEDICATION,
+            "predicate": "ACTIVITY_RESTRICTION",
+            "object": "驾驶或操作机械",
+            "object_kind": KnowledgeEntityKind.CONTEXT,
+            "risk_type": RiskType.ACTIVITY_RESTRICTION,
+            "required_context": ["驾驶或操作机械"],
+        }
+    ).model_dump(mode="json")
+
+    def responder(query: str, _parameters: dict[str, Any]):
+        if "predicate = 'ACTIVITY_RESTRICTION'" in query:
+            return [{"fact": activity_fact}]
+        if "RETURN snapshot.data_version AS data_version" in query:
+            return [{"data_version": catalog.data_version}]
+        raise AssertionError(f"unexpected query: {query}")
+
+    driver = FakeDriver(responder)
+    facts = Neo4jKnowledgeRepository(driver).activity_restriction_facts_for(
+        {"medication-tyno-cold-tablet-cn"},
+        {"驾驶或操作机械"},
+    )
+
+    assert [fact.fact_id for fact in facts] == [activity_fact["fact_id"]]
+    query, parameters = next(
+        (query, parameters)
+        for query, parameters in driver.calls
+        if "predicate = 'ACTIVITY_RESTRICTION'" in query
+    )
+    assert "SafetyMedication {medication_id: medication_id}" in query
+    assert "[:OBJECT]->(object:SafetyContext)" in query
+    assert "[:APPLIES_IN]->(object)" in query
+    assert parameters["medication_ids"] == ["medication-tyno-cold-tablet-cn"]
 
 
 def test_neo4j_repository_returns_none_for_unknown_fact_provenance():

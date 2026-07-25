@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +18,17 @@ from neo4j import GraphDatabase
 
 from api import get_v1_fact_provenance
 from medsafety.catalog import KnowledgeCatalog
+from medsafety.contracts import (
+    ClinicalContextRecord,
+    ContextKind,
+    FactRecord,
+    KnowledgeEntityKind,
+    LabelStatus,
+    ReviewStatus,
+    RiskType,
+    Severity,
+    SourceRecord,
+)
 from medsafety.neo4j_query_plans import (
     collect_query_plan_evidence,
     collect_safety_index_evidence,
@@ -100,7 +112,8 @@ def _projection_counts(driver) -> dict[str, int]:
             "RETURN count(link) AS count"
         ),
         "subject_links": (
-            "MATCH (:SafetyFact)-[link:SUBJECT]->(:SafetyIngredient) "
+            "MATCH (:SafetyFact)-[link:SUBJECT]->(subject) "
+            "WHERE subject:SafetyIngredient OR subject:SafetyMedication "
             "RETURN count(link) AS count"
         ),
         "object_links": (
@@ -191,7 +204,7 @@ def test_real_neo4j_import_is_idempotent_and_matches_json_behavior(driver):
             request=request,
         )
     )
-    assert response["schema_version"] == "fact-provenance-v1"
+    assert response["schema_version"] == "fact-provenance-v2"
     assert response["fact"]["fact_id"] == "fact-duplicate-acetaminophen-001"
     assert response["snapshot"]["data_version"] == catalog.data_version
 
@@ -216,6 +229,103 @@ def test_real_neo4j_auditor_detects_a_dangling_fact(driver):
     assert report.orphan_facts == 1
 
 
+def _catalog_with_test_only_activity_restriction() -> KnowledgeCatalog:
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    source = SourceRecord(
+        source_id="source-test-product-label",
+        title="Test-only product label",
+        publisher="Test fixture",
+        url="https://example.invalid/test-product-label",
+        accessed_at=date(2026, 7, 25),
+        review_status=ReviewStatus.REVIEWED,
+        reviewed_by="test-fixture",
+        reviewed_at=datetime(2026, 7, 25, 12, 0),
+    )
+    activity = ClinicalContextRecord(
+        context_id="context-driving-or-machinery",
+        canonical_name="驾驶或操作机械",
+        kind=ContextKind.ACTIVITY,
+        aliases=["开车", "操作机械"],
+        description="测试夹具：用户明确询问驾驶或机械操作。",
+        review_status=ReviewStatus.REVIEWED,
+        reviewed_by="test-fixture",
+        reviewed_at=datetime(2026, 7, 25, 12, 0),
+        data_version=catalog.data_version,
+    )
+    fact = FactRecord(
+        fact_id="fact-test-tyno-activity-restriction",
+        subject="泰诺",
+        subject_kind=KnowledgeEntityKind.MEDICATION,
+        predicate="ACTIVITY_RESTRICTION",
+        object=activity.canonical_name,
+        object_kind=KnowledgeEntityKind.CONTEXT,
+        risk_type=RiskType.ACTIVITY_RESTRICTION,
+        severity=Severity.ORANGE,
+        severity_rationale="测试夹具分级，不是临床分级。",
+        reason="测试夹具：该产品存在活动限制。",
+        source_ids=[source.source_id],
+        source_locator="测试说明书注意事项",
+        review_status=ReviewStatus.REVIEWED,
+        label_status=LabelStatus.SOURCE_ALIGNED,
+        reviewed_by="test-fixture",
+        reviewed_at=datetime(2026, 7, 25, 12, 0),
+        data_version=catalog.data_version,
+        required_context=[activity.canonical_name],
+    )
+    return KnowledgeCatalog(
+        sources=[*catalog.sources.values(), source],
+        medications=list(catalog.medications.values()),
+        contexts=[*catalog.contexts.values(), activity],
+        facts=[*catalog.facts.values(), fact],
+    )
+
+
+def test_real_neo4j_product_subject_fact_matches_json_and_provenance(driver):
+    catalog = _catalog_with_test_only_activity_restriction()
+    Neo4jCatalogImporter(driver).import_catalog(catalog)
+    repository = Neo4jKnowledgeRepository(driver)
+
+    expected = SafetyEngine(catalog).assess(["泰诺"], contexts=["开车"])
+    actual = SafetyEngine(repository).assess(["泰诺"], contexts=["开车"])
+
+    assert actual.model_dump(mode="json") == expected.model_dump(mode="json")
+    assert actual.facts[0].fact_id == "fact-test-tyno-activity-restriction"
+
+    provenance = repository.fact_provenance(
+        "fact-test-tyno-activity-restriction"
+    )
+    assert provenance is not None
+    assert provenance.schema_version == "fact-provenance-v2"
+    assert provenance.subject.kind == KnowledgeEntityKind.MEDICATION
+    assert provenance.subject.identifier == "medication-tyno-cold-tablet-cn"
+    assert provenance.subject.name == "泰诺"
+    assert provenance.object.kind == KnowledgeEntityKind.CONTEXT
+    assert provenance.object.identifier == "context-driving-or-machinery"
+
+
+def test_real_neo4j_auditor_rejects_product_fact_linked_to_ingredient(driver):
+    catalog = _catalog_with_test_only_activity_restriction()
+    Neo4jCatalogImporter(driver).import_catalog(catalog)
+
+    with driver.session() as session:
+        session.run(
+            """
+            MATCH (fact:SafetyFact {fact_id: $fact_id})-[old:SUBJECT]->()
+            DELETE old
+            WITH fact
+            MATCH (ingredient:SafetyIngredient {name: $ingredient})
+            CREATE (fact)-[:SUBJECT]->(ingredient)
+            """,
+            fact_id="fact-test-tyno-activity-restriction",
+            ingredient="马来酸氯苯那敏",
+        ).consume()
+
+    report = Neo4jProjectionAuditor(driver).audit(catalog)
+
+    assert report.valid is False
+    assert report.subject_property_mismatches == 1
+
+
 def test_real_neo4j_query_plans_are_read_only_and_use_identity_indexes(driver):
     catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
     Neo4jCatalogImporter(driver).import_catalog(catalog)
@@ -232,6 +342,7 @@ def test_real_neo4j_query_plans_are_read_only_and_use_identity_indexes(driver):
         "duplicate_fact",
         "interaction_facts",
         "contraindication_facts",
+        "activity_restriction_facts",
         "fact_provenance",
     }
     assert all(plan.query_type == "r" for plan in plans.values())

@@ -36,3 +36,10 @@ class KnowledgeRepository(Protocol):
         contexts: set[str],
     ) -> list[FactRecord]:
         """Return reviewed contraindications for explicit, resolved contexts."""
+
+    def activity_restriction_facts_for(
+        self,
+        medication_ids: set[str],
+        contexts: set[str],
+    ) -> list[FactRecord]:
+        """Return product-level activity restrictions for explicit contexts."""

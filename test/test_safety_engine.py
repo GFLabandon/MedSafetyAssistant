@@ -1,10 +1,22 @@
 import json
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
 
 from medsafety.catalog import CatalogValidationError, KnowledgeCatalog
-from medsafety.contracts import ConclusionStatus, RiskType
+from medsafety.contracts import (
+    ClinicalContextRecord,
+    ConclusionStatus,
+    ContextKind,
+    FactRecord,
+    KnowledgeEntityKind,
+    LabelStatus,
+    ReviewStatus,
+    RiskType,
+    Severity,
+    SourceRecord,
+)
 from medsafety.safety_engine import SafetyEngine
 from medsafety.repositories import KnowledgeUnavailableError
 
@@ -133,6 +145,96 @@ def test_plain_asthma_does_not_expand_into_nsaid_reaction_history(engine):
     assert result.facts == []
     assert result.resolved_contexts == []
     assert result.unresolved_contexts == ["哮喘"]
+
+
+def _catalog_with_test_only_activity_restriction(catalog):
+    source = SourceRecord(
+        source_id="source-test-product-label",
+        title="Test-only product label",
+        publisher="Test fixture",
+        url="https://example.invalid/test-product-label",
+        accessed_at=date(2026, 7, 25),
+        review_status=ReviewStatus.REVIEWED,
+        reviewed_by="test-fixture",
+        reviewed_at=datetime(2026, 7, 25, 12, 0),
+    )
+    activity = ClinicalContextRecord(
+        context_id="context-driving-or-machinery",
+        canonical_name="驾驶或操作机械",
+        kind=ContextKind.ACTIVITY,
+        aliases=["开车", "操作机械"],
+        description="测试夹具：用户明确询问驾驶或机械操作。",
+        review_status=ReviewStatus.REVIEWED,
+        reviewed_by="test-fixture",
+        reviewed_at=datetime(2026, 7, 25, 12, 0),
+        data_version=catalog.data_version,
+    )
+    fact = FactRecord(
+        fact_id="fact-test-tyno-activity-restriction",
+        subject="泰诺",
+        subject_kind=KnowledgeEntityKind.MEDICATION,
+        predicate="ACTIVITY_RESTRICTION",
+        object=activity.canonical_name,
+        object_kind=KnowledgeEntityKind.CONTEXT,
+        risk_type=RiskType.ACTIVITY_RESTRICTION,
+        severity=Severity.ORANGE,
+        severity_rationale="测试夹具分级，不是临床分级。",
+        reason="测试夹具：该产品存在活动限制。",
+        source_ids=[source.source_id],
+        source_locator="测试说明书注意事项",
+        review_status=ReviewStatus.REVIEWED,
+        label_status=LabelStatus.SOURCE_ALIGNED,
+        reviewed_by="test-fixture",
+        reviewed_at=datetime(2026, 7, 25, 12, 0),
+        data_version=catalog.data_version,
+        required_context=[activity.canonical_name],
+    )
+    return KnowledgeCatalog(
+        sources=[*catalog.sources.values(), source],
+        medications=list(catalog.medications.values()),
+        contexts=[*catalog.contexts.values(), activity],
+        facts=[*catalog.facts.values(), fact],
+    )
+
+
+def test_product_activity_restriction_requires_explicit_activity_context(catalog):
+    activity_catalog = _catalog_with_test_only_activity_restriction(catalog)
+    activity_engine = SafetyEngine(activity_catalog)
+
+    result = activity_engine.assess(["泰诺"], contexts=["开车"])
+
+    assert result.conclusion_status == ConclusionStatus.RISK_FOUND
+    assert result.resolved_contexts == ["驾驶或操作机械"]
+    assert result.facts[0].fact_id == "fact-test-tyno-activity-restriction"
+    assert result.facts[0].risk_type == RiskType.ACTIVITY_RESTRICTION
+
+    no_context = activity_engine.assess(["泰诺"])
+    assert no_context.conclusion_status == ConclusionStatus.NO_KNOWN_RISK_IN_SCOPE
+
+
+def test_catalog_rejects_activity_restriction_on_substance_subject(catalog):
+    activity_catalog = _catalog_with_test_only_activity_restriction(catalog)
+    activity_fact = activity_catalog.facts[
+        "fact-test-tyno-activity-restriction"
+    ].model_copy(update={"subject": "对乙酰氨基酚"})
+
+    with pytest.raises(
+        CatalogValidationError,
+        match="product-subject facts require a product medication record",
+    ):
+        KnowledgeCatalog(
+            sources=list(activity_catalog.sources.values()),
+            medications=list(activity_catalog.medications.values()),
+            contexts=list(activity_catalog.contexts.values()),
+            facts=[
+                *(
+                    fact
+                    for fact_id, fact in activity_catalog.facts.items()
+                    if fact_id != activity_fact.fact_id
+                ),
+                activity_fact,
+            ],
+        )
 
 
 def test_catalog_rejects_unknown_source_reference(tmp_path):

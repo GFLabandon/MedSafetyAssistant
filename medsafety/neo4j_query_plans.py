@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from medsafety.neo4j_repository import (
+    _ACTIVITY_RESTRICTION_FACTS,
     _CONTRAINDICATION_FACTS,
     _DUPLICATE_FACT,
     _FACT_PROVENANCE,
@@ -96,6 +97,15 @@ def default_query_plan_cases() -> tuple[QueryPlanCase, ...]:
             parameters={
                 "ingredients": ["布洛芬"],
                 "contexts": ["服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"],
+                "snapshot_name": _SNAPSHOT_NAME,
+            },
+        ),
+        QueryPlanCase(
+            name="activity_restriction_facts",
+            query=_ACTIVITY_RESTRICTION_FACTS,
+            parameters={
+                "medication_ids": ["medication-tyno-cold-tablet-cn"],
+                "contexts": ["驾驶或操作机械"],
                 "snapshot_name": _SNAPSHOT_NAME,
             },
         ),

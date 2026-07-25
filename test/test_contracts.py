@@ -9,6 +9,7 @@ from medsafety.contracts import (
     ContextKind,
     EvidencePacket,
     FactRecord,
+    KnowledgeEntityKind,
     LabelStatus,
     ReviewStatus,
     RiskType,
@@ -71,6 +72,46 @@ def test_reviewed_fact_requires_sources_locator_and_reviewer():
         reviewed_at=datetime(2026, 7, 20, 12, 0),
     )
     assert fact.label_status == LabelStatus.SOURCE_ALIGNED
+    assert fact.subject_kind == KnowledgeEntityKind.INGREDIENT
+    assert fact.object_kind == KnowledgeEntityKind.CONTEXT
+
+
+def test_activity_restriction_requires_product_to_context_shape():
+    fact = FactRecord(
+        fact_id="fact-activity-1",
+        subject="测试产品",
+        subject_kind=KnowledgeEntityKind.MEDICATION,
+        predicate="ACTIVITY_RESTRICTION",
+        object="驾驶或操作机械",
+        object_kind=KnowledgeEntityKind.CONTEXT,
+        risk_type=RiskType.ACTIVITY_RESTRICTION,
+        severity=Severity.ORANGE,
+        severity_rationale="测试分级策略",
+        reason="测试原因",
+        source_ids=["source-1"],
+        source_locator="测试说明书注意事项",
+        data_version="v1",
+        required_context=["驾驶或操作机械"],
+    )
+
+    assert fact.subject_kind == KnowledgeEntityKind.MEDICATION
+    assert fact.object_kind == KnowledgeEntityKind.CONTEXT
+
+    with pytest.raises(ValidationError, match="incompatible endpoint kinds"):
+        FactRecord(
+            **{
+                **fact.model_dump(),
+                "subject_kind": KnowledgeEntityKind.INGREDIENT,
+            }
+        )
+
+    with pytest.raises(ValidationError, match="incompatible risk type"):
+        FactRecord(
+            **{
+                **fact.model_dump(),
+                "risk_type": RiskType.CONTRAINDICATION,
+            }
+        )
 
 
 def test_reviewed_context_requires_review_metadata():

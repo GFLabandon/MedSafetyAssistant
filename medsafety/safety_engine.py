@@ -10,6 +10,7 @@ from medsafety.contracts import (
     EvidenceFact,
     EvidencePacket,
     FactRecord,
+    MedicationKind,
     MedicationRecord,
 )
 from medsafety.repositories import KnowledgeRepository, KnowledgeUnavailableError
@@ -100,6 +101,29 @@ class SafetyEngine:
                 owners = ingredient_owners.get(fact.subject, [])
                 if owners:
                     evidence_by_fact_id[fact.fact_id] = self._to_evidence(fact, owners)
+            products_by_id = {
+                medication.medication_id: medication
+                for medication in resolved
+                if medication.kind == MedicationKind.PRODUCT
+            }
+            if products_by_id:
+                for fact in self.repository.activity_restriction_facts_for(
+                    set(products_by_id),
+                    context_set,
+                ):
+                    owner = next(
+                        (
+                            medication
+                            for medication in products_by_id.values()
+                            if medication.canonical_name == fact.subject
+                        ),
+                        None,
+                    )
+                    if owner is not None:
+                        evidence_by_fact_id[fact.fact_id] = self._to_evidence(
+                            fact,
+                            [owner],
+                        )
 
         for left, right in combinations(resolved, 2):
             for fact in self.repository.interaction_facts_for(

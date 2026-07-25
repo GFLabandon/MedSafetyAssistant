@@ -80,7 +80,8 @@ python scripts/import_v1_to_neo4j.py --audit-only
   `SafetyContextAlias`，`normalized_name` 唯一约束负责快速、无歧义解析；
 - 导入完整性检查同时验证别名节点、`KNOWN_AS` 边、数据版本和 JSON 属性集合；
 - `GET /api/v1/knowledge/facts/{fact_id}` 沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
-  `SUPPORTED_BY` 和 `BELONGS_TO` 返回严格 `fact-provenance-v1`；
+  `SUPPORTED_BY` 和 `BELONGS_TO` 返回严格事实溯源契约；第二批对应
+  `fact-provenance-v1`；
 - 接口只读取 Neo4j，不用 JSON 静默掩盖投影故障；未配置/损坏返回 503，未知事实返回
   404；
 - `scripts/profile_neo4j_queries.py` 只注册六条只读查询，保存查询类型、算子、索引、
@@ -90,7 +91,23 @@ python scripts/import_v1_to_neo4j.py --audit-only
 [`neo4j-query-plan-v1.json`](../reports/neo4j-query-plan-v1.json)，阶段报告见
 [`p2-query-and-provenance-acceptance.md`](../reports/p2-query-and-provenance-acceptance.md)。
 
-## 7. 后续内容扩充门
+## 7. 第三批：产品主体与活动限制
+
+第三批在不修改 alpha.3 正式数据的前提下扩展事实端点：
+
+- `FactRecord` 显式区分 `subject_kind` 与 `object_kind`，旧事实按 predicate 确定性补齐；
+- `ACTIVITY_RESTRICTION` 只允许 `Medication(product) → Context(activity)`；
+- Neo4j 的 `SUBJECT` 同时允许 `SafetyIngredient` 和 `SafetyMedication`，完整性审计会
+  验证端点标签、事实类型属性与名称一致；
+- Safety Engine 只在活动上下文被显式解析时，按稳定 `medication_id` 查询产品限制；
+- 事实溯源升级为 `fact-provenance-v2`，Medication 主体返回稳定 medication ID；
+- 查询计划注册表增加产品活动限制查询。
+
+完整迁移与停止条件见
+[`P2_PRODUCT_FACT_MODEL.md`](P2_PRODUCT_FACT_MODEL.md)。本批的产品限制只存在于测试
+夹具；正式泰诺事实必须通过后续独立数据版本进入。
+
+## 8. 后续内容扩充门
 
 后续批次扩充药品和事实时，目标不是追求节点数量，而是增加有明确 URL、版本、章节定位、
 访问日期和审核记录的场景。没有精确来源定位的医学主张不得进入正式 V1；达到小型、

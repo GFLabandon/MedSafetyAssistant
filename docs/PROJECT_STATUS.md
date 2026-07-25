@@ -1,14 +1,29 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-25
-当前阶段：P2——alpha.3 来源对齐
-状态：P2 工程 PR #3 已验收；alpha.3 本地与隔离 Neo4j 验收通过
+当前阶段：P2——产品级事实模型
+状态：alpha.3 Draft PR #4 全绿；产品级事实模型本地与隔离 Neo4j 验收通过
 
 ## 当前目标
 
 把 Neo4j 从事实属性投影升级为可沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
 `SUPPORTED_BY` 和 `BELONGS_TO` 遍历的事实节点图，并在导入提交前自动检查完整性。
-P2 当前两批均不改变医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+P2 当前工程批不改变正式医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P2 产品级事实模型
+
+- [x] `FactRecord` 增加向后兼容的 `subject_kind/object_kind`；
+- [x] 新增 `Medication(product) → Context(activity)` 的 `ACTIVITY_RESTRICTION` 形状；
+- [x] catalog 拒绝 substance 主体、未知端点和 predicate/risk/端点类型不一致；
+- [x] JSON 与 Neo4j Repository 均按稳定 medication ID 查询产品活动限制；
+- [x] `fact-provenance-v2` 可返回 Medication 主体的 ID、规范名和完整来源链；
+- [x] 完整性审计可识别产品事实被错误连接到 Ingredient 的损坏；
+- [x] 隔离 Neo4j 5.26.28 的 5 项真实集成测试通过；
+- [x] alpha.3 的 JSON、校验和、3 条正式事实和 13 条开发集保持不变；
+- [ ] 生成绑定提交的七条查询 PROFILE 证据并推送独立 stacked Draft PR。
+
+规格见 [`P2_PRODUCT_FACT_MODEL.md`](P2_PRODUCT_FACT_MODEL.md)。本批测试夹具不进入
+`data/v1/`；泰诺正式活动限制仍需独立数据版本。
 
 ## P2 alpha.3 来源对齐
 
@@ -21,7 +36,7 @@ P2 当前两批均不改变医学事实、不扩展 Agent，也不让 LLM 负责
 - [x] 因当前事实主体只能是 Ingredient，产品级警示暂不写成成分禁忌，也不外推到感康；
 - [x] 在隔离 Neo4j 5.26.28 上复核 alpha.3 导入、别名索引和 JSON 等价；
 - [x] 生成绑定 alpha.3 数据提交的 PROFILE 证据，六条只读查询均命中索引；
-- [ ] 推送独立 stacked Draft PR。
+- [x] 推送独立 stacked Draft PR #4，Quality Gate 全绿。
 
 来源决定见
 [`p2-source-alignment-alpha3.md`](../reports/p2-source-alignment-alpha3.md)，数据冻结边界见

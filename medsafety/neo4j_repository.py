@@ -129,6 +129,12 @@ MATCH (ingredient:SafetyIngredient {name: $ingredient})
 MERGE (fact)-[:SUBJECT]->(ingredient)
 """
 
+_LINK_FACT_SUBJECT_MEDICATION = """
+MATCH (fact:SafetyFact {fact_id: $fact_id})
+MATCH (medication:SafetyMedication {medication_id: $medication_id})
+MERGE (fact)-[:SUBJECT]->(medication)
+"""
+
 _LINK_FACT_OBJECT_INGREDIENT = """
 MATCH (fact:SafetyFact {fact_id: $fact_id})
 MATCH (ingredient:SafetyIngredient {name: $ingredient})
@@ -211,6 +217,23 @@ RETURN properties(fact) AS fact
 ORDER BY fact.fact_id
 """
 
+_ACTIVITY_RESTRICTION_FACTS = """
+UNWIND $medication_ids AS medication_id
+MATCH (subject:SafetyMedication {medication_id: medication_id})<-[:SUBJECT]-(
+  fact:SafetyFact
+)
+MATCH (fact)-[:OBJECT]->(object:SafetyContext)
+MATCH (fact)-[:APPLIES_IN]->(object)
+MATCH (fact)-[:BELONGS_TO]->(snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name})
+WHERE fact.review_status = 'reviewed'
+  AND fact.label_status IN ['source_aligned', 'clinically_reviewed']
+  AND fact.predicate = 'ACTIVITY_RESTRICTION'
+  AND object.canonical_name IN $contexts
+  AND fact.data_version = snapshot.data_version
+RETURN properties(fact) AS fact
+ORDER BY fact.fact_id
+"""
+
 _DATA_VERSION = """
 MATCH (snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name})
 RETURN snapshot.data_version AS data_version
@@ -218,7 +241,7 @@ RETURN snapshot.data_version AS data_version
 
 _FACT_PROVENANCE = """
 MATCH (fact:SafetyFact {fact_id: $fact_id})
-MATCH (fact)-[:SUBJECT]->(subject:SafetyIngredient)
+MATCH (fact)-[:SUBJECT]->(subject)
 MATCH (fact)-[:OBJECT]->(object)
 MATCH (fact)-[:BELONGS_TO]->(
   snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name}
@@ -231,7 +254,21 @@ WITH fact, subject, object, snapshot,
      collect(DISTINCT properties(context)) AS contexts
 MATCH (fact)-[:SUPPORTED_BY]->(source:SafetySource)
 RETURN properties(fact) AS fact,
-       subject.name AS subject_name,
+       CASE
+         WHEN subject:SafetyIngredient THEN 'ingredient'
+         WHEN subject:SafetyMedication THEN 'medication'
+         ELSE 'unsupported'
+       END AS subject_kind,
+       CASE
+         WHEN subject:SafetyIngredient THEN subject.name
+         WHEN subject:SafetyMedication THEN subject.medication_id
+         ELSE ''
+       END AS subject_identifier,
+       CASE
+         WHEN subject:SafetyIngredient THEN subject.name
+         WHEN subject:SafetyMedication THEN subject.canonical_name
+         ELSE ''
+       END AS subject_name,
        CASE
          WHEN object:SafetyIngredient THEN 'ingredient'
          WHEN object:SafetyContext THEN 'context'
@@ -280,7 +317,8 @@ CALL () {
   RETURN count(link) AS support_links
 }
 CALL () {
-  MATCH (:SafetyFact)-[link:SUBJECT]->(:SafetyIngredient)
+  MATCH (:SafetyFact)-[link:SUBJECT]->(subject)
+  WHERE subject:SafetyIngredient OR subject:SafetyMedication
   RETURN count(link) AS subject_links
 }
 CALL () {
@@ -316,15 +354,31 @@ CALL () {
 }
 CALL () {
   MATCH (fact:SafetyFact)
-  WHERE NOT EXISTS { MATCH (fact)-[:SUBJECT]->(:SafetyIngredient) }
+  WHERE NOT EXISTS {
+    MATCH (fact)-[:SUBJECT]->(subject)
+    WHERE subject:SafetyIngredient OR subject:SafetyMedication
+  }
      OR NOT EXISTS { MATCH (fact)-[:OBJECT]->() }
      OR NOT EXISTS { MATCH (fact)-[:SUPPORTED_BY]->(:SafetySource) }
      OR NOT EXISTS { MATCH (fact)-[:BELONGS_TO]->(:SafetyKnowledgeSnapshot) }
   RETURN count(fact) AS orphan_facts
 }
 CALL () {
-  MATCH (fact:SafetyFact)-[:SUBJECT]->(subject:SafetyIngredient)
-  WHERE fact.subject <> subject.name
+  MATCH (fact:SafetyFact)-[:SUBJECT]->(subject)
+  WITH fact,
+       CASE
+         WHEN subject:SafetyIngredient THEN subject.name
+         WHEN subject:SafetyMedication THEN subject.canonical_name
+         ELSE null
+       END AS subject_name,
+       CASE
+         WHEN subject:SafetyIngredient THEN 'ingredient'
+         WHEN subject:SafetyMedication THEN 'medication'
+         ELSE null
+       END AS subject_kind
+  WHERE subject_name IS NULL
+     OR fact.subject <> subject_name
+     OR fact.subject_kind <> subject_kind
   RETURN count(fact) AS subject_property_mismatches
 }
 CALL () {
@@ -334,8 +388,15 @@ CALL () {
          WHEN object:SafetyIngredient THEN object.name
          WHEN object:SafetyContext THEN object.canonical_name
          ELSE null
-       END AS object_name
-  WHERE object_name IS NULL OR fact.object <> object_name
+       END AS object_name,
+       CASE
+         WHEN object:SafetyIngredient THEN 'ingredient'
+         WHEN object:SafetyContext THEN 'context'
+         ELSE null
+       END AS object_kind
+  WHERE object_name IS NULL
+     OR fact.object <> object_name
+     OR fact.object_kind <> object_kind
   RETURN count(fact) AS object_property_mismatches
 }
 CALL () {
@@ -718,6 +779,10 @@ class Neo4jCatalogImporter:
         context_ids_by_name = {
             context.canonical_name: context.context_id for context in catalog.contexts.values()
         }
+        medication_ids_by_name = {
+            medication.canonical_name: medication.medication_id
+            for medication in catalog.medications.values()
+        }
         for fact in catalog.facts.values():
             transaction.run(
                 _UPSERT_FACT,
@@ -730,12 +795,19 @@ class Neo4jCatalogImporter:
                     fact_id=fact.fact_id,
                     source_id=source_id,
                 )
-            transaction.run(
-                _LINK_FACT_SUBJECT,
-                fact_id=fact.fact_id,
-                ingredient=fact.subject,
-            )
-            if fact.predicate == "CONTRAINDICATED_IN":
+            if fact.subject_kind == KnowledgeEntityKind.MEDICATION:
+                transaction.run(
+                    _LINK_FACT_SUBJECT_MEDICATION,
+                    fact_id=fact.fact_id,
+                    medication_id=medication_ids_by_name[fact.subject],
+                )
+            else:
+                transaction.run(
+                    _LINK_FACT_SUBJECT,
+                    fact_id=fact.fact_id,
+                    ingredient=fact.subject,
+                )
+            if fact.object_kind == KnowledgeEntityKind.CONTEXT:
                 transaction.run(
                     _LINK_FACT_OBJECT_CONTEXT,
                     fact_id=fact.fact_id,
@@ -860,6 +932,22 @@ class Neo4jKnowledgeRepository:
             self._require_current_version(fact.data_version)
         return facts
 
+    def activity_restriction_facts_for(
+        self,
+        medication_ids: set[str],
+        contexts: set[str],
+    ) -> list[FactRecord]:
+        records = self._all(
+            _ACTIVITY_RESTRICTION_FACTS,
+            medication_ids=sorted(medication_ids),
+            contexts=sorted(contexts),
+            snapshot_name=_SNAPSHOT_NAME,
+        )
+        facts = [self._validate_record(FactRecord, record, "fact") for record in records]
+        for fact in facts:
+            self._require_current_version(fact.data_version)
+        return facts
+
     def fact_provenance(self, fact_id: str) -> FactProvenance | None:
         record = self._single(
             _FACT_PROVENANCE,
@@ -885,8 +973,8 @@ class Neo4jKnowledgeRepository:
             provenance = FactProvenance(
                 fact=fact,
                 subject=KnowledgeEntityReference(
-                    kind=KnowledgeEntityKind.INGREDIENT,
-                    identifier=record["subject_name"],
+                    kind=KnowledgeEntityKind(record["subject_kind"]),
+                    identifier=record["subject_identifier"],
                     name=record["subject_name"],
                 ),
                 object=KnowledgeEntityReference(
