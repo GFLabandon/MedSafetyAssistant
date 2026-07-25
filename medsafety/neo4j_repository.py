@@ -15,7 +15,16 @@ from neo4j.exceptions import DriverError, Neo4jError
 from pydantic import ValidationError
 
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.contracts import ClinicalContextRecord, FactRecord, MedicationRecord
+from medsafety.contracts import (
+    ClinicalContextRecord,
+    FactProvenance,
+    FactRecord,
+    KnowledgeEntityKind,
+    KnowledgeEntityReference,
+    KnowledgeSnapshotReference,
+    MedicationRecord,
+    SourceRecord,
+)
 from medsafety.repositories import KnowledgeUnavailableError
 
 
@@ -26,10 +35,14 @@ _CONSTRAINT_QUERIES = (
     "FOR (source:SafetySource) REQUIRE source.source_id IS UNIQUE",
     "CREATE CONSTRAINT safety_medication_id IF NOT EXISTS "
     "FOR (medication:SafetyMedication) REQUIRE medication.medication_id IS UNIQUE",
+    "CREATE CONSTRAINT safety_medication_alias_normalized IF NOT EXISTS "
+    "FOR (alias:SafetyMedicationAlias) REQUIRE alias.normalized_name IS UNIQUE",
     "CREATE CONSTRAINT safety_ingredient_name IF NOT EXISTS "
     "FOR (ingredient:SafetyIngredient) REQUIRE ingredient.name IS UNIQUE",
     "CREATE CONSTRAINT safety_context_id IF NOT EXISTS "
     "FOR (context:SafetyContext) REQUIRE context.context_id IS UNIQUE",
+    "CREATE CONSTRAINT safety_context_alias_normalized IF NOT EXISTS "
+    "FOR (alias:SafetyContextAlias) REQUIRE alias.normalized_name IS UNIQUE",
     "CREATE CONSTRAINT safety_fact_id IF NOT EXISTS "
     "FOR (fact:SafetyFact) REQUIRE fact.fact_id IS UNIQUE",
     "CREATE CONSTRAINT safety_snapshot_name IF NOT EXISTS "
@@ -75,6 +88,24 @@ MATCH (source:SafetySource {source_id: $source_id})
 MERGE (medication)-[:SUPPORTED_BY]->(source)
 """
 
+_LINK_MEDICATION_ALIAS = """
+MATCH (medication:SafetyMedication {medication_id: $medication_id})
+MERGE (alias:SafetyMedicationAlias {normalized_name: $normalized_name})
+SET alias.display_name = $display_name,
+    alias.alias_type = $alias_type,
+    alias.data_version = $data_version
+MERGE (medication)-[:KNOWN_AS]->(alias)
+"""
+
+_LINK_CONTEXT_ALIAS = """
+MATCH (context:SafetyContext {context_id: $context_id})
+MERGE (alias:SafetyContextAlias {normalized_name: $normalized_name})
+SET alias.display_name = $display_name,
+    alias.alias_type = $alias_type,
+    alias.data_version = $data_version
+MERGE (context)-[:KNOWN_AS]->(alias)
+"""
+
 _UPSERT_FACT = """
 MERGE (fact:SafetyFact {fact_id: $fact_id})
 SET fact += $properties
@@ -117,24 +148,20 @@ MERGE (fact)-[:BELONGS_TO]->(snapshot)
 """
 
 _RESOLVE_MEDICATION = """
-MATCH (medication:SafetyMedication)
+MATCH (medication:SafetyMedication)-[:KNOWN_AS]->(
+  alias:SafetyMedicationAlias {normalized_name: $normalized_name}
+)
 WHERE medication.review_status = 'reviewed'
   AND medication.label_status IN ['source_aligned', 'clinically_reviewed']
-  AND (
-    medication.canonical_name_normalized = $normalized_name
-    OR $normalized_name IN medication.aliases_normalized
-  )
 RETURN properties(medication) AS medication
 LIMIT 1
 """
 
 _RESOLVE_CONTEXT = """
-MATCH (context:SafetyContext)
+MATCH (context:SafetyContext)-[:KNOWN_AS]->(
+  alias:SafetyContextAlias {normalized_name: $normalized_name}
+)
 WHERE context.review_status = 'reviewed'
-  AND (
-    context.canonical_name_normalized = $normalized_name
-    OR $normalized_name IN context.aliases_normalized
-  )
 RETURN properties(context) AS context
 LIMIT 1
 """
@@ -189,52 +216,105 @@ MATCH (snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name})
 RETURN snapshot.data_version AS data_version
 """
 
+_FACT_PROVENANCE = """
+MATCH (fact:SafetyFact {fact_id: $fact_id})
+MATCH (fact)-[:SUBJECT]->(subject:SafetyIngredient)
+MATCH (fact)-[:OBJECT]->(object)
+MATCH (fact)-[:BELONGS_TO]->(
+  snapshot:SafetyKnowledgeSnapshot {name: $snapshot_name}
+)
+WHERE fact.review_status = 'reviewed'
+  AND fact.label_status IN ['source_aligned', 'clinically_reviewed']
+  AND fact.data_version = snapshot.data_version
+OPTIONAL MATCH (fact)-[:APPLIES_IN]->(context:SafetyContext)
+WITH fact, subject, object, snapshot,
+     collect(DISTINCT properties(context)) AS contexts
+MATCH (fact)-[:SUPPORTED_BY]->(source:SafetySource)
+RETURN properties(fact) AS fact,
+       subject.name AS subject_name,
+       CASE
+         WHEN object:SafetyIngredient THEN 'ingredient'
+         WHEN object:SafetyContext THEN 'context'
+         ELSE 'unsupported'
+       END AS object_kind,
+       CASE
+         WHEN object:SafetyIngredient THEN object.name
+         WHEN object:SafetyContext THEN object.context_id
+         ELSE ''
+       END AS object_identifier,
+       CASE
+         WHEN object:SafetyIngredient THEN object.name
+         WHEN object:SafetyContext THEN object.canonical_name
+         ELSE ''
+       END AS object_name,
+       contexts,
+       collect(DISTINCT properties(source)) AS sources,
+       snapshot.name AS snapshot_name,
+       snapshot.data_version AS snapshot_data_version
+"""
+
 _PROJECTION_INTEGRITY = """
-CALL { MATCH (node:SafetySource) RETURN count(node) AS sources }
-CALL { MATCH (node:SafetyMedication) RETURN count(node) AS medications }
-CALL { MATCH (node:SafetyIngredient) RETURN count(node) AS ingredients }
-CALL { MATCH (node:SafetyContext) RETURN count(node) AS contexts }
-CALL { MATCH (node:SafetyFact) RETURN count(node) AS facts }
-CALL { MATCH (node:SafetyKnowledgeSnapshot) RETURN count(node) AS snapshots }
-CALL {
+CALL () { MATCH (node:SafetySource) RETURN count(node) AS sources }
+CALL () { MATCH (node:SafetyMedication) RETURN count(node) AS medications }
+CALL () { MATCH (node:SafetyMedicationAlias) RETURN count(node) AS medication_aliases }
+CALL () { MATCH (node:SafetyIngredient) RETURN count(node) AS ingredients }
+CALL () { MATCH (node:SafetyContext) RETURN count(node) AS contexts }
+CALL () { MATCH (node:SafetyContextAlias) RETURN count(node) AS context_aliases }
+CALL () { MATCH (node:SafetyFact) RETURN count(node) AS facts }
+CALL () { MATCH (node:SafetyKnowledgeSnapshot) RETURN count(node) AS snapshots }
+CALL () {
   MATCH (:SafetyMedication)-[link:HAS_ACTIVE_INGREDIENT]->(:SafetyIngredient)
   RETURN count(link) AS ingredient_links
 }
-CALL {
+CALL () {
+  MATCH (:SafetyMedication)-[link:KNOWN_AS]->(:SafetyMedicationAlias)
+  RETURN count(link) AS medication_alias_links
+}
+CALL () {
+  MATCH (:SafetyContext)-[link:KNOWN_AS]->(:SafetyContextAlias)
+  RETURN count(link) AS context_alias_links
+}
+CALL () {
   MATCH (subject)-[link:SUPPORTED_BY]->(:SafetySource)
   WHERE subject:SafetyMedication OR subject:SafetyFact
   RETURN count(link) AS support_links
 }
-CALL {
+CALL () {
   MATCH (:SafetyFact)-[link:SUBJECT]->(:SafetyIngredient)
   RETURN count(link) AS subject_links
 }
-CALL {
+CALL () {
   MATCH (:SafetyFact)-[link:OBJECT]->(target)
   WHERE target:SafetyIngredient OR target:SafetyContext
   RETURN count(link) AS object_links
 }
-CALL {
+CALL () {
   MATCH (:SafetyFact)-[link:APPLIES_IN]->(:SafetyContext)
   RETURN count(link) AS context_links
 }
-CALL {
+CALL () {
   MATCH (:SafetyFact)-[link:BELONGS_TO]->(:SafetyKnowledgeSnapshot)
   RETURN count(link) AS snapshot_links
 }
-CALL {
+CALL () {
   MATCH (node)
-  WHERE (node:SafetyMedication OR node:SafetyContext OR node:SafetyFact)
+  WHERE (
+    node:SafetyMedication
+    OR node:SafetyMedicationAlias
+    OR node:SafetyContext
+    OR node:SafetyContextAlias
+    OR node:SafetyFact
+  )
     AND coalesce(node.data_version, '') <> $data_version
   RETURN count(node) AS mixed_version_nodes
 }
-CALL {
+CALL () {
   MATCH (snapshot:SafetyKnowledgeSnapshot)
   WHERE snapshot.name <> $snapshot_name
      OR coalesce(snapshot.data_version, '') <> $data_version
   RETURN count(snapshot) AS invalid_snapshots
 }
-CALL {
+CALL () {
   MATCH (fact:SafetyFact)
   WHERE NOT EXISTS { MATCH (fact)-[:SUBJECT]->(:SafetyIngredient) }
      OR NOT EXISTS { MATCH (fact)-[:OBJECT]->() }
@@ -242,12 +322,12 @@ CALL {
      OR NOT EXISTS { MATCH (fact)-[:BELONGS_TO]->(:SafetyKnowledgeSnapshot) }
   RETURN count(fact) AS orphan_facts
 }
-CALL {
+CALL () {
   MATCH (fact:SafetyFact)-[:SUBJECT]->(subject:SafetyIngredient)
   WHERE fact.subject <> subject.name
   RETURN count(fact) AS subject_property_mismatches
 }
-CALL {
+CALL () {
   MATCH (fact:SafetyFact)-[:OBJECT]->(object)
   WITH fact,
        CASE
@@ -258,7 +338,7 @@ CALL {
   WHERE object_name IS NULL OR fact.object <> object_name
   RETURN count(fact) AS object_property_mismatches
 }
-CALL {
+CALL () {
   MATCH (medication:SafetyMedication)
   OPTIONAL MATCH (medication)-[:HAS_ACTIVE_INGREDIENT]->(ingredient:SafetyIngredient)
   WITH medication, collect(ingredient.name) AS linked_ingredients
@@ -266,7 +346,7 @@ CALL {
      OR any(value IN medication.active_ingredients WHERE NOT value IN linked_ingredients)
   RETURN count(medication) AS medication_ingredient_mismatches
 }
-CALL {
+CALL () {
   MATCH (subject)
   WHERE subject:SafetyMedication OR subject:SafetyFact
   OPTIONAL MATCH (subject)-[:SUPPORTED_BY]->(source:SafetySource)
@@ -275,7 +355,7 @@ CALL {
      OR any(value IN subject.source_ids WHERE NOT value IN linked_sources)
   RETURN count(subject) AS support_reference_mismatches
 }
-CALL {
+CALL () {
   MATCH (fact:SafetyFact)
   OPTIONAL MATCH (fact)-[:APPLIES_IN]->(context:SafetyContext)
   WITH fact, collect(context.canonical_name) AS linked_contexts
@@ -283,12 +363,37 @@ CALL {
      OR any(value IN fact.required_context WHERE NOT value IN linked_contexts)
   RETURN count(fact) AS context_reference_mismatches
 }
-RETURN sources, medications, ingredients, contexts, facts, snapshots,
-       ingredient_links, support_links, subject_links, object_links,
+CALL () {
+  MATCH (medication:SafetyMedication)
+  OPTIONAL MATCH (medication)-[:KNOWN_AS]->(alias:SafetyMedicationAlias)
+  WITH medication, collect(alias.normalized_name) AS linked_aliases
+  WITH medication, linked_aliases,
+       [medication.canonical_name_normalized] + medication.aliases_normalized
+       AS expected_aliases
+  WHERE size(expected_aliases) <> size(linked_aliases)
+     OR any(value IN expected_aliases WHERE NOT value IN linked_aliases)
+  RETURN count(medication) AS medication_alias_mismatches
+}
+CALL () {
+  MATCH (context:SafetyContext)
+  OPTIONAL MATCH (context)-[:KNOWN_AS]->(alias:SafetyContextAlias)
+  WITH context, collect(alias.normalized_name) AS linked_aliases
+  WITH context, linked_aliases,
+       [context.canonical_name_normalized] + context.aliases_normalized
+       AS expected_aliases
+  WHERE size(expected_aliases) <> size(linked_aliases)
+     OR any(value IN expected_aliases WHERE NOT value IN linked_aliases)
+  RETURN count(context) AS context_alias_mismatches
+}
+RETURN sources, medications, medication_aliases, ingredients, contexts,
+       context_aliases, facts, snapshots, ingredient_links,
+       medication_alias_links, context_alias_links, support_links,
+       subject_links, object_links,
        context_links, snapshot_links, mixed_version_nodes, orphan_facts,
        invalid_snapshots, subject_property_mismatches, object_property_mismatches,
        medication_ingredient_mismatches, support_reference_mismatches,
-       context_reference_mismatches
+       context_reference_mismatches, medication_alias_mismatches,
+       context_alias_mismatches
 """
 
 
@@ -296,11 +401,15 @@ RETURN sources, medications, ingredients, contexts, facts, snapshots,
 class ProjectionCounts:
     sources: int
     medications: int
+    medication_aliases: int
     ingredients: int
     contexts: int
+    context_aliases: int
     facts: int
     snapshots: int
     ingredient_links: int
+    medication_alias_links: int
+    context_alias_links: int
     support_links: int
     subject_links: int
     object_links: int
@@ -320,6 +429,8 @@ class ProjectionIntegrityReport:
     medication_ingredient_mismatches: int
     support_reference_mismatches: int
     context_reference_mismatches: int
+    medication_alias_mismatches: int
+    context_alias_mismatches: int
 
     @property
     def issues(self) -> tuple[str, ...]:
@@ -342,6 +453,10 @@ class ProjectionIntegrityReport:
             issues.append("source references disagree with SUPPORTED_BY relationships")
         if self.context_reference_mismatches:
             issues.append("required contexts disagree with APPLIES_IN relationships")
+        if self.medication_alias_mismatches:
+            issues.append("medication aliases disagree with KNOWN_AS relationships")
+        if self.context_alias_mismatches:
+            issues.append("context aliases disagree with KNOWN_AS relationships")
         return tuple(issues)
 
     @property
@@ -358,11 +473,15 @@ class ImportSummary:
     data_version: str
     sources: int
     medications: int
+    medication_aliases: int
     ingredients: int
     contexts: int
+    context_aliases: int
     facts: int
     snapshots: int
     ingredient_links: int
+    medication_alias_links: int
+    context_alias_links: int
     support_links: int
     subject_links: int
     object_links: int
@@ -383,6 +502,24 @@ def _contract_properties(model_type: Any, values: dict[str, Any]) -> dict[str, A
     return {name: values[name] for name in model_type.model_fields if name in values}
 
 
+def _normalized_alias_records(
+    canonical_name: str,
+    aliases: list[str],
+) -> list[tuple[str, str, str]]:
+    records: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for display_name, alias_type in [
+        (canonical_name, "canonical"),
+        *((alias, "alias") for alias in aliases),
+    ]:
+        normalized_name = KnowledgeCatalog.normalize_alias(display_name)
+        if normalized_name in seen:
+            continue
+        seen.add(normalized_name)
+        records.append((normalized_name, display_name, alias_type))
+    return records
+
+
 def _expected_projection_counts(catalog: KnowledgeCatalog) -> ProjectionCounts:
     ingredients = {
         ingredient
@@ -392,12 +529,48 @@ def _expected_projection_counts(catalog: KnowledgeCatalog) -> ProjectionCounts:
     return ProjectionCounts(
         sources=len(catalog.sources),
         medications=len(catalog.medications),
+        medication_aliases=sum(
+            len(
+                {
+                    KnowledgeCatalog.normalize_alias(value)
+                    for value in [medication.canonical_name, *medication.aliases]
+                }
+            )
+            for medication in catalog.medications.values()
+        ),
         ingredients=len(ingredients),
         contexts=len(catalog.contexts),
+        context_aliases=sum(
+            len(
+                {
+                    KnowledgeCatalog.normalize_alias(value)
+                    for value in [context.canonical_name, *context.aliases]
+                }
+            )
+            for context in catalog.contexts.values()
+        ),
         facts=len(catalog.facts),
         snapshots=1,
         ingredient_links=sum(
             len(medication.active_ingredients) for medication in catalog.medications.values()
+        ),
+        medication_alias_links=sum(
+            len(
+                {
+                    KnowledgeCatalog.normalize_alias(value)
+                    for value in [medication.canonical_name, *medication.aliases]
+                }
+            )
+            for medication in catalog.medications.values()
+        ),
+        context_alias_links=sum(
+            len(
+                {
+                    KnowledgeCatalog.normalize_alias(value)
+                    for value in [context.canonical_name, *context.aliases]
+                }
+            )
+            for context in catalog.contexts.values()
         ),
         support_links=(
             sum(len(medication.source_ids) for medication in catalog.medications.values())
@@ -441,6 +614,8 @@ def _projection_integrity_report(
         medication_ingredient_mismatches=int(values["medication_ingredient_mismatches"]),
         support_reference_mismatches=int(values["support_reference_mismatches"]),
         context_reference_mismatches=int(values["context_reference_mismatches"]),
+        medication_alias_mismatches=int(values["medication_alias_mismatches"]),
+        context_alias_mismatches=int(values["context_alias_mismatches"]),
     )
 
 
@@ -489,6 +664,18 @@ class Neo4jCatalogImporter:
                 context_id=context.context_id,
                 properties=properties,
             )
+            for normalized_name, display_name, alias_type in _normalized_alias_records(
+                context.canonical_name,
+                context.aliases,
+            ):
+                transaction.run(
+                    _LINK_CONTEXT_ALIAS,
+                    context_id=context.context_id,
+                    normalized_name=normalized_name,
+                    display_name=display_name,
+                    alias_type=alias_type,
+                    data_version=context.data_version,
+                )
 
         for medication in catalog.medications.values():
             properties = _json_properties(medication)
@@ -503,6 +690,18 @@ class Neo4jCatalogImporter:
                 medication_id=medication.medication_id,
                 properties=properties,
             )
+            for normalized_name, display_name, alias_type in _normalized_alias_records(
+                medication.canonical_name,
+                medication.aliases,
+            ):
+                transaction.run(
+                    _LINK_MEDICATION_ALIAS,
+                    medication_id=medication.medication_id,
+                    normalized_name=normalized_name,
+                    display_name=display_name,
+                    alias_type=alias_type,
+                    data_version=medication.data_version,
+                )
             for ingredient in medication.active_ingredients:
                 transaction.run(
                     _LINK_MEDICATION_INGREDIENT,
@@ -660,6 +859,54 @@ class Neo4jKnowledgeRepository:
         for fact in facts:
             self._require_current_version(fact.data_version)
         return facts
+
+    def fact_provenance(self, fact_id: str) -> FactProvenance | None:
+        record = self._single(
+            _FACT_PROVENANCE,
+            fact_id=fact_id,
+            snapshot_name=_SNAPSHOT_NAME,
+        )
+        if record is None:
+            return None
+        try:
+            fact = FactRecord.model_validate(
+                _contract_properties(FactRecord, record["fact"])
+            )
+            contexts = [
+                ClinicalContextRecord.model_validate(
+                    _contract_properties(ClinicalContextRecord, item)
+                )
+                for item in record["contexts"]
+            ]
+            sources = [
+                SourceRecord.model_validate(_contract_properties(SourceRecord, item))
+                for item in record["sources"]
+            ]
+            provenance = FactProvenance(
+                fact=fact,
+                subject=KnowledgeEntityReference(
+                    kind=KnowledgeEntityKind.INGREDIENT,
+                    identifier=record["subject_name"],
+                    name=record["subject_name"],
+                ),
+                object=KnowledgeEntityReference(
+                    kind=KnowledgeEntityKind(record["object_kind"]),
+                    identifier=record["object_identifier"],
+                    name=record["object_name"],
+                ),
+                applies_in=sorted(contexts, key=lambda item: item.context_id),
+                sources=sorted(sources, key=lambda item: item.source_id),
+                snapshot=KnowledgeSnapshotReference(
+                    name=record["snapshot_name"],
+                    data_version=record["snapshot_data_version"],
+                ),
+            )
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise KnowledgeUnavailableError(
+                "Neo4j safety knowledge contains invalid provenance"
+            ) from exc
+        self._require_current_version(provenance.fact.data_version)
+        return provenance
 
     def _require_current_version(self, record_version: str) -> None:
         if record_version != self.data_version:

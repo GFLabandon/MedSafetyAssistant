@@ -77,11 +77,15 @@ def _valid_integrity_record(**overrides: int) -> dict[str, int]:
     record = {
         "sources": 7,
         "medications": 4,
+        "medication_aliases": 8,
         "ingredients": 10,
         "contexts": 2,
+        "context_aliases": 8,
         "facts": 3,
         "snapshots": 1,
         "ingredient_links": 11,
+        "medication_alias_links": 8,
+        "context_alias_links": 8,
         "support_links": 11,
         "subject_links": 3,
         "object_links": 3,
@@ -95,6 +99,8 @@ def _valid_integrity_record(**overrides: int) -> dict[str, int]:
         "medication_ingredient_mismatches": 0,
         "support_reference_mismatches": 0,
         "context_reference_mismatches": 0,
+        "medication_alias_mismatches": 0,
+        "context_alias_mismatches": 0,
     }
     record.update(overrides)
     return record
@@ -119,10 +125,14 @@ def test_importer_is_parameterized_and_repeat_safe():
     assert first.data_version == "v1.0.0-alpha.2"
     assert first.sources == 7
     assert first.medications == 4
+    assert first.medication_aliases == 8
     assert first.ingredients == 10
     assert first.contexts == 2
+    assert first.context_aliases == 8
     assert first.facts == 3
     assert first.support_links == 11
+    assert first.medication_alias_links == 8
+    assert first.context_alias_links == 8
     assert first.subject_links == 3
     assert first.object_links == 3
     assert first.context_links == 2
@@ -304,6 +314,92 @@ def test_neo4j_repository_context_and_contraindication_drive_engine():
     assert "[:OBJECT]->(object:SafetyContext)" in contraindication_query
     assert "[:APPLIES_IN]->(object)" in contraindication_query
     assert "fact.object IN $contexts" not in contraindication_query
+
+
+def test_neo4j_repository_returns_complete_fact_provenance():
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    fact = catalog.facts[
+        "fact-interaction-ibuprofen-aspirin-cardioprotection-001"
+    ].model_dump(mode="json")
+    context = catalog.contexts["context-aspirin-cardioprotection"].model_dump(
+        mode="json"
+    )
+    sources = [
+        catalog.sources[source_id].model_dump(mode="json")
+        for source_id in fact["source_ids"]
+    ]
+
+    def responder(query: str, parameters: dict[str, Any]):
+        if "RETURN properties(fact) AS fact" in query and "subject_name" in query:
+            assert parameters["fact_id"] == fact["fact_id"]
+            return [
+                {
+                    "fact": fact,
+                    "subject_name": "布洛芬",
+                    "object_kind": "ingredient",
+                    "object_identifier": "阿司匹林",
+                    "object_name": "阿司匹林",
+                    "contexts": [context],
+                    "sources": sources,
+                    "snapshot_name": "source-aligned-v1",
+                    "snapshot_data_version": catalog.data_version,
+                }
+            ]
+        if "RETURN snapshot.data_version AS data_version" in query:
+            return [{"data_version": catalog.data_version}]
+        raise AssertionError(f"unexpected query: {query}")
+
+    driver = FakeDriver(responder)
+    provenance = Neo4jKnowledgeRepository(driver).fact_provenance(fact["fact_id"])
+
+    assert provenance is not None
+    assert provenance.schema_version == "fact-provenance-v1"
+    assert provenance.subject.name == "布洛芬"
+    assert provenance.object.name == "阿司匹林"
+    assert [item.context_id for item in provenance.applies_in] == [
+        "context-aspirin-cardioprotection"
+    ]
+    assert [item.source_id for item in provenance.sources] == fact["source_ids"]
+    assert provenance.snapshot.data_version == catalog.data_version
+    query = next(query for query, _ in driver.calls if "subject_name" in query)
+    assert "SafetyFact {fact_id: $fact_id}" in query
+    assert "[:SUPPORTED_BY]" in query
+
+
+def test_neo4j_repository_rejects_incomplete_fact_provenance():
+    catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
+    fact = catalog.facts["fact-duplicate-acetaminophen-001"].model_dump(mode="json")
+
+    def responder(query: str, _parameters: dict[str, Any]):
+        if "subject_name" in query:
+            return [
+                {
+                    "fact": fact,
+                    "subject_name": "对乙酰氨基酚",
+                    "object_kind": "ingredient",
+                    "object_identifier": "对乙酰氨基酚",
+                    "object_name": "对乙酰氨基酚",
+                    "contexts": [],
+                    "sources": [],
+                    "snapshot_name": "source-aligned-v1",
+                    "snapshot_data_version": catalog.data_version,
+                }
+            ]
+        raise AssertionError(f"unexpected query: {query}")
+
+    with pytest.raises(KnowledgeUnavailableError, match="invalid provenance"):
+        Neo4jKnowledgeRepository(FakeDriver(responder)).fact_provenance(fact["fact_id"])
+
+
+def test_neo4j_repository_returns_none_for_unknown_fact_provenance():
+    def responder(query: str, _parameters: dict[str, Any]):
+        if "subject_name" in query:
+            return []
+        raise AssertionError(f"unexpected query: {query}")
+
+    repository = Neo4jKnowledgeRepository(FakeDriver(responder))
+
+    assert repository.fact_provenance("fact-not-found") is None
 
 
 def test_neo4j_repository_rejects_missing_snapshot():

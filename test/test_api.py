@@ -258,6 +258,69 @@ class ApiContractTests(unittest.TestCase):
         self.assertIn("source-fda-acetaminophen-2025", response["claims"][0]["source_ids"])
         self.assertNotIn("facts", response)
 
+    def test_v1_fact_provenance_returns_graph_trace(self):
+        from api import get_v1_fact_provenance
+
+        payload = {
+            "schema_version": "fact-provenance-v1",
+            "fact": {"fact_id": "fact-duplicate-acetaminophen-001"},
+            "subject": {"kind": "ingredient", "name": "对乙酰氨基酚"},
+            "object": {"kind": "ingredient", "name": "对乙酰氨基酚"},
+            "applies_in": [],
+            "sources": [{"source_id": "source-fda-acetaminophen-2025"}],
+            "snapshot": {
+                "name": "source-aligned-v1",
+                "data_version": "v1.0.0-alpha.2",
+            },
+        }
+        provenance = SimpleNamespace(model_dump=lambda mode: payload)
+        repository = unittest.mock.Mock()
+        repository.fact_provenance.return_value = provenance
+
+        with patch("api.get_neo4j_repository", return_value=repository):
+            response = asyncio.run(
+                get_v1_fact_provenance("fact-duplicate-acetaminophen-001")
+            )
+
+        self.assertEqual(response["schema_version"], "fact-provenance-v1")
+        self.assertEqual(response["subject"]["name"], "对乙酰氨基酚")
+        repository.fact_provenance.assert_called_once_with(
+            "fact-duplicate-acetaminophen-001"
+        )
+
+    def test_v1_fact_provenance_has_explicit_unavailable_and_not_found_states(self):
+        from api import get_v1_fact_provenance
+
+        with patch("api.get_neo4j_repository", return_value=None):
+            unavailable = asyncio.run(
+                get_v1_fact_provenance("fact-duplicate-acetaminophen-001")
+            )
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertEqual(json.loads(unavailable.body)["error"], "knowledge_unavailable")
+
+        repository = unittest.mock.Mock()
+        repository.fact_provenance.return_value = None
+        with patch("api.get_neo4j_repository", return_value=repository):
+            missing = asyncio.run(get_v1_fact_provenance("fact-not-found"))
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(json.loads(missing.body)["error"], "fact_not_found")
+
+    def test_v1_fact_provenance_does_not_expose_neo4j_error_details(self):
+        from api import get_v1_fact_provenance
+        from medsafety.repositories import KnowledgeUnavailableError
+
+        repository = unittest.mock.Mock()
+        repository.fact_provenance.side_effect = KnowledgeUnavailableError(
+            "private bolt address"
+        )
+        with patch("api.get_neo4j_repository", return_value=repository):
+            response = asyncio.run(
+                get_v1_fact_provenance("fact-duplicate-acetaminophen-001")
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("private bolt address", response.body.decode())
+
     def test_unhandled_error_does_not_expose_exception_or_traceback(self):
         from api import unhandled_exception_handler
 
