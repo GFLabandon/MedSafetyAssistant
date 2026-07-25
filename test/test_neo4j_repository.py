@@ -7,12 +7,7 @@ import pytest
 from neo4j.exceptions import ServiceUnavailable
 
 from medsafety.catalog import KnowledgeCatalog
-from medsafety.contracts import (
-    ConclusionStatus,
-    FactRecord,
-    KnowledgeEntityKind,
-    RiskType,
-)
+from medsafety.contracts import ConclusionStatus
 from medsafety.neo4j_repository import (
     Neo4jCatalogImporter,
     Neo4jKnowledgeRepository,
@@ -80,22 +75,22 @@ class FakeDriver:
 
 def _valid_integrity_record(**overrides: int) -> dict[str, int]:
     record = {
-        "sources": 8,
+        "sources": 9,
         "medications": 5,
         "medication_aliases": 11,
         "ingredients": 10,
-        "contexts": 2,
-        "context_aliases": 8,
-        "facts": 3,
+        "contexts": 3,
+        "context_aliases": 15,
+        "facts": 4,
         "snapshots": 1,
         "ingredient_links": 12,
         "medication_alias_links": 11,
-        "context_alias_links": 8,
-        "support_links": 13,
-        "subject_links": 3,
-        "object_links": 3,
-        "context_links": 2,
-        "snapshot_links": 3,
+        "context_alias_links": 15,
+        "support_links": 15,
+        "subject_links": 4,
+        "object_links": 4,
+        "context_links": 3,
+        "snapshot_links": 4,
         "mixed_version_nodes": 0,
         "invalid_snapshots": 0,
         "orphan_facts": 0,
@@ -127,21 +122,21 @@ def test_importer_is_parameterized_and_repeat_safe():
     second = importer.import_catalog(catalog)
 
     assert first == second
-    assert first.data_version == "v1.0.0-alpha.3"
-    assert first.sources == 8
+    assert first.data_version == "v1.0.0-alpha.4"
+    assert first.sources == 9
     assert first.medications == 5
     assert first.medication_aliases == 11
     assert first.ingredients == 10
-    assert first.contexts == 2
-    assert first.context_aliases == 8
-    assert first.facts == 3
-    assert first.support_links == 13
+    assert first.contexts == 3
+    assert first.context_aliases == 15
+    assert first.facts == 4
+    assert first.support_links == 15
     assert first.medication_alias_links == 11
-    assert first.context_alias_links == 8
-    assert first.subject_links == 3
-    assert first.object_links == 3
-    assert first.context_links == 2
-    assert first.snapshot_links == 3
+    assert first.context_alias_links == 15
+    assert first.subject_links == 4
+    assert first.object_links == 4
+    assert first.context_links == 3
+    assert first.snapshot_links == 4
     assert first.integrity_verified is True
     assert len(driver.calls) == first_call_count * 2
 
@@ -400,20 +395,9 @@ def test_neo4j_repository_rejects_incomplete_fact_provenance():
 
 def test_neo4j_activity_restriction_query_uses_stable_product_ids():
     catalog = KnowledgeCatalog.from_directory(DATA_DIRECTORY)
-    base = catalog.facts["fact-duplicate-acetaminophen-001"].model_dump(mode="json")
-    activity_fact = FactRecord.model_validate(
-        {
-            **base,
-            "fact_id": "fact-test-tyno-activity-restriction",
-            "subject": "泰诺",
-            "subject_kind": KnowledgeEntityKind.MEDICATION,
-            "predicate": "ACTIVITY_RESTRICTION",
-            "object": "驾驶或操作机械",
-            "object_kind": KnowledgeEntityKind.CONTEXT,
-            "risk_type": RiskType.ACTIVITY_RESTRICTION,
-            "required_context": ["驾驶或操作机械"],
-        }
-    ).model_dump(mode="json")
+    activity_fact = catalog.facts[
+        "fact-activity-restriction-tyno-driving-machinery-001"
+    ].model_dump(mode="json")
 
     def responder(query: str, _parameters: dict[str, Any]):
         if "predicate = 'ACTIVITY_RESTRICTION'" in query:
@@ -425,7 +409,7 @@ def test_neo4j_activity_restriction_query_uses_stable_product_ids():
     driver = FakeDriver(responder)
     facts = Neo4jKnowledgeRepository(driver).activity_restriction_facts_for(
         {"medication-tyno-cold-tablet-cn"},
-        {"驾驶或操作机械"},
+        {"驾驶或从事高空、机械及精密仪器作业"},
     )
 
     assert [fact.fact_id for fact in facts] == [activity_fact["fact_id"]]

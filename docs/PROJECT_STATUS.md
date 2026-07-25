@@ -1,14 +1,29 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-25
-当前阶段：P2——产品级事实模型
-状态：alpha.3 Draft PR #4 全绿；产品级事实模型本地与隔离 Neo4j 验收通过
+当前阶段：P2——alpha.4 泰诺产品级活动限制
+状态：产品事实模型 Draft PR #5 全绿；alpha.4 本地数据与开发回归通过
 
 ## 当前目标
 
 把 Neo4j 从事实属性投影升级为可沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
 `SUPPORTED_BY` 和 `BELONGS_TO` 遍历的事实节点图，并在导入提交前自动检查完整性。
-P2 当前工程批不改变正式医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+P2 不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P2 alpha.4 泰诺活动限制
+
+- [x] 重新下载官方说明书并复核 SHA-256、页数、产品身份、警示与修订日期；
+- [x] 新增 1 条官方来源、1 个 activity context 和 1 条产品级正式事实；
+- [x] 泰诺药品记录增加官方产品说明书来源；
+- [x] 正式 catalog 为 9 Source、5 Medication、3 Context、4 Fact；
+- [x] 开发集从 13 条扩展到 17 条，包含 2 个正例与 2 个防外推负例；
+- [x] 自然语言查询可解析“泰诺 + 开车”，但不把事实外推到感康或氯苯那敏；
+- [x] 校验和、alpha.4 数据卡和 Safety Engine 基线已更新；
+- [ ] 完成隔离 Neo4j、事实溯源、PROFILE 和远程 Draft PR 验收。
+
+来源审计见
+[`p2-tylenol-activity-alpha4.md`](../reports/p2-tylenol-activity-alpha4.md)，数据边界见
+[`DATA_CARD_V1_ALPHA_4.md`](DATA_CARD_V1_ALPHA_4.md)。
 
 ## P2 产品级事实模型
 
@@ -21,7 +36,7 @@ P2 当前工程批不改变正式医学事实、不扩展 Agent，也不让 LLM 
 - [x] 隔离 Neo4j 5.26.28 的 5 项真实集成测试通过；
 - [x] alpha.3 的 JSON、校验和、3 条正式事实和 13 条开发集保持不变；
 - [x] 生成绑定提交的七条查询 PROFILE 证据；
-- [ ] 推送独立 stacked Draft PR。
+- [x] 推送独立 stacked Draft PR #5，Quality Gate 全绿。
 
 规格见 [`P2_PRODUCT_FACT_MODEL.md`](P2_PRODUCT_FACT_MODEL.md)。本批测试夹具不进入
 `data/v1/`；泰诺正式活动限制仍需独立数据版本。验收见

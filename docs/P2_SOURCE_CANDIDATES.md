@@ -1,7 +1,7 @@
 # P2 来源审核候选清单
 
 日期：2026-07-25
-状态：候选队列；未修改 `data/v1/`
+状态：候选与已准入记录
 
 ## 1. 用途
 
@@ -24,7 +24,7 @@
 |---|---|---|---|---|---|
 | `P2-A01` | 无 | 对乙酰氨基酚的中英文通用名映射 | `accepted` | alpha.3 新增 `paracetamol`、`acetaminophen`；未增加风险事实 | 国家卫健委目录印刷页13 + FDA名称映射；13条开发回归 |
 | `P2-F01` | `legacy-contraindicated_in-i_pseudo-c_hbp` | 含伪麻黄碱产品与特定高血压条件 | `candidate_fact` | 成分已存在于泰诺记录，可扩展现有产品的上下文判断 | 产品级权威标签；区分禁忌、警示和咨询措辞；明确血压条件；severity 依据 |
-| `P2-F02` | `legacy-contraindicated_in-i_chlor-c_drive` | 泰诺与驾驶/机械操作 | `model_blocked` | 泰诺官方说明书来源通过，但当前事实主体只能是 Ingredient，不能表达产品级活动限制 | 先增加 product-subject fact 与 activity restriction 类型；不得外推到感康 |
+| `P2-F02` | `legacy-contraindicated_in-i_chlor-c_drive` | 泰诺与驾驶/机械操作 | `accepted` | alpha.4 以泰诺产品为主体新增活动限制，没有改写为成分禁忌 | 官方说明书PDF第1/3/8页 + product-subject模型 + 17条开发回归 |
 | `P2-F03` | `legacy-contraindicated_in-i_acet-c_alc` | 对乙酰氨基酚与酒精相关条件 | `hold` | “饮酒状态”缺少频率、数量和适用范围，原条件过宽 | 权威标签原文、可执行但不过度推断的上下文、结论类型与 severity 依据 |
 | `P2-F04` | `legacy-contraindicated_in-i_ibu-c_stomach` | 布洛芬与特定胃肠道病史或症状 | `hold` | legacy 的“胃溃疡”不足以表达标签中的具体范围 | 产品级来源、当前/既往状态区分、症状边界、年龄和剂型限制 |
 | `P2-R01` | `legacy-contraindicated_in-i_ceph-c_alc` | “头孢菌素 + 饮酒状态”类级结论 | `reject_as_stated` | 当前 V1 没有对应产品记录，且 legacy 只有宽泛类别和来源名称 | 必须拆到具体活性成分/产品和可定位来源后重新立项 |
@@ -46,13 +46,14 @@
 
 ## 4. 下一轮来源工作停止条件
 
-本轮 `P2-A01` 已进入 alpha.3，`P2-F02` 因模型边界暂停。下一轮来源调查最多再选择一个
-候选；如果来源措辞无法映射为项目结论类型，就记录失败原因并停止，不用 legacy 来源
-名称或二手文章补齐缺口。
+`P2-A01` 已进入 alpha.3，`P2-F02` 已在产品主体模型通过后进入 alpha.4。下一轮来源
+调查最多选择一个候选；如果来源措辞无法映射为项目结论类型，就记录失败原因并停止，
+不用 legacy 来源名称或二手文章补齐缺口。
 
 本清单引用的 legacy ID 来自
 [`legacy-fact-source-inventory.md`](../reports/legacy-fact-source-inventory.md)；该清单本身
 没有提升任何 legacy 事实的审核状态。
 
 本轮来源、校验和与建模决定见
-[`p2-source-alignment-alpha3.md`](../reports/p2-source-alignment-alpha3.md)。
+[`p2-source-alignment-alpha3.md`](../reports/p2-source-alignment-alpha3.md) 和
+[`p2-tylenol-activity-alpha4.md`](../reports/p2-tylenol-activity-alpha4.md)。

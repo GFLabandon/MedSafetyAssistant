@@ -91,6 +91,23 @@ def test_resolver_requires_explicit_nsaid_reaction_history(resolver):
     assert plain_asthma.contexts == []
 
 
+def test_resolver_maps_explicit_driving_activity_without_product_inference(resolver):
+    result = resolver.resolve("吃泰诺期间可以开车吗？")
+
+    assert result.status == InputResolutionStatus.RESOLVED
+    assert result.medications == ["泰诺"]
+    assert result.contexts == ["驾驶或从事高空、机械及精密仪器作业"]
+
+    ingredient_only = resolver.resolve("氯苯那敏会影响驾驶吗？")
+    assert ingredient_only.status == InputResolutionStatus.UNKNOWN
+    assert ingredient_only.medications == []
+    assert ingredient_only.contexts == []
+    assert any(
+        entity.canonical_name == "驾驶或从事高空、机械及精密仪器作业"
+        for entity in ingredient_only.entities
+    )
+
+
 def test_generic_medication_name_is_ambiguous(resolver):
     result = resolver.resolve("感冒药和泰诺可以一起吃吗？")
 
@@ -173,6 +190,29 @@ def test_query_service_returns_grounded_risk_for_paracetamol_alias(service):
     assert [claim.fact_id for claim in response.explanation.claims] == [
         "fact-duplicate-acetaminophen-001"
     ]
+
+
+def test_query_service_returns_product_scoped_activity_restriction(service):
+    response = service.query("吃泰诺期间可以开车吗？", use_llm_plan=False)
+
+    assert response.resolution.medications == ["泰诺"]
+    assert response.resolution.contexts == [
+        "驾驶或从事高空、机械及精密仪器作业"
+    ]
+    assert response.explanation.conclusion_status == ConclusionStatus.RISK_FOUND
+    assert [claim.fact_id for claim in response.explanation.claims] == [
+        "fact-activity-restriction-tyno-driving-machinery-001"
+    ]
+
+
+def test_query_service_does_not_extrapolate_activity_fact_to_gankang(service):
+    response = service.query("感康有驾驶限制吗？", use_llm_plan=False)
+
+    assert response.resolution.medications == ["感康"]
+    assert response.explanation.conclusion_status == (
+        ConclusionStatus.NO_KNOWN_RISK_IN_SCOPE
+    )
+    assert response.explanation.claims == []
 
 
 def test_query_service_turns_missing_required_context_into_clarification(service):

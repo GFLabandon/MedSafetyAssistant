@@ -1,7 +1,7 @@
 # P2 产品级事实模型规格
 
 日期：2026-07-25
-状态：工程实现，不新增正式医学事实
+状态：工程模型已验收；正式数据由后续独立版本管理
 
 ## 1. 为什么需要单独建模
 
@@ -83,3 +83,7 @@ flowchart LR
 
 工程验收与机器可读查询证据见
 [`p2-product-fact-model-acceptance.md`](../reports/p2-product-fact-model-acceptance.md)。
+
+后续状态：alpha.4 已在独立数据分支按本规格增加一条泰诺产品级活动限制，来源与防外推
+边界见 [`DATA_CARD_V1_ALPHA_4.md`](DATA_CARD_V1_ALPHA_4.md)。本规格中的“测试夹具”
+描述只针对工程模型 PR #5 的验收阶段。

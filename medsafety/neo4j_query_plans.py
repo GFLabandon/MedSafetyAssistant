@@ -105,7 +105,7 @@ def default_query_plan_cases() -> tuple[QueryPlanCase, ...]:
             query=_ACTIVITY_RESTRICTION_FACTS,
             parameters={
                 "medication_ids": ["medication-tyno-cold-tablet-cn"],
-                "contexts": ["驾驶或操作机械"],
+                "contexts": ["驾驶或从事高空、机械及精密仪器作业"],
                 "snapshot_name": _SNAPSHOT_NAME,
             },
         ),
