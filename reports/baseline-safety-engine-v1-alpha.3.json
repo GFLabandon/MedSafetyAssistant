@@ -1,0 +1,16 @@
+{
+  "baseline_version": "v1-alpha.3",
+  "data_version": "v1.0.0-alpha.3",
+  "dataset": "eval/safety_engine_dev.jsonl",
+  "dataset_cases": 13,
+  "failures": [],
+  "label_scope": "source_aligned facts; not clinically reviewed",
+  "metrics": {
+    "case_exact_match": 1.0,
+    "conclusion_accuracy": 1.0,
+    "context_set_exact_match": 1.0,
+    "fact_set_exact_match": 1.0,
+    "medication_set_exact_match": 1.0
+  },
+  "runner": "safety_engine"
+}

@@ -24,9 +24,9 @@ def engine(catalog):
 
 
 def test_catalog_loads_only_source_aligned_v1_records(catalog):
-    assert catalog.data_version == "v1.0.0-alpha.2"
-    assert len(catalog.sources) == 7
-    assert len(catalog.medications) == 4
+    assert catalog.data_version == "v1.0.0-alpha.3"
+    assert len(catalog.sources) == 8
+    assert len(catalog.medications) == 5
     assert len(catalog.contexts) == 2
     assert len(catalog.facts) == 3
 
@@ -52,6 +52,30 @@ def test_tyno_and_gankang_return_source_backed_duplicate_ingredient_risk(engine)
     assert "source-fda-acetaminophen-2025" in result.facts[0].source_ids
     assert "source-shanghai-mpa-2021-176" in result.facts[0].source_ids
     assert "source-hohhot-procurement-2025" in result.facts[0].source_ids
+
+
+@pytest.mark.parametrize("alias", ["paracetamol", "PARACETAMOL", "acetaminophen"])
+def test_source_aligned_acetaminophen_aliases_resolve(alias, catalog):
+    medication = catalog.resolve_medication(alias)
+
+    assert medication is not None
+    assert medication.medication_id == "medication-acetaminophen-substance"
+    assert medication.canonical_name == "对乙酰氨基酚"
+
+
+def test_unverified_colloquial_acetaminophen_alias_is_not_admitted(catalog):
+    assert catalog.resolve_medication("扑热息痛") is None
+
+
+def test_paracetamol_and_tyno_return_duplicate_ingredient_risk(engine):
+    result = engine.assess(["paracetamol", "泰诺"])
+
+    assert result.conclusion_status == ConclusionStatus.RISK_FOUND
+    assert result.resolved_medications == ["对乙酰氨基酚", "泰诺"]
+    assert [fact.fact_id for fact in result.facts] == [
+        "fact-duplicate-acetaminophen-001"
+    ]
+    assert "source-nhc-essential-medicines-2018" in result.facts[0].source_ids
 
 
 def test_ibuprofen_and_aspirin_require_cardioprotection_context(engine):

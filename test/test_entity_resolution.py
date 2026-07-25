@@ -58,6 +58,17 @@ def test_resolver_matches_english_aliases_with_casefold_boundaries(resolver):
     assert non_match.status == InputResolutionStatus.UNKNOWN
 
 
+def test_resolver_maps_source_aligned_acetaminophen_aliases(resolver):
+    result = resolver.resolve("PARACETAMOL 和泰诺能一起吃吗？")
+
+    assert result.status == InputResolutionStatus.RESOLVED
+    assert result.medications == ["对乙酰氨基酚", "泰诺"]
+    assert all(entity.match_type == EntityMatchType.ALIAS for entity in result.entities)
+
+    unsupported = resolver.resolve("扑热息痛")
+    assert unsupported.status == InputResolutionStatus.UNKNOWN
+
+
 def test_resolver_infers_cardioprotection_context_without_inventing_dose(resolver):
     result = resolver.resolve("我用低剂量阿司匹林预防心血管事件，可以吃布洛芬吗？")
 
@@ -149,6 +160,19 @@ def test_query_service_returns_grounded_duplicate_risk(service):
         "evidence_explanation",
     ]
     assert all(stage.duration_ms >= 0 for stage in response.trace.stages)
+
+
+def test_query_service_returns_grounded_risk_for_paracetamol_alias(service):
+    response = service.query(
+        "paracetamol 和感康能一起吃吗？",
+        use_llm_plan=False,
+    )
+
+    assert response.resolution.medications == ["对乙酰氨基酚", "感康"]
+    assert response.explanation.conclusion_status == ConclusionStatus.RISK_FOUND
+    assert [claim.fact_id for claim in response.explanation.claims] == [
+        "fact-duplicate-acetaminophen-001"
+    ]
 
 
 def test_query_service_turns_missing_required_context_into_clarification(service):

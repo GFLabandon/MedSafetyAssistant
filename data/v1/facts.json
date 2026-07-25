@@ -14,7 +14,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2",
+    "data_version": "v1.0.0-alpha.3",
     "required_context": []
   },
   {
@@ -32,7 +32,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T18:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2",
+    "data_version": "v1.0.0-alpha.3",
     "required_context": ["阿司匹林用于心血管保护"]
   },
   {
@@ -50,7 +50,7 @@
     "label_status": "source_aligned",
     "reviewed_by": "project-source-audit-2026-07-20",
     "reviewed_at": "2026-07-20T20:00:00+08:00",
-    "data_version": "v1.0.0-alpha.2",
+    "data_version": "v1.0.0-alpha.3",
     "required_context": ["服用阿司匹林或其他NSAID后出现哮喘、荨麻疹或过敏反应"]
   }
 ]

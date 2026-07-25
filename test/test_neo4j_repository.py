@@ -75,18 +75,18 @@ class FakeDriver:
 
 def _valid_integrity_record(**overrides: int) -> dict[str, int]:
     record = {
-        "sources": 7,
-        "medications": 4,
-        "medication_aliases": 8,
+        "sources": 8,
+        "medications": 5,
+        "medication_aliases": 11,
         "ingredients": 10,
         "contexts": 2,
         "context_aliases": 8,
         "facts": 3,
         "snapshots": 1,
-        "ingredient_links": 11,
-        "medication_alias_links": 8,
+        "ingredient_links": 12,
+        "medication_alias_links": 11,
         "context_alias_links": 8,
-        "support_links": 11,
+        "support_links": 13,
         "subject_links": 3,
         "object_links": 3,
         "context_links": 2,
@@ -122,16 +122,16 @@ def test_importer_is_parameterized_and_repeat_safe():
     second = importer.import_catalog(catalog)
 
     assert first == second
-    assert first.data_version == "v1.0.0-alpha.2"
-    assert first.sources == 7
-    assert first.medications == 4
-    assert first.medication_aliases == 8
+    assert first.data_version == "v1.0.0-alpha.3"
+    assert first.sources == 8
+    assert first.medications == 5
+    assert first.medication_aliases == 11
     assert first.ingredients == 10
     assert first.contexts == 2
     assert first.context_aliases == 8
     assert first.facts == 3
-    assert first.support_links == 11
-    assert first.medication_alias_links == 8
+    assert first.support_links == 13
+    assert first.medication_alias_links == 11
     assert first.context_alias_links == 8
     assert first.subject_links == 3
     assert first.object_links == 3
@@ -417,7 +417,7 @@ def test_neo4j_repository_rejects_mixed_data_versions():
         if "RETURN properties(medication)" in query:
             return [{"medication": medication}]
         if "SafetyKnowledgeSnapshot" in query:
-            return [{"data_version": "v1.0.0-alpha.3"}]
+            return [{"data_version": "v1.0.0-alpha.2"}]
         raise AssertionError(f"unexpected query: {query}")
 
     repository = Neo4jKnowledgeRepository(FakeDriver(responder))

@@ -1,14 +1,31 @@
 # MedSafetyAssistant 项目状态
 
 更新时间：2026-07-25
-当前阶段：P2——事实节点知识图谱
-状态：P1 已合并；P2 第二批验收完成，Draft PR #3 CI 3/3 全绿
+当前阶段：P2——alpha.3 来源对齐
+状态：P2 工程 PR #3 已验收；alpha.3 本地与隔离 Neo4j 验收通过
 
 ## 当前目标
 
 把 Neo4j 从事实属性投影升级为可沿 `SUBJECT`、`OBJECT`、`APPLIES_IN`、
 `SUPPORTED_BY` 和 `BELONGS_TO` 遍历的事实节点图，并在导入提交前自动检查完整性。
 P2 当前两批均不改变医学事实、不扩展 Agent，也不让 LLM 负责实体事实或医学结论。
+
+## P2 alpha.3 来源对齐
+
+- [x] 国家卫健委《国家基本药物目录（2018年版）》原始 PDF 可访问并保存 SHA-256；
+- [x] 用目录印刷页 13 与 FDA 页面建立
+  “对乙酰氨基酚 ↔ paracetamol ↔ acetaminophen”来源链；
+- [x] 新增成分药品记录，正式来源变为 8 条、药品/成分记录变为 5 条；
+- [x] 新增 4 条别名正例、单药边界和未审核别名负例，13/13 开发回归通过；
+- [x] 泰诺官方说明书的驾驶/机械操作警示已核验到 PDF 第 3 页；
+- [x] 因当前事实主体只能是 Ingredient，产品级警示暂不写成成分禁忌，也不外推到感康；
+- [x] 在隔离 Neo4j 5.26.28 上复核 alpha.3 导入、别名索引和 JSON 等价；
+- [x] 生成绑定 alpha.3 数据提交的 PROFILE 证据，六条只读查询均命中索引；
+- [ ] 推送独立 stacked Draft PR。
+
+来源决定见
+[`p2-source-alignment-alpha3.md`](../reports/p2-source-alignment-alpha3.md)，数据冻结边界见
+[`DATA_CARD_V1_ALPHA_3.md`](DATA_CARD_V1_ALPHA_3.md)。
 
 ## P2 第二批范围
 
@@ -111,17 +128,17 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | 开始任务前 `main` 与 `origin/main` 一致；仅计划书为未跟踪新文件 | `git status --short --branch` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 134 passed，3 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 141 passed，3 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
 | 前端完整依赖审计 | 0 vulnerability | `npm audit`，Vite 7.3.6 |
 | V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
-| V1 catalog | 7 Source、4 Medication、2 Context、3 Fact，状态有效 | `scripts/validate_v1_data.py` |
+| V1 catalog | 8 Source、5 Medication、2 Context、3 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
-| Neo4j 集成 | 3 passed，134 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
+| Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 
 本阶段已经真实运行 Ollama 解释规划，但没有同时运行 Neo4j、Redis 和 legacy 全链路，因此结果只能称为 V1 Evidence Packet 解释层开发基线，不能称为端到端系统质量结果。
 

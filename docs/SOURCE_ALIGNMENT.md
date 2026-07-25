@@ -1,6 +1,6 @@
 # V1 来源对齐记录
 
-更新时间：2026-07-20
+更新时间：2026-07-25
 
 ## 状态定义
 
@@ -10,7 +10,7 @@
 
 本轮新增数据全部是 `source_aligned`，不是 `clinically_reviewed`。
 
-## V1 alpha.2 覆盖范围
+## V1 alpha.3 覆盖范围
 
 当前只对齐三个场景：
 
@@ -19,6 +19,17 @@
 3. 明确报告既往服用阿司匹林或其他 NSAID 后出现哮喘、荨麻疹或过敏样反应时，布洛芬片标签明确要求不应使用。
 
 其他旧图谱事实继续保持 `legacy_unreviewed`，Safety Engine 不读取它们。
+
+alpha.3 没有增加风险事实，只增加“对乙酰氨基酚”的成分药品记录：
+
+- 国家卫健委《国家基本药物目录（2018年版）》印刷页 13 对齐
+  “对乙酰氨基酚 / Paracetamol”；
+- FDA Acetaminophen 页面说明美国以外通常称为 `paracetamol`；
+- 正式别名为 `paracetamol`、`acetaminophen`；
+- “扑热息痛”尚未通过本批来源门，不进入正式别名表。
+
+详细审计见
+[`p2-source-alignment-alpha3.md`](../reports/p2-source-alignment-alpha3.md)。
 
 ## 来源链
 
