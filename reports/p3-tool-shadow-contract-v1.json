@@ -1,0 +1,30 @@
+{
+  "schema_version": "p3-tool-shadow-contract-v1",
+  "date": "2026-08-02",
+  "implementation_commit": "4130d7a",
+  "data_version": "v1.0.0-alpha.4",
+  "dataset": {
+    "path": "eval/tool_shadow_v1.jsonl",
+    "sha256": "e037caf4a9aa3e2db33c2fb1fbc3cca6ca854a1e47bd16cc5a008cf25f8a3229",
+    "cases": 60,
+    "dev_cases": 40,
+    "locked_test_cases": 20
+  },
+  "contract_evidence": {
+    "p3_targeted_tests_passed": 32,
+    "full_tests_passed": 180,
+    "integration_tests_skipped": 5,
+    "executed_tool_calls": 0,
+    "data_validation": "valid",
+    "frontend_build": "passed",
+    "public_repository_audit": "passed"
+  },
+  "real_ollama_baseline": {
+    "status": "not_run",
+    "preflight": "connection_error",
+    "model_requests": 0,
+    "dev_split": "not_run",
+    "locked_test_split": "not_run"
+  },
+  "boundary": "Shadow proposals are validated and recorded only. They are never dispatched or executed."
+}

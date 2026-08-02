@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import ollama
 import pytest
 
 from evaluation.tool_shadow import classify_shadow_attempt, evaluate_tool_shadow
@@ -109,6 +110,37 @@ def test_planner_accepts_json_string_arguments(workflow):
 
     assert attempt.error_category is None
     assert attempt.proposal.arguments == {"question": "布洛芬能吃吗？"}
+
+
+def test_planner_accepts_real_ollama_response_models(workflow):
+    response = ollama.ChatResponse(
+        model="test-model",
+        done=True,
+        eval_count=7,
+        message=ollama.Message(
+            role="assistant",
+            content="",
+            tool_calls=[
+                ollama.Message.ToolCall(
+                    function=ollama.Message.ToolCall.Function(
+                        name="resolve_medications",
+                        arguments={"question": "泰诺和对乙酰氨基酚能一起吃吗？"},
+                    )
+                )
+            ],
+        ),
+    )
+    attempt = OllamaToolShadowPlanner(
+        "http://unused", "test-model", client=FakeClient(response)
+    ).propose(_state(), workflow.registry.definitions())
+
+    assert attempt.error_category is None
+    assert attempt.response_metadata == {
+        "model": "test-model",
+        "done": True,
+        "eval_count": 7,
+    }
+    assert attempt.to_dict()["proposal"]["name"] == "resolve_medications"
 
 
 @pytest.mark.parametrize(

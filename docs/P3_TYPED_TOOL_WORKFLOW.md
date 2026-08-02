@@ -2,7 +2,7 @@
 
 日期：2026-07-25
 实现基线：`68cb5d9d9caf1b7e7e893333b5e65519e9d4f1f5`
-状态：首批已实现，模型工具选择尚未启用
+状态：确定性执行层与 shadow planner 已实现；模型 proposal 尚未进入正式执行路径
 
 ## 1. 目标
 
@@ -101,7 +101,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
 [`p3-typed-tool-workflow-v1.json`](../reports/p3-typed-tool-workflow-v1.json)，验收摘要见
 [`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md)。
 
-## 7. 明确未完成
+## 7. 首批提交时明确未完成
 
 - 当前 controller 是确定性的，LLM 尚不负责选择工具；
 - 没有 ReAct 循环、多 Agent、MCP Server 或任意工具执行；
@@ -110,5 +110,30 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
 - 还没有 50—80 条冻结的工具选择/路由评测集；
 - 还没有真实 Ollama Function Calling 的 shadow-mode 基线。
 
-下一批先冻结工具选择评测集并实现只记录、不执行的 shadow planner。只有在非法工具执行率
-保持 0、工具选择结果可复现且失败样例完成归因后，才考虑让模型影响控制流。
+这些是实现提交 `68cb5d9` 时的边界；其中冻结数据集和 shadow planner 已在下一批完成，
+现状见第 8 节。只有在非法工具执行率保持 0、工具选择结果可复现且失败样例完成归因后，
+才考虑让模型影响控制流。
+
+## 8. Shadow tool planner（2026-08-02）
+
+下一批已经完成“只观察、不执行”的 Function Calling 适配层：
+
+- `eval/tool_shadow_v1.jsonl` 冻结 60 条样例，其中 40 条 dev、20 条 locked test；
+- 数据集 SHA-256 为
+  `e037caf4a9aa3e2db33c2fb1fbc3cca6ca854a1e47bd16cc5a008cf25f8a3229`；
+- 覆盖 `start`、`after_resolution`、`after_evidence` 三个受信工作流状态；
+- 覆盖未知工具、Cypher 注入、额外参数、多个工具、无工具、artifact 伪造和循环请求；
+- 模型只能看到严格 `ShadowWorkflowState`，不能提交领域对象或改变服务端 artifact；
+- proposal 必须再次通过已注册工具名和对应 Pydantic 参数 schema；
+- runner 的输出逐条标记 `executed: false`，汇总固定包含 `executed_tool_calls: 0`；
+- 代码路径不调用 `TypedToolRegistry.execute`，测试用 spy 验证执行次数为 0；
+- locked test 必须显式确认，避免在开发阶段误跑并调优。
+
+实现提交 `4130d7a` 上，工具执行、冻结数据和 shadow planner 共 32 项契约通过；完整回归
+为 `180 passed, 5 skipped`。2026-08-02 的真实 dev 运行在 Ollama preflight 阶段因
+`ConnectionError` 停止，没有发出模型请求；因此当前只有适配器/评测器工程证据，没有
+真实工具选择准确率或延迟基线，locked test 也尚未运行。
+
+详见 [`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。在真实 dev
+结果完成失败归因前，模型仍不得影响正式控制流；即使 shadow 指标通过，也需要单独设计
+可回退的受控执行实验，不能直接升级为开放式 Agent。
