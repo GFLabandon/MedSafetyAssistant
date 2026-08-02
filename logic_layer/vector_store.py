@@ -210,7 +210,13 @@ class VectorStore:
             if not assistant_vector:
                 print("      ❌ 助手回复向量化失败")
                 return False
+            if len(user_vector) != len(assistant_vector):
+                print("      ❌ 同一模型返回了不一致的向量维度")
+                return False
             print(f"      ✅ 助手回复向量化完成 (维度: {len(assistant_vector)})")
+
+            embedding_model = self.embedding_service.embedding_model
+            embedding_dimensions = str(len(user_vector))
             
             # 存储用户查询
             print(f"   🔄 步骤 3/4: 存储用户查询到 Redis...")
@@ -219,6 +225,8 @@ class VectorStore:
                 "text": user_query,
                 "role": "user",
                 "vector": json.dumps(user_vector),
+                "embedding_model": embedding_model,
+                "embedding_dimensions": embedding_dimensions,
                 "session_id": session_id,
                 "timestamp": str(timestamp)
             }
@@ -233,6 +241,8 @@ class VectorStore:
                 "text": assistant_response,
                 "role": "assistant",
                 "vector": json.dumps(assistant_vector),
+                "embedding_model": embedding_model,
+                "embedding_dimensions": embedding_dimensions,
                 "session_id": session_id,
                 "timestamp": str(timestamp)
             }
@@ -291,6 +301,7 @@ class VectorStore:
                 print("      ❌ 查询向量化失败")
                 return []
             print(f"      ✅ 查询向量化完成 (维度: {len(query_vector)})")
+            embedding_model = self.embedding_service.embedding_model
             
             # 获取所有历史对话（使用 SCAN 避免 KEYS 阻塞）
             print(f"   🔄 步骤 2/4: 从 Redis 扫描历史对话键...")
@@ -317,8 +328,21 @@ class VectorStore:
                     data = self.redis_client.hgetall(key)
                     if not data or 'vector' not in data:
                         continue
+
+                    # Never compare vectors across model/version boundaries. Records
+                    # created before provenance was introduced are ignored and expire
+                    # through the existing session TTL; no destructive migration is
+                    # required.
+                    if data.get("embedding_model") != embedding_model:
+                        continue
                     
                     stored_vector = json.loads(data['vector'])
+                    stored_dimensions = int(data.get("embedding_dimensions", "0"))
+                    if (
+                        stored_dimensions != len(stored_vector)
+                        or stored_dimensions != len(query_vector)
+                    ):
+                        continue
                     similarity = self._calculate_cosine_similarity(query_vector, stored_vector)
                     
                     similarities.append({
@@ -428,4 +452,3 @@ class VectorStore:
                 self.redis_client.close()
             except Exception:
                 pass
-

@@ -36,6 +36,8 @@ from medsafety.observability import normalize_request_id, structured_event
 from medsafety.query_service import SafetyQueryService
 from medsafety.repositories import KnowledgeUnavailableError
 from medsafety.safety_engine import SafetyEngine
+from medsafety.server_bound_tool_decisions import OllamaToolNamePlanner
+from medsafety.server_bound_workflow import ServerBoundSafetyWorkflow
 from medsafety.tool_workflow import (
     ToolWorkflowExecutionError,
     TypedSafetyWorkflow,
@@ -123,6 +125,19 @@ def build_typed_safety_workflow(request: Request | None = None):
         resolver=get_entity_resolver(request),
         engine=get_safety_engine(request),
         explainer=get_safety_explainer(request),
+    )
+
+
+def build_server_bound_safety_workflow(request: Request | None = None):
+    return ServerBoundSafetyWorkflow(
+        resolver=get_entity_resolver(request),
+        engine=get_safety_engine(request),
+        explainer=get_safety_explainer(request),
+        planner=OllamaToolNamePlanner(
+            host=Config.OLLAMA_URL,
+            model=Config.OLLAMA_TOOL_MODEL,
+            timeout_seconds=Config.OLLAMA_EXPLANATION_TIMEOUT_SECONDS,
+        ),
     )
 
 
@@ -488,6 +503,41 @@ async def query_v1_typed_safety_workflow(
             status_code=503,
             content={
                 "error": "tool_workflow_failed",
+                "detail": "The bounded safety workflow could not complete.",
+                "reason": exc.code,
+            },
+        )
+    return response.model_dump(mode="json")
+
+
+@app.post("/api/v1/workflows/safety/agent-query")
+async def query_v1_server_bound_safety_workflow(
+    payload: NaturalLanguageSafetyRequest,
+    request: Request = None,
+):
+    """Run name-only model routing with server-bound arguments and fallback."""
+
+    workflow = build_server_bound_safety_workflow(request)
+    try:
+        response = await asyncio.to_thread(
+            workflow.run,
+            payload.question,
+            use_llm_plan=payload.use_llm_plan,
+            request_id=get_request_id(request),
+        )
+    except ToolWorkflowExecutionError as exc:
+        logger.warning(
+            structured_event(
+                "server_bound_tool_workflow_failed",
+                request_id=get_request_id(request),
+                error=exc.code,
+                executed_steps=len(exc.traces),
+            )
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "server_bound_tool_workflow_failed",
                 "detail": "The bounded safety workflow could not complete.",
                 "reason": exc.code,
             },
