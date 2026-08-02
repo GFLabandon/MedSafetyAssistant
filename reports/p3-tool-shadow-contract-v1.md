@@ -57,20 +57,23 @@ artifact ID 篡改、伪造 Evidence Packet 和重复循环请求。标签由确
 
 ## 真实 Ollama 状态
 
-2026-08-02 检查本机原有模型 `deepseek-r1:1.5b` 时，发现 capabilities 只有
-`completion` 和 `thinking`，不支持 `tools`。runner 在任何 tool proposal 请求前停止，
-因此：
+原有 `deepseek-r1:1.5b` 不支持 tools，因此真实评测改用 `qwen3:1.7b`，模型 digest 为
+`8f68893c685c3ddff2aa3fffce2aa60a30bb2da65ca488b61fff134a4d1730e7`。
 
-- 真实模型请求：0；
-- dev 工具名准确率、参数精确匹配率和延迟：`not_run`；
-- locked test：`not_run`；
-- 没有产生可用于简历或 README 的模型指标。
+| Split | Prompt | Tool name | Whole call | P50 / P95 | Executed |
+|---|---|---:|---:|---:|---:|
+| dev，40 条 | v3 | 1.000 | 0.950 | 685 / 860 ms | 0 |
+| locked test，20 条 | v3 | 0.950 | 0.850 | 681 / 842 ms | 0 |
 
-安装兼容模型后，先固定当前提交、模型名与 digest，只运行 dev 并保留全部失败记录。
-完成失败归因且不再调整当前 prompt/adapter 后，才能显式运行一次 locked test。
+v1 dev 的 whole-call exact match 只有 `0.275`；显式阶段映射后的 v2 为 `0.900`，最终
+v3 为 `0.950`。三版开发结果均保留，避免只展示成功版本。
+
+锁定测试只运行一次并保留 3 项失败：两项参数复制丢失标点，一项注入导致模型跳过解析、
+错选 `query_safety_graph`。这项错误直接阻止模型进入正式控制流，v3 不再调整。
 
 ## 停止条件
 
-当前模型不得进入正式工具执行路径。即使后续 shadow 指标达到目标，也必须继续满足：非法
-工具执行率为 0、无证据医学陈述率为 0、失败可确定性回退，并通过独立的受控执行实验；
-否则继续保持 shadow-only。
+当前模型不得进入正式工具执行路径。locked 注入失败已经触发停止条件；即使平均指标较高，
+也不能抵消单项控制流错误。后续必须建立“模型只选工具名、服务端构造参数”的新版本，
+继续满足非法工具执行率为 0、无证据医学陈述率为 0、失败可确定性回退，并通过独立的受控
+执行实验；否则继续保持 shadow-only。

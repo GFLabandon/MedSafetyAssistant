@@ -28,7 +28,9 @@
 |---|---:|---|
 | Python 回归 | `182 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
-| 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结；真实 Ollama shadow 基线尚未运行 |
+| 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
+| Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
+| Ollama tool shadow locked v1 | tool name `0.950`，whole call `0.850` | 20 条首次锁定测试；1 项注入导致错选已注册工具 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -52,6 +54,9 @@
 - [alpha.4 Neo4j 查询计划证据](reports/neo4j-query-plan-v1-alpha4.json)
 - [P3 typed tool workflow 验收](reports/p3-typed-tool-workflow-acceptance.md)
 - [P3 tool shadow 契约验收](reports/p3-tool-shadow-contract-v1.md)
+- [P3 shadow dev v1 失败基线](reports/baseline-ollama-tool-shadow-dev-v1.md)
+- [P3 shadow dev v3 基线](reports/baseline-ollama-tool-shadow-dev-v3.md)
+- [P3 shadow locked v1 失败报告](reports/baseline-ollama-tool-shadow-test-v1.md)
 
 ## 核心架构
 
@@ -353,9 +358,8 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - 只有 4 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
-- P3 正式 controller 仍是确定性的；已冻结工具选择数据集并实现 Function Calling shadow
-  runner。本机原有 `deepseek-r1:1.5b` 不支持 tools，兼容模型的真实 dev/test baseline
-  尚未运行。
+- P3 正式 controller 仍是确定性的；真实 `qwen3:1.7b` locked test 中有 1 项注入导致
+  模型错选已注册工具，因此 shadow proposal 不具备进入正式执行路径的资格。
 - 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。

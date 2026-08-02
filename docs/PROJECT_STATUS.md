@@ -2,7 +2,7 @@
 
 更新时间：2026-08-02
 当前阶段：P3——受约束 typed tool workflow
-状态：P3 确定性控制面已合并；工具选择数据集和不执行 proposal 的 shadow runner 已完成离线验收
+状态：P3 shadow dev/locked 真实基线已完成；注入失败证明模型继续保持只观察、不执行
 
 ## 当前目标
 
@@ -27,8 +27,10 @@
 - [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
 - [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
 - [x] P3 相关契约 `34 passed`，完整回归 `182 passed, 5 skipped`；
-- [ ] 真实 Ollama dev baseline：原有 `deepseek-r1:1.5b` 不支持 tools，兼容模型尚待运行；
-- [ ] 真实 Ollama locked test：尚未运行，必须在 prompt/adapter 固定后只运行一次。
+- [x] `qwen3:1.7b` dev v3：tool name `1.000`、whole call `0.950`、执行数 0；
+- [x] locked test 首次运行：tool name `0.950`、whole call `0.850`、执行数 0；
+- [x] 锁定失败原样保留：2 项标点复制错误，1 项注入诱导错选 `query_safety_graph`；
+- [x] 停止对 v3 调优，确定性 controller 继续作为唯一正式控制面。
 
 规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，首批与 shadow 验收分别见
 [`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md) 和
@@ -195,7 +197,7 @@ P2 暂停期变更。
 | V1 catalog | 9 Source、5 Medication、3 Context、4 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
-| Ollama tool shadow | 未运行 | `deepseek-r1:1.5b` capabilities 不含 `tools`，在任何模型请求前停止；locked test 未触碰 |
+| Ollama tool shadow | 已运行 | `qwen3:1.7b`，digest `8f68893c…30e7`；40 dev + 20 locked 请求，proposal 执行数 0 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 

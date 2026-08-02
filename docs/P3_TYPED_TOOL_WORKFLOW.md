@@ -131,9 +131,15 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
 - runner 在发送样例前验证模型 `tools` capability，不兼容模型直接停止。
 
 当前工具执行、冻结数据和 shadow planner 共 34 项契约通过；完整回归为
-`182 passed, 5 skipped`。2026-08-02 检查发现原有 `deepseek-r1:1.5b` capabilities
-只有 `completion` 和 `thinking`，不支持 `tools`，因此没有发出模型请求；当前只有
-适配器/评测器工程证据，没有真实工具选择准确率或延迟基线，locked test 也尚未运行。
+`182 passed, 5 skipped`。原有 `deepseek-r1:1.5b` 不支持 tools，真实 shadow 改用
+`qwen3:1.7b`。在 40 条 dev 上，v3 tool-name accuracy 为 `1.000`、whole-call exact
+match 为 `0.950`；首次 20 条 locked test 分别为 `0.950` 和 `0.850`。所有 60 次最终
+基线 proposal 的执行数为 0。
+
+locked test 保留 3 项失败：两项参数删除句末标点，一项问题注入诱导模型在 `start`
+阶段错选 `query_safety_graph`。伪造的 artifact 引用会被服务端拒绝，但该失败仍证明模型
+不能进入正式控制流。v3 不再针对锁定结果调优；后续如改为“模型只选工具名、服务端从
+可信状态构造参数”，必须创建新的 prompt/数据集版本并重新走 shadow 门。
 
 详见 [`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。在真实 dev
 结果完成失败归因前，模型仍不得影响正式控制流；即使 shadow 指标通过，也需要单独设计

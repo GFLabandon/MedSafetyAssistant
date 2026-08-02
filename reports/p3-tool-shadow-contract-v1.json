@@ -20,11 +20,25 @@
     "public_repository_audit": "passed"
   },
   "real_ollama_baseline": {
-    "status": "not_run",
-    "preflight": "unsupported_model_capability",
-    "model_requests": 0,
-    "dev_split": "not_run",
-    "locked_test_split": "not_run"
+    "status": "completed_shadow_only",
+    "model": "qwen3:1.7b",
+    "model_digest": "8f68893c685c3ddff2aa3fffce2aa60a30bb2da65ca488b61fff134a4d1730e7",
+    "model_requests_across_all_preserved_runs": 140,
+    "final_v3_requests": 60,
+    "executed_tool_calls": 0,
+    "dev_split": {
+      "cases": 40,
+      "prompt_version": "typed-tool-shadow-v3",
+      "tool_name_accuracy": 1.0,
+      "whole_call_exact_match": 0.95
+    },
+    "locked_test_split": {
+      "cases": 20,
+      "prompt_version": "typed-tool-shadow-v3",
+      "tool_name_accuracy": 0.95,
+      "whole_call_exact_match": 0.85,
+      "preserved_failures": 3
+    }
   },
   "boundary": "Shadow proposals are validated and recorded only. They are never dispatched or executed."
 }
