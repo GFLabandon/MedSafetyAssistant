@@ -2,7 +2,7 @@
 
 更新时间：2026-08-02
 当前阶段：P3——受约束 typed tool workflow
-状态：单 Ollama 模型运行时已通过本地验收；参数、事实与 evidence artifact 权限仍保持在服务端
+状态：结构化 session typed tool 与 request-level 可观测性已通过真实 Redis/Ollama 验收
 
 ## 当前目标
 
@@ -10,14 +10,15 @@
 严格 typed tools，建立注册、参数校验、服务端 artifact、步数上限和 trace 边界。模型
 工具选择必须先经过独立 shadow 评测，不能直接获得任意执行权。当前本地只需要
 `qwen3:4b-instruct`；会话召回改用版本化的确定性词法 hashing，不再依赖第二个模型。
+显式 V1 workflow session 只保存 catalog ID，不复用 legacy 问答文本或扩大模型权限。
 
 ## P3 typed tool workflow 首批
 
 - [x] 新增四个版本化工具定义和严格输入/输出 schema；
 - [x] 新增固定注册表，拒绝未知工具、额外参数和非法输出；
 - [x] 工具间使用单请求服务端 artifact `call_id`，不接受调用方构造的领域对象；
-- [x] 默认最多 4 步，当前正常与澄清路径均固定执行 3 步；
-- [x] 新增 `tool-workflow-trace-v1`，只记录参数键，不记录参数值；
+- [x] 默认最多 4 步，当前正常与澄清路径均固定执行 4 步；
+- [x] `tool-workflow-trace-v2` 只记录参数键、状态、耗时和 session 状态，不记录参数值；
 - [x] 新增工具 schema 与 typed workflow 两个 API；
 - [x] 同步调用在线程池执行，不直接阻塞 FastAPI 事件循环；
 - [x] 12 项专项契约覆盖未知工具、参数注入、artifact 伪造、非法输出、提示注入和步数上限；
@@ -27,7 +28,7 @@
   引用和多工具调用均归类但不执行；
 - [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
 - [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
-- [x] P3 相关契约、server-bound 契约和单模型运行时契约均通过，完整回归 `201 passed, 5 skipped`；
+- [x] P3 相关契约、server-bound、单模型与结构化 session 契约均通过，完整回归 `211 passed, 5 skipped`；
 - [x] `qwen3:1.7b` dev v3：tool name `1.000`、whole call `0.950`、执行数 0；
 - [x] locked test 首次运行：tool name `0.950`、whole call `0.850`、执行数 0；
 - [x] 锁定失败原样保留：2 项标点复制错误，1 项注入诱导错选 `query_safety_graph`；
@@ -45,11 +46,20 @@
   `qwen3:4b-instruct`；历史报告仍保留旧模型标识以支持按需复现。
 - [x] 单模型冷加载后，三步工具决策 3/3 被接受并返回来源对齐事实；Redis 双会话实测
   验证 TTL、会话隔离和 512 维 vectorizer metadata。
+- [x] 新增第五个 `retrieve_session_context` 注册工具；正常与澄清路径升级为固定四步；
+- [x] V1 session 独立保存 catalog entity ID、数据版本和结论状态，不保存问题或回答；
+- [x] `tool-workflow-trace-v2` 记录 session read/write/applied 状态，结构化完成日志只记录
+  request ID、工具名、状态、耗时和 proposal 接受/回退计数；
+- [x] 真实 Redis 双会话追问保持隔离；真实 Qwen 两轮 8 次工具名提议全部接受；
+- [x] 新增 12 条 session-routing dev，raw/bound 均 `1.000`；原 40 条 dev 在 prompt v2
+  回归仍为 `1.000`，两组 fallback 均为 0。
 
 规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，首批与 shadow 验收分别见
 [`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md) 和
 [`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。单模型运行时验收见
-[`p3-single-model-runtime-acceptance.md`](../reports/p3-single-model-runtime-acceptance.md)。
+[`p3-single-model-runtime-acceptance.md`](../reports/p3-single-model-runtime-acceptance.md)，结构化
+session 验收见
+[`p3-session-context-acceptance.md`](../reports/p3-session-context-acceptance.md)。
 
 ## P2 alpha.4 泰诺活动限制
 
@@ -175,7 +185,8 @@
 
 仍保留的边界：
 
-- 正式 V1 保持无状态，跨轮代词要求用户重新写出药品名称；
+- `POST /api/v1/query` 保持无状态；两个 workflow 端点仅在显式 session 内支持受控追问，
+  不读取 legacy 问答文本；
 - legacy Redis 会话没有认证、用户账户绑定或生产级并发/SLO；
 - Playwright 使用 API fixture 验证前端契约；真实依赖 smoke test 验证 API，两者不包装
   为生产环境浏览器全链路；
@@ -201,9 +212,9 @@ P2 暂停期变更。
 
 | 检查 | 结果 | 命令或依据 |
 |---|---|---|
-| Git 状态 | 单模型运行时实现提交 `4b975bc`，文档验收批次在当前分支继续 | `git log --oneline` |
+| Git 状态 | session 实现 `2ba6272`、新增模型基线 `bb41905`，文档验收批次继续 | `git log --oneline` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 201 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 211 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -216,6 +227,7 @@ P2 暂停期变更。
 | Server-bound tool | 已运行 | `qwen3:4b-instruct`，digest `0edcdef3…ba0`；40 dev raw/bound 均 1.000 |
 | Ollama 当前清单 | 仅一个模型 | `qwen3:4b-instruct`，digest `0edcdef34593`，2.5 GB |
 | Redis 单模型会话召回 | 已运行 | 本地 `local-char-ngram-hashing-v1`，512 维；双会话隔离与 TTL 通过 |
+| V1 结构化 session | 已运行 | Redis 双会话隔离；真实 agent 两轮 8/8 proposal 接受；无 raw text |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 

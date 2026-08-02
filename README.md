@@ -17,8 +17,10 @@
   不由模型决定。
 - **可追溯证据：**每条正式结论都携带 `fact_id`、`source_id`、来源定位、数据版本和限制。
 - **模型输出不可信：**未知、遗漏、重复事实 ID，结论篡改和严重度错序都会被服务端拒绝。
-- **受限工具执行：**P3 typed workflow 只执行四个注册工具，使用严格 schema、
+- **受限工具执行：**P3 typed workflow 只执行五个注册工具，使用严格 schema、
   服务端 artifact 引用和最多 4 步的执行上限；模型只提议工具名，全部参数由服务端绑定。
+- **结构化会话：**显式 session 只保存 catalog 实体 ID、数据版本和结论状态，不把 legacy
+  问答文本交给 V1 或模型；Redis 故障时回退为无状态流程。
 - **可重建图投影：**版本化 JSON 是权威源，Neo4j 是带唯一约束和幂等导入的查询投影。
 - **失败也是评测结果：**仓库保留真实 Ollama 的 ID 复制与排序失败，而不是只展示成功样例。
 
@@ -26,14 +28,14 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `201 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
-| 单模型本地运行 | 仅 `qwen3:4b-instruct`，冷启动工具决策 3/3 接受 | Redis 召回使用 512 维本地词法 hashing，不是语义 embedding |
-| Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
+| Python 回归 | `211 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| 单模型本地运行 | 仅 `qwen3:4b-instruct`，两轮 agent 工具决策 8/8 接受 | 生成、name-only routing 与可选 rerank 共用一个模型 |
+| 结构化 session routing dev | raw/bound `1.000`，fallback `0` | 12 条开发样例；不是独立锁定测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
 | Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
 | Ollama tool shadow locked v1 | tool name `0.950`，whole call `0.850` | 20 条首次锁定测试；1 项注入导致错选已注册工具 |
 | Server-bound 1.7B dev | raw tool name `0.875`，bound call `1.000` | 40 条开发样例；5 次阶段错选均回退 |
-| Server-bound 4B Instruct dev | raw tool name `1.000`，bound call `1.000` | 同一 40 条开发样例；P50/P95 `749/856ms` |
+| Server-bound 4B Instruct dev v2 | raw tool name `1.000`，bound call `1.000` | 原 40 条开发样例回归；P50/P95 `688/752ms` |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -64,12 +66,16 @@
 - [P3 server-bound 4B Instruct 开发基线](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v1.json)
 - [P3 server-bound 模型选择与验收](reports/p3-server-bound-tool-acceptance.md)
 - [P3 单模型运行时验收](reports/p3-single-model-runtime-acceptance.md)
+- [P3 结构化会话上下文验收](reports/p3-session-context-acceptance.md)
+- [P3 session routing 12 条开发基线](reports/baseline-server-bound-session-tool-qwen3-4b-instruct-dev-v1.json)
+- [P3 server-bound 40 条 prompt v2 回归](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v2.json)
 
 ## 核心架构
 
 ```mermaid
 flowchart LR
     A["自然语言问题"] --> W["Bounded Typed Tool Controller"]
+    S["Redis 结构化 session IDs"] --> W
     W --> R["确定性实体解析"]
     R -->|"已解析"| B["Safety Engine"]
     R -->|"歧义或未知"| Q["澄清或范围外状态"]
@@ -88,7 +94,7 @@ flowchart LR
 
 P3 controller 只允许注册工具，工具间使用服务端 `call_id` 引用产物；调用方不能把自己
 构造的实体结果或 `EvidencePacket` 交给后续工具。`agent-query` 的 Ollama planner 看不到
-问题文本和 artifact ID，只能提议工具名；服务端按当前阶段校验名称并重新构造参数。错选、
+问题文本、session ID 和 artifact ID，只能提议工具名；服务端按当前阶段校验名称并重新构造参数。错选、
 未知工具或模型故障都会记录后走确定性回退，因此模型参数永远不会进入注册表。这是受约束
 的工具工作流，不是开放式 ReAct。
 
@@ -175,15 +181,20 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
   -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
 ```
 
-工具 schema 可通过 `GET /api/v1/workflows/safety/tools` 查看。响应增加
-`tool-workflow-trace-v1`，只记录工具、参数键、状态、schema 和耗时，不记录参数值。
+工具 schema 可通过 `GET /api/v1/workflows/safety/tools` 查看。响应使用
+`tool-workflow-trace-v2`，只记录工具、参数键、状态、schema、耗时以及 session
+`read/write/applied` 状态，不记录参数值、session ID 或药名。
 
 P3 服务端绑定的模型路由入口：
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/agent-query \
   -H 'Content-Type: application/json' \
-  -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
+  -d '{"question":"泰诺和感康能一起吃吗？","session_id":"demo-session-001"}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/agent-query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"刚才的药还能一起吃吗？","session_id":"demo-session-001"}'
 ```
 
 响应额外包含 `server-bound-tool-decision-trace-v1`：记录模型提议是否被接受、稳定的回退
@@ -400,7 +411,8 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - P3 正式 controller 仍是确定性的；历史 `qwen3:1.7b` locked test 中有 1 项注入导致
   模型错选已注册工具，因此原始 shadow proposal 不具备进入正式执行路径的资格；当前
   `qwen3:4b-instruct` 只通过服务端绑定的受限决策影响执行。
-- 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
+- 自然语言解析仅覆盖 `data/v1/` 中的受控别名、少量上下文规则和显式 workflow session
+  内的受控追问指代；不支持任意跨轮共指或长期记忆。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。
 - P1 已完成 Neo4j、Redis、Ollama 同时在线的 API smoke baseline；它是单机开发验收，

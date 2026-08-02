@@ -52,7 +52,7 @@ python scripts/evaluate_tool_shadow.py \
 runner 只记录并严格验证模型 proposal，不会把它传给工具注册表，也不会因模型选择而
 访问 Neo4j、Redis 或 Safety Engine。
 
-`server-bound-tool-name-v1` 是 locked shadow 失败后的独立收窄方案。模型只接收最小
+`server-bound-tool-name-v2` 是 locked shadow 失败后的独立收窄方案。模型只接收最小
 路由状态并提议工具名；参数由服务端从可信状态构造。当前只允许在既有 `dev` split 做
 模型 A/B，不把已经运行过的 locked split 重新包装成新测试集：
 
@@ -66,6 +66,21 @@ python scripts/evaluate_server_bound_tools.py \
 
 报告同时给出原始工具名准确率、确定性回退率和服务端绑定调用正确率；最后一项不能替代
 模型质量指标。runner 不执行任何工具，也不保存问题文本或参数值。
+
+`session_tool_routing_dev_v1.jsonl` 增加 12 条仅用于开发的 `session_start` 与携带服务端
+context artifact 的 `start` 状态。模型仍只看到阶段名，session ID、问题和 artifact ID
+不会进入 name-only prompt：
+
+```bash
+python scripts/evaluate_server_bound_tools.py \
+  --dataset eval/session_tool_routing_dev_v1.jsonl \
+  --split dev \
+  --model qwen3:4b-instruct \
+  --format json
+```
+
+该数据集没有 locked split，结果只能作为新增工具的开发基线。正式报告见
+`reports/baseline-server-bound-session-tool-qwen3-4b-instruct-dev-v1.json`。
 
 `explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
 

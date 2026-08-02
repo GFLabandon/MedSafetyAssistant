@@ -35,7 +35,9 @@ Content-Type: application/json
 - 药品和上下文只来自 `data/v1/` 的 canonical name、alias 或受测上下文规则。
 - 英文别名使用大小写无关且带字母数字边界的匹配，避免在更长单词内误命中。
 - “感冒药”“止痛药”等类别词视为歧义，不能映射到某个具体药品。
-- “这个药”“它”等跨轮指代不会读取共享历史，而是要求用户重新写出药品。
+- 普通 `/api/v1/query` 中，“这个药”“它”等跨轮指代不会读取共享历史，而是要求用户
+  重新写出药品；typed workflow 端点只在显式 session 内读取 catalog ID 形式的结构化
+  context，不读取问答文本。
 - “忽略之前规则”“system prompt”等指令式文本只产生
   `instruction_like_text_ignored` 标记，不影响工具、数据源或 Safety Engine。
 - 单个问题最长 500 个字符；不允许的控制字符会被拒绝。
@@ -44,5 +46,6 @@ Content-Type: application/json
 
 - 解析器是确定性、小范围实现，不代表通用医疗 NER。
 - 上下文推断只覆盖当前三条来源对齐事实所需的明确表达。
-- 正式 V1 当前无状态，不做跨轮共指。
+- 普通 V1 查询保持无状态；typed workflow 只支持“这个药、那个药、刚才的药”等受控
+  指代，不做任意跨轮共指或长期记忆。
 - 新增药品别名或上下文规则必须先更新 catalog、测试和数据版本边界，不能只改 prompt。

@@ -1,0 +1,655 @@
+[
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_01",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 692.513,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_02",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 661.105,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_03",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 649.369,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_04",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 642.126,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_05",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 643.871,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_06",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 658.008,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_07",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 654.717,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_08",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 670.868,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_09",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 648.317,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_10",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 643.803,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_11",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 642.865,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_12",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 645.536,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_13",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 643.246,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "shadow_start_14",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 655.836,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "query_safety_graph",
+    "case_id": "shadow_resolution_01",
+    "expected_name": "query_safety_graph",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 738.839,
+    "proposal_accepted": true,
+    "proposed_name": "query_safety_graph",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_02",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 729.503,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "query_safety_graph",
+    "case_id": "shadow_resolution_03",
+    "expected_name": "query_safety_graph",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 731.924,
+    "proposal_accepted": true,
+    "proposed_name": "query_safety_graph",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_04",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 725.569,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_05",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 731.344,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_06",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 752.329,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "query_safety_graph",
+    "case_id": "shadow_resolution_07",
+    "expected_name": "query_safety_graph",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 734.118,
+    "proposal_accepted": true,
+    "proposed_name": "query_safety_graph",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_08",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 731.92,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "query_safety_graph",
+    "case_id": "shadow_resolution_09",
+    "expected_name": "query_safety_graph",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 727.0,
+    "proposal_accepted": true,
+    "proposed_name": "query_safety_graph",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_10",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 730.889,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_11",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 748.554,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "request_clarification",
+    "case_id": "shadow_resolution_12",
+    "expected_name": "request_clarification",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 743.258,
+    "proposal_accepted": true,
+    "proposed_name": "request_clarification",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "resolution_call_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "query_safety_graph",
+    "case_id": "shadow_resolution_13",
+    "expected_name": "query_safety_graph",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 742.032,
+    "proposal_accepted": true,
+    "proposed_name": "query_safety_graph",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_01",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 763.479,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_02",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 677.1,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_03",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 686.958,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_04",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 696.112,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_05",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 681.208,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_06",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 684.227,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_07",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 677.685,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_08",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 679.287,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_09",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 697.064,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_10",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 698.729,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_11",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 714.287,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_12",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 686.318,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "packet_call_id",
+      "use_llm_plan"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "render_evidence_explanation",
+    "case_id": "shadow_evidence_13",
+    "expected_name": "render_evidence_explanation",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 688.228,
+    "proposal_accepted": true,
+    "proposed_name": "render_evidence_explanation",
+    "repetition": 1,
+    "split": "dev"
+  }
+]
