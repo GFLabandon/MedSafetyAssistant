@@ -1,0 +1,41 @@
+{
+  "code_commit": "43391c541a2e38483931df2ab24d7692c71ab311",
+  "configured_model": "qwen3:1.7b",
+  "dataset_sha256": "e037caf4a9aa3e2db33c2fb1fbc3cca6ca854a1e47bd16cc5a008cf25f8a3229",
+  "metrics": {
+    "fallback_counts": {
+      "stage_mismatch": 5
+    },
+    "fallback_rate": 0.125,
+    "planner_latency_ms": {
+      "p50": 416.557,
+      "p95": 507.137
+    },
+    "proposal_acceptance_rate": 0.875,
+    "raw_tool_name_accuracy": 0.875,
+    "server_bound_call_accuracy": 1.0,
+    "total_attempts": 40
+  },
+  "model": {
+    "capabilities": [
+      "completion",
+      "thinking",
+      "tools"
+    ],
+    "digest": "8f68893c685c3ddff2aa3fffce2aa60a30bb2da65ca488b61fff134a4d1730e7",
+    "family": "qwen3",
+    "format": "gguf",
+    "modified_at": "2026-08-02T14:55:00.122155+08:00",
+    "name": "qwen3:1.7b",
+    "parameter_size": "2.0B",
+    "quantization_level": "Q4_K_M",
+    "size_bytes": 1359293444
+  },
+  "ollama_package_version": "0.6.2",
+  "ollama_url": "http://localhost:11434",
+  "prompt_version": "server-bound-tool-name-v1",
+  "repetitions": 1,
+  "schema_version": "server-bound-tool-evaluation-v1",
+  "split": "dev",
+  "working_tree_dirty": false
+}

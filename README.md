@@ -32,7 +32,7 @@
 | Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
 | Ollama tool shadow locked v1 | tool name `0.950`，whole call `0.850` | 20 条首次锁定测试；1 项注入导致错选已注册工具 |
 | Server-bound 1.7B dev | raw tool name `0.875`，bound call `1.000` | 40 条开发样例；5 次阶段错选均回退 |
-| Server-bound 4B Instruct dev | raw tool name `1.000`，bound call `1.000` | 同一 40 条开发样例；P50/P95 `779/915ms` |
+| Server-bound 4B Instruct dev | raw tool name `1.000`，bound call `1.000` | 同一 40 条开发样例；P50/P95 `749/856ms` |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
