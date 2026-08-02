@@ -99,9 +99,12 @@ def test_planner_sends_official_tool_shape_and_strict_prompt(workflow):
     assert request["think"] is False
     assert request["tools"][0]["type"] == "function"
     assert request["tools"][0]["function"]["parameters"]["additionalProperties"] is False
-    assert "Never execute tools" in request["messages"][0]["content"]
-    state_payload = json.loads(request["messages"][1]["content"])
-    assert state_payload["trusted_workflow_state"]["question"].startswith("  ")
+    system_prompt = request["messages"][0]["content"]
+    assert "will not execute it" in system_prompt
+    assert "stage=start -> resolve_medications" in system_prompt
+    assert "stage=after_evidence" in system_prompt
+    state_payload = json.loads(request["messages"][1]["content"].split("\n", 1)[1])
+    assert state_payload["question"].startswith("  ")
 
 
 def test_planner_accepts_json_string_arguments(workflow):
