@@ -50,6 +50,8 @@ class FakeRedis:
 
 
 class FakeEmbeddingService:
+    embedding_model = "test-embedding-v1"
+
     @staticmethod
     def embed_text(text):
         return [1.0, float(len(text) % 2)]
@@ -122,3 +124,60 @@ def test_clear_session_removes_only_target_namespace():
     assert deleted == 3
     assert not any(":session-a:" in key for key in store.redis_client.data)
     assert any(":session-b:" in key for key in store.redis_client.data)
+
+
+def test_vector_search_skips_unknown_model_and_dimension_records():
+    store = build_store()
+    store.store_conversation("current question", "current answer", "session-a")
+    store.redis_client.hset(
+        "conv:session-a:user:legacy",
+        mapping={
+            "text": "legacy without provenance",
+            "role": "user",
+            "vector": "[1.0, 1.0]",
+            "session_id": "session-a",
+            "timestamp": "1",
+        },
+    )
+    store.redis_client.hset(
+        "conv:session-a:user:wrong-model",
+        mapping={
+            "text": "wrong model",
+            "role": "user",
+            "vector": "[1.0, 1.0]",
+            "embedding_model": "different-embedding-v2",
+            "embedding_dimensions": "2",
+            "session_id": "session-a",
+            "timestamp": "2",
+        },
+    )
+    store.redis_client.hset(
+        "conv:session-a:user:wrong-dimension",
+        mapping={
+            "text": "wrong dimension",
+            "role": "user",
+            "vector": "[1.0, 1.0, 1.0]",
+            "embedding_model": "test-embedding-v1",
+            "embedding_dimensions": "3",
+            "session_id": "session-a",
+            "timestamp": "3",
+        },
+    )
+
+    results = store.search_similar_conversations(
+        "current question",
+        "session-a",
+        top_k=10,
+    )
+
+    assert {item["text"] for item in results} == {
+        "current question",
+        "current answer",
+    }
+    current_records = [
+        data
+        for data in store.redis_client.data.values()
+        if data.get("text", "").startswith("current")
+    ]
+    assert all(data["embedding_model"] == "test-embedding-v1" for data in current_records)
+    assert all(data["embedding_dimensions"] == "2" for data in current_records)

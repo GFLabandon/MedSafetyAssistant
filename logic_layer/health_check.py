@@ -84,13 +84,18 @@ def _ollama_probe() -> dict:
         for item in payload.get("models", [])
         if isinstance(item, dict)
     }
-    required_models = {Config.OLLAMA_MODEL, Config.OLLAMA_EMBEDDING_MODEL}
+    required_models = {
+        Config.OLLAMA_MODEL,
+        Config.OLLAMA_EMBEDDING_MODEL,
+        Config.OLLAMA_TOOL_MODEL,
+    }
     if not required_models.issubset(models):
         raise LookupError("A configured Ollama model is not installed")
     return {
         "role": "optional_llm_and_embedding",
         "model": Config.OLLAMA_MODEL,
         "embedding_model": Config.OLLAMA_EMBEDDING_MODEL,
+        "tool_model": Config.OLLAMA_TOOL_MODEL,
     }
 
 

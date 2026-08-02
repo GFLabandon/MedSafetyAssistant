@@ -16,12 +16,18 @@ class Config:
     )
 
     # Ollama 配置：模型版本必须与评测报告或本地验收记录一致。
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b-instruct")
+    OLLAMA_TOOL_MODEL = os.getenv("OLLAMA_TOOL_MODEL", "qwen3:4b-instruct")
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_EXPLANATION_TIMEOUT_SECONDS = float(
         os.getenv("OLLAMA_EXPLANATION_TIMEOUT_SECONDS", "5")
     )
-    OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", OLLAMA_MODEL)
+    # Generation models are not assumed to support /api/embed. Keep this
+    # independent until a dedicated embedding model is explicitly validated.
+    OLLAMA_EMBEDDING_MODEL = os.getenv(
+        "OLLAMA_EMBEDDING_MODEL",
+        "deepseek-r1:1.5b",
+    )
     OLLAMA_EMBEDDING_TIMEOUT_SECONDS = float(
         os.getenv("OLLAMA_EMBEDDING_TIMEOUT_SECONDS", "5")
     )

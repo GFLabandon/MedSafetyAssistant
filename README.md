@@ -18,7 +18,7 @@
 - **可追溯证据：**每条正式结论都携带 `fact_id`、`source_id`、来源定位、数据版本和限制。
 - **模型输出不可信：**未知、遗漏、重复事实 ID，结论篡改和严重度错序都会被服务端拒绝。
 - **受限工具执行：**P3 typed workflow 只执行四个注册工具，使用严格 schema、
-  服务端 artifact 引用和最多 4 步的执行上限。
+  服务端 artifact 引用和最多 4 步的执行上限；模型只提议工具名，全部参数由服务端绑定。
 - **可重建图投影：**版本化 JSON 是权威源，Neo4j 是带唯一约束和幂等导入的查询投影。
 - **失败也是评测结果：**仓库保留真实 Ollama 的 ID 复制与排序失败，而不是只展示成功样例。
 
@@ -26,11 +26,13 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `182 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `197 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
 | Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
 | Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
 | Ollama tool shadow locked v1 | tool name `0.950`，whole call `0.850` | 20 条首次锁定测试；1 项注入导致错选已注册工具 |
+| Server-bound 1.7B dev | raw tool name `0.875`，bound call `1.000` | 40 条开发样例；5 次阶段错选均回退 |
+| Server-bound 4B Instruct dev | raw tool name `1.000`，bound call `1.000` | 同一 40 条开发样例；P50/P95 `749/856ms` |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -57,6 +59,9 @@
 - [P3 shadow dev v1 失败基线](reports/baseline-ollama-tool-shadow-dev-v1.md)
 - [P3 shadow dev v3 基线](reports/baseline-ollama-tool-shadow-dev-v3.md)
 - [P3 shadow locked v1 失败报告](reports/baseline-ollama-tool-shadow-test-v1.md)
+- [P3 server-bound 1.7B 开发基线](reports/baseline-server-bound-tool-qwen3-1.7b-dev-v1.json)
+- [P3 server-bound 4B Instruct 开发基线](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v1.json)
+- [P3 server-bound 模型选择与验收](reports/p3-server-bound-tool-acceptance.md)
 
 ## 核心架构
 
@@ -80,8 +85,10 @@ flowchart LR
 ```
 
 P3 controller 只允许注册工具，工具间使用服务端 `call_id` 引用产物；调用方不能把自己
-构造的实体结果或 `EvidencePacket` 交给后续工具。正式控制流仍是确定性的，不是 ReAct。
-独立 Ollama shadow planner 只能提出并记录下一步工具调用，proposal 不会进入执行注册表。
+构造的实体结果或 `EvidencePacket` 交给后续工具。`agent-query` 的 Ollama planner 看不到
+问题文本和 artifact ID，只能提议工具名；服务端按当前阶段校验名称并重新构造参数。错选、
+未知工具或模型故障都会记录后走确定性回退，因此模型参数永远不会进入注册表。这是受约束
+的工具工作流，不是开放式 ReAct。
 
 LLM 可以排列证据，但不能：
 
@@ -169,6 +176,18 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
 工具 schema 可通过 `GET /api/v1/workflows/safety/tools` 查看。响应增加
 `tool-workflow-trace-v1`，只记录工具、参数键、状态、schema 和耗时，不记录参数值。
 
+P3 服务端绑定的模型路由入口：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/agent-query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
+```
+
+响应额外包含 `server-bound-tool-decision-trace-v1`：记录模型提议是否被接受、稳定的回退
+原因、规划耗时和参数键，不返回参数值或模型思考内容。即使模型错选，执行调用仍由可信
+状态确定。
+
 ### 运行状态
 
 - `GET /api/live`：仅表示 API 进程存活，不访问外部依赖；
@@ -212,9 +231,12 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/check \
 
 ## 使用真实 Ollama 解释规划
 
-默认模型为 `deepseek-r1:1.5b`。模型只负责完整事实 ID 的排序：
+默认生成与工具模型为 `qwen3:4b-instruct`。模型只负责完整事实 ID 的排序和 name-only
+工具提议：
 
 ```bash
+ollama pull qwen3:4b-instruct
+# 当前历史会话 embedding 仍使用经本项目验证的旧模型，待专用 embedding 模型替换。
 ollama pull deepseek-r1:1.5b
 ollama serve
 
@@ -225,6 +247,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 
 模型不可用、超时或输出不符合合约时，响应会标记
 `generation_mode: deterministic_fallback`，但不会丢失结构化证据。
+
+`OLLAMA_MODEL`、`OLLAMA_TOOL_MODEL` 与 `OLLAMA_EMBEDDING_MODEL` 独立配置。不要把
+`qwen3:4b-instruct` 用作 embedding：当前 Ollama capability 不包含 embedding。Redis
+记录会保存 embedding 模型和维度；旧模型或维度不一致的记录不会参与相似度计算，并按
+现有会话 TTL 自然过期。
 
 评测命令、模型 digest、固定参数和数据集校验和见
 [解释生成文档](docs/EXPLANATION_GENERATION.md)。
@@ -244,6 +271,17 @@ python scripts/evaluate_tool_shadow.py \
 runner 会先检查 Ollama 服务和模型，再请求结构化工具 proposal；所有 proposal 都只校验和
 记录，`executed_tool_calls` 固定为 `0`。锁定集还需要显式传入
 `--allow-locked-test`，首次结果必须完整保留，不能用于继续调整当前 prompt 版本。
+
+服务端绑定方案只在开发 split 上做模型 A/B，同时分别报告原始工具名准确率与绑定后调用
+正确率，避免用确定性回退掩盖模型失败：
+
+```bash
+python scripts/evaluate_server_bound_tools.py \
+  --dataset eval/tool_shadow_v1.jsonl \
+  --split dev \
+  --model qwen3:1.7b \
+  --format markdown
+```
 
 ## Neo4j 查询投影
 
