@@ -2,13 +2,14 @@
 
 更新时间：2026-08-02
 当前阶段：P3——受约束 typed tool workflow
-状态：P3 服务端绑定的 name-only 模型路由已进入受控执行验收；参数与事实权限保持在服务端
+状态：单 Ollama 模型运行时已通过本地验收；参数、事实与 evidence artifact 权限仍保持在服务端
 
 ## 当前目标
 
 在不扩大 LLM 医学权限的前提下，把实体解析、Safety Engine、澄清和证据解释封装为
 严格 typed tools，建立注册、参数校验、服务端 artifact、步数上限和 trace 边界。模型
-工具选择必须先经过独立 shadow 评测，不能直接获得任意执行权。
+工具选择必须先经过独立 shadow 评测，不能直接获得任意执行权。当前本地只需要
+`qwen3:4b-instruct`；会话召回改用版本化的确定性词法 hashing，不再依赖第二个模型。
 
 ## P3 typed tool workflow 首批
 
@@ -26,7 +27,7 @@
   引用和多工具调用均归类但不执行；
 - [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
 - [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
-- [x] P3 相关契约与后续 server-bound 契约均通过，完整回归 `197 passed, 5 skipped`；
+- [x] P3 相关契约、server-bound 契约和单模型运行时契约均通过，完整回归 `201 passed, 5 skipped`；
 - [x] `qwen3:1.7b` dev v3：tool name `1.000`、whole call `0.950`、执行数 0；
 - [x] locked test 首次运行：tool name `0.950`、whole call `0.850`、执行数 0；
 - [x] 锁定失败原样保留：2 项标点复制错误，1 项注入诱导错选 `query_safety_graph`；
@@ -35,15 +36,20 @@
 - [x] 服务端从可信状态绑定全部工具参数，丢弃模型参数；
 - [x] 未知工具、阶段错选和 planner 故障均确定性回退并记录独立 decision trace；
 - [x] 新增 `/api/v1/workflows/safety/agent-query`，原 typed workflow API 保持不变；
-- [x] Redis 对话向量记录 embedding 模型与维度，自动隔离旧模型和不兼容维度；
+- [x] Redis 对话向量记录本地 vectorizer ID 与维度，自动隔离旧 provider 和不兼容维度；
 - [x] 新增开发集 runner，分开统计 raw tool-name 与 server-bound call accuracy。
 - [x] 同一 40 条 dev A/B：1.7B raw `0.875`，4B Instruct raw/bound 均 `1.000`；
 - [x] 4B Instruct 解释开发探针 15/15 合法，unsupported claim 与 fallback 均为 0；
-- [x] 默认生成与工具模型改为 `qwen3:4b-instruct`；embedding 暂留独立旧模型，未冒险删除。
+- [x] 默认生成与工具模型改为 `qwen3:4b-instruct`；后续单模型批次已移除 Ollama embedding 依赖。
+- [x] 清理本地 `deepseek-r1:1.5b`、`qwen3:1.7b` 与 thinking 版 `qwen3:4b`，只保留
+  `qwen3:4b-instruct`；历史报告仍保留旧模型标识以支持按需复现。
+- [x] 单模型冷加载后，三步工具决策 3/3 被接受并返回来源对齐事实；Redis 双会话实测
+  验证 TTL、会话隔离和 512 维 vectorizer metadata。
 
 规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，首批与 shadow 验收分别见
 [`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md) 和
-[`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。
+[`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。单模型运行时验收见
+[`p3-single-model-runtime-acceptance.md`](../reports/p3-single-model-runtime-acceptance.md)。
 
 ## P2 alpha.4 泰诺活动限制
 
@@ -195,9 +201,9 @@ P2 暂停期变更。
 
 | 检查 | 结果 | 命令或依据 |
 |---|---|---|
-| Git 状态 | shadow 实现提交 `4130d7a`，文档验收批次在当前分支继续 | `git log --oneline` |
+| Git 状态 | 单模型运行时实现提交 `4b975bc`，文档验收批次在当前分支继续 | `git log --oneline` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 197 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 201 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -205,9 +211,11 @@ P2 暂停期变更。
 | V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
 | V1 catalog | 9 Source、5 Medication、3 Context、4 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
-| Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
-| Ollama tool shadow | 已运行 | `qwen3:1.7b`，digest `8f68893c…30e7`；40 dev + 20 locked 请求，proposal 执行数 0 |
+| Ollama 历史解释基线 | 已保留报告 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成；模型已从本机删除 |
+| Ollama 历史 tool shadow | 已保留报告 | `qwen3:1.7b`，digest `8f68893c…30e7`；40 dev + 20 locked 请求，模型已从本机删除 |
 | Server-bound tool | 已运行 | `qwen3:4b-instruct`，digest `0edcdef3…ba0`；40 dev raw/bound 均 1.000 |
+| Ollama 当前清单 | 仅一个模型 | `qwen3:4b-instruct`，digest `0edcdef34593`，2.5 GB |
+| Redis 单模型会话召回 | 已运行 | 本地 `local-char-ngram-hashing-v1`，512 维；双会话隔离与 TTL 通过 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 

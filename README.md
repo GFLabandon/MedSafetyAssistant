@@ -26,7 +26,8 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `197 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `201 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| 单模型本地运行 | 仅 `qwen3:4b-instruct`，冷启动工具决策 3/3 接受 | Redis 召回使用 512 维本地词法 hashing，不是语义 embedding |
 | Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
 | Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
@@ -62,6 +63,7 @@
 - [P3 server-bound 1.7B 开发基线](reports/baseline-server-bound-tool-qwen3-1.7b-dev-v1.json)
 - [P3 server-bound 4B Instruct 开发基线](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v1.json)
 - [P3 server-bound 模型选择与验收](reports/p3-server-bound-tool-acceptance.md)
+- [P3 单模型运行时验收](reports/p3-single-model-runtime-acceptance.md)
 
 ## 核心架构
 
@@ -236,8 +238,6 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/check \
 
 ```bash
 ollama pull qwen3:4b-instruct
-# 当前历史会话 embedding 仍使用经本项目验证的旧模型，待专用 embedding 模型替换。
-ollama pull deepseek-r1:1.5b
 ollama serve
 
 curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
@@ -248,10 +248,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 模型不可用、超时或输出不符合合约时，响应会标记
 `generation_mode: deterministic_fallback`，但不会丢失结构化证据。
 
-`OLLAMA_MODEL`、`OLLAMA_TOOL_MODEL` 与 `OLLAMA_EMBEDDING_MODEL` 独立配置。不要把
-`qwen3:4b-instruct` 用作 embedding：当前 Ollama capability 不包含 embedding。Redis
-记录会保存 embedding 模型和维度；旧模型或维度不一致的记录不会参与相似度计算，并按
-现有会话 TTL 自然过期。
+`OLLAMA_MODEL` 与 `OLLAMA_TOOL_MODEL` 默认都指向同一个 `qwen3:4b-instruct`。Redis
+会话召回不再依赖第二个模型：`EmbeddingService` 使用版本化的本地字符 n-gram hashing
+生成 512 维词法向量，并由同一个 Qwen 模型做可选 rerank。Redis 记录保存 vectorizer ID
+和维度；旧 provider 或维度不一致的记录不会参与相似度计算，并按现有会话 TTL 自然过期。
+该表示适合会话中的药名和相近措辞召回，不应宣传为通用语义 embedding 模型。
 
 评测命令、模型 digest、固定参数和数据集校验和见
 [解释生成文档](docs/EXPLANATION_GENERATION.md)。
@@ -264,7 +265,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 python scripts/evaluate_tool_shadow.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
-  --model qwen3:1.7b \
+  --model qwen3:4b-instruct \
   --format markdown
 ```
 
@@ -279,7 +280,7 @@ runner 会先检查 Ollama 服务和模型，再请求结构化工具 proposal�
 python scripts/evaluate_server_bound_tools.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
-  --model qwen3:1.7b \
+  --model qwen3:4b-instruct \
   --format markdown
 ```
 
@@ -396,8 +397,9 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - 只有 4 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
-- P3 正式 controller 仍是确定性的；真实 `qwen3:1.7b` locked test 中有 1 项注入导致
-  模型错选已注册工具，因此 shadow proposal 不具备进入正式执行路径的资格。
+- P3 正式 controller 仍是确定性的；历史 `qwen3:1.7b` locked test 中有 1 项注入导致
+  模型错选已注册工具，因此原始 shadow proposal 不具备进入正式执行路径的资格；当前
+  `qwen3:4b-instruct` 只通过服务端绑定的受限决策影响执行。
 - 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。
