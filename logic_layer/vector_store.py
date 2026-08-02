@@ -93,7 +93,7 @@ class VectorStore:
         #             "role", "TEXT",
         #             "vector", "VECTOR", "FLAT", "6",
         #             "TYPE", "FLOAT32",
-        #             "DIM", "1024",  # mxbai-embed-large 的维度通常是 1024
+        #             "DIM", str(Config.SESSION_VECTOR_DIMENSIONS),
         #             "DISTANCE_METRIC", "COSINE"
         #         )
         #         self.use_fallback = False
@@ -215,8 +215,8 @@ class VectorStore:
                 return False
             print(f"      ✅ 助手回复向量化完成 (维度: {len(assistant_vector)})")
 
-            embedding_model = self.embedding_service.embedding_model
-            embedding_dimensions = str(len(user_vector))
+            vectorizer_id = self.embedding_service.vectorizer_id
+            vector_dimensions = str(len(user_vector))
             
             # 存储用户查询
             print(f"   🔄 步骤 3/4: 存储用户查询到 Redis...")
@@ -225,8 +225,8 @@ class VectorStore:
                 "text": user_query,
                 "role": "user",
                 "vector": json.dumps(user_vector),
-                "embedding_model": embedding_model,
-                "embedding_dimensions": embedding_dimensions,
+                "vectorizer_id": vectorizer_id,
+                "vector_dimensions": vector_dimensions,
                 "session_id": session_id,
                 "timestamp": str(timestamp)
             }
@@ -241,8 +241,8 @@ class VectorStore:
                 "text": assistant_response,
                 "role": "assistant",
                 "vector": json.dumps(assistant_vector),
-                "embedding_model": embedding_model,
-                "embedding_dimensions": embedding_dimensions,
+                "vectorizer_id": vectorizer_id,
+                "vector_dimensions": vector_dimensions,
                 "session_id": session_id,
                 "timestamp": str(timestamp)
             }
@@ -301,7 +301,7 @@ class VectorStore:
                 print("      ❌ 查询向量化失败")
                 return []
             print(f"      ✅ 查询向量化完成 (维度: {len(query_vector)})")
-            embedding_model = self.embedding_service.embedding_model
+            vectorizer_id = self.embedding_service.vectorizer_id
             
             # 获取所有历史对话（使用 SCAN 避免 KEYS 阻塞）
             print(f"   🔄 步骤 2/4: 从 Redis 扫描历史对话键...")
@@ -329,15 +329,15 @@ class VectorStore:
                     if not data or 'vector' not in data:
                         continue
 
-                    # Never compare vectors across model/version boundaries. Records
+                    # Never compare vectors across vectorizer/version boundaries. Records
                     # created before provenance was introduced are ignored and expire
                     # through the existing session TTL; no destructive migration is
                     # required.
-                    if data.get("embedding_model") != embedding_model:
+                    if data.get("vectorizer_id") != vectorizer_id:
                         continue
                     
                     stored_vector = json.loads(data['vector'])
-                    stored_dimensions = int(data.get("embedding_dimensions", "0"))
+                    stored_dimensions = int(data.get("vector_dimensions", "0"))
                     if (
                         stored_dimensions != len(stored_vector)
                         or stored_dimensions != len(query_vector)

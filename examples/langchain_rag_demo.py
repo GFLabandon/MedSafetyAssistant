@@ -2,22 +2,38 @@
 LangChain RAG 对照 Demo
 目标：在不改主项目架构前提下，快速跑通标准 RAG 流程。
 
-流程：TextLoader -> OllamaEmbeddings -> FAISS -> RetrievalQA
+流程：TextLoader -> 本地 hashing vectors -> FAISS -> RetrievalQA
 运行：python examples/langchain_rag_demo.py
 """
 
 from pathlib import Path
 
 from langchain.chains import RetrievalQA
+from langchain_core.embeddings import Embeddings
 from langchain.prompts import PromptTemplate
 from langchain_community.document_loaders import TextLoader
-from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.llms import Ollama
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from config import Config
+from logic_layer.embedding_service import EmbeddingService
+
 BASE_DIR = Path(__file__).resolve().parent
 DOC_PATH = BASE_DIR / "demo_med_faq.txt"
+
+
+class LocalHashingEmbeddings(Embeddings):
+    """LangChain adapter over the project's deterministic local vectorizer."""
+
+    def __init__(self):
+        self._service = EmbeddingService()
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self._service.embed_batch(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._service.embed_text(text)
 
 
 def build_qa_chain() -> RetrievalQA:
@@ -27,10 +43,7 @@ def build_qa_chain() -> RetrievalQA:
     splitter = RecursiveCharacterTextSplitter(chunk_size=220, chunk_overlap=40)
     chunks = splitter.split_documents(docs)
 
-    embeddings = OllamaEmbeddings(
-        model="mxbai-embed-large:latest",
-        base_url="http://localhost:11434",
-    )
+    embeddings = LocalHashingEmbeddings()
     vector_db = FAISS.from_documents(chunks, embeddings)
     retriever = vector_db.as_retriever(search_kwargs={"k": 3})
 
@@ -42,7 +55,11 @@ def build_qa_chain() -> RetrievalQA:
         ),
     )
 
-    llm = Ollama(model="qwen2.5-coder:14b", base_url="http://localhost:11434", temperature=0.1)
+    llm = Ollama(
+        model=Config.OLLAMA_MODEL,
+        base_url=Config.OLLAMA_URL,
+        temperature=0.1,
+    )
     return RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",

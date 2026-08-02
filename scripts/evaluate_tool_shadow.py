@@ -27,7 +27,7 @@ from medsafety.tool_shadow_planner import OllamaToolShadowPlanner
 from medsafety.tool_workflow import TypedSafetyWorkflow
 
 
-DEFAULT_TOOL_MODEL = "qwen3:1.7b"
+DEFAULT_TOOL_MODEL = Config.OLLAMA_TOOL_MODEL
 
 
 class ModelCapabilityError(ValueError):

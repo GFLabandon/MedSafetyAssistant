@@ -42,7 +42,7 @@ adapter 固定后才运行一次 `test`，并保留失败，不得针对锁定�
 python scripts/evaluate_tool_shadow.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
-  --model qwen3:1.7b \
+  --model qwen3:4b-instruct \
   --format markdown \
   --output reports/baseline-ollama-tool-shadow-dev-v1.md \
   --records-output reports/raw/ollama-tool-shadow-dev-v1-records.json
@@ -60,7 +60,7 @@ runner 只记录并严格验证模型 proposal，不会把它传给工具注册�
 python scripts/evaluate_server_bound_tools.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
-  --model qwen3:1.7b \
+  --model qwen3:4b-instruct \
   --format markdown
 ```
 
@@ -81,7 +81,7 @@ python scripts/evaluate.py \
 
 `explanation_guardrails_v2.jsonl` 在 v1 基础上增加严重度逆序攻击，并把合法计划改为 `RED` 先于 `ORANGE`。当前代码回归使用 v2；v1 与其报告作为新增严重度规则之前的历史基线保留。
 
-`explanation_model_dev_v1.jsonl` 是真实 Ollama 开发探针。它包含 5 个实际模型规划场景和 2 个必须跳过模型的非风险场景，运行 3 次会产生 15 次模型请求：
+`explanation_model_dev_v1.jsonl` 是真实 Ollama 开发探针。它包含 5 个实际模型规划场景和 2 个必须跳过模型的非风险场景。下面命令只用于复现历史基线，需要临时重新拉取现已删除的旧模型；当前单模型验收请使用 `qwen3:4b-instruct`：
 
 ```bash
 python scripts/evaluate.py \
@@ -95,7 +95,7 @@ python scripts/evaluate.py \
 
 该数据集已经用于 `evidence-order-v1` 到 v2 的迭代，只能作为开发集；后续不能把它改称独立测试集。
 
-`opaque_id_test_v1.jsonl` 是在 v2 prompt/schema 完成后冻结的合成 contract test，SHA-256 为 `ced2daf4cabbc4cb4c1d0238b35e352a485515a9764207d89fdc2c4035d99f5a`。它只测试未见 fact_id 的逐字符复制、完整集合、严重度排序和三轮一致性，不包含医学事实：
+`opaque_id_test_v1.jsonl` 是在 v2 prompt/schema 完成后冻结的合成 contract test，SHA-256 为 `ced2daf4cabbc4cb4c1d0238b35e352a485515a9764207d89fdc2c4035d99f5a`。它只测试未见 fact_id 的逐字符复制、完整集合、严重度排序和三轮一致性，不包含医学事实。下面仍保留首次历史运行所用模型，复现时需要临时重新拉取：
 
 ```bash
 python scripts/evaluate.py \

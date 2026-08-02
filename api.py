@@ -136,7 +136,7 @@ def build_server_bound_safety_workflow(request: Request | None = None):
         planner=OllamaToolNamePlanner(
             host=Config.OLLAMA_URL,
             model=Config.OLLAMA_TOOL_MODEL,
-            timeout_seconds=Config.OLLAMA_EXPLANATION_TIMEOUT_SECONDS,
+            timeout_seconds=Config.OLLAMA_TOOL_TIMEOUT_SECONDS,
         ),
     )
 

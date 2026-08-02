@@ -50,7 +50,7 @@ class FakeRedis:
 
 
 class FakeEmbeddingService:
-    embedding_model = "test-embedding-v1"
+    vectorizer_id = "test-vectorizer-v1"
 
     @staticmethod
     def embed_text(text):
@@ -145,8 +145,8 @@ def test_vector_search_skips_unknown_model_and_dimension_records():
             "text": "wrong model",
             "role": "user",
             "vector": "[1.0, 1.0]",
-            "embedding_model": "different-embedding-v2",
-            "embedding_dimensions": "2",
+            "vectorizer_id": "different-vectorizer-v2",
+            "vector_dimensions": "2",
             "session_id": "session-a",
             "timestamp": "2",
         },
@@ -157,8 +157,8 @@ def test_vector_search_skips_unknown_model_and_dimension_records():
             "text": "wrong dimension",
             "role": "user",
             "vector": "[1.0, 1.0, 1.0]",
-            "embedding_model": "test-embedding-v1",
-            "embedding_dimensions": "3",
+            "vectorizer_id": "test-vectorizer-v1",
+            "vector_dimensions": "3",
             "session_id": "session-a",
             "timestamp": "3",
         },
@@ -179,5 +179,5 @@ def test_vector_search_skips_unknown_model_and_dimension_records():
         for data in store.redis_client.data.values()
         if data.get("text", "").startswith("current")
     ]
-    assert all(data["embedding_model"] == "test-embedding-v1" for data in current_records)
-    assert all(data["embedding_dimensions"] == "2" for data in current_records)
+    assert all(data["vectorizer_id"] == "test-vectorizer-v1" for data in current_records)
+    assert all(data["vector_dimensions"] == "2" for data in current_records)

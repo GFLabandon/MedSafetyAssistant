@@ -176,3 +176,19 @@ locked test 保留 3 项失败：两项参数删除句末标点，一项问题�
 发出工具调用，因此没有因参数更大而被选中。`qwen3:4b-instruct` 还在 5 个解释开发探针
 上重复 3 次：15 次请求 valid plan、结论保持、事实覆盖和来源追溯均为 `1.000`，
 unsupported claim 与 fallback 均为 `0`；这些仍是开发集结果，不是独立模型泛化证明。
+
+## 10. 单模型本地运行时（2026-08-02）
+
+项目本地运行已收敛为一个 Ollama 模型：`qwen3:4b-instruct` 同时承担解释规划、服务端
+绑定的工具名提议和可选会话 rerank。Redis 会话候选召回不再请求 `/api/embed`，而是使用
+`local-char-ngram-hashing-v1` 生成 512 维确定性字符 n-gram hashing 向量。
+
+该向量器的定位是小规模、同会话内的药名与相近措辞词法召回，不是学习得到的语义
+embedding，也没有通用检索质量声明。Redis 每条记录保存 `vectorizer_id` 与维度；旧
+provider、缺失 provenance 或维度不一致的记录不会参与比较，并按既有 TTL 自然过期。
+
+本机已经删除 `deepseek-r1:1.5b`、`qwen3:1.7b` 和 thinking 版 `qwen3:4b`，历史模型报告
+与原始记录仍保留在仓库中；只有在复现历史基线时才需要临时重新拉取。冷卸载后首次完整
+Agent 查询的三个工具决策均被模型接受，事实 ID 和解释均通过服务端护栏。详细命令、延迟、
+Redis 隔离结果和自动化质量门见
+[`p3-single-model-runtime-acceptance.md`](../reports/p3-single-model-runtime-acceptance.md)。
