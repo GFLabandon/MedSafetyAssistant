@@ -153,6 +153,76 @@ class V1EntityResolver:
             safety_flags=safety_flags,
         )
 
+    def resolve_with_session_context(
+        self,
+        question: str,
+        *,
+        medication_ids: list[str],
+        context_ids: list[str],
+    ) -> tuple[InputResolution, bool]:
+        """Resolve an explicit follow-up from validated catalog identifiers only.
+
+        Context is applied only when the ordinary resolver found no medication and
+        classified a recognized pronoun as needing clarification. Explicit current
+        medication names always win and never get silently merged with history.
+        """
+
+        resolution = self.resolve(question)
+        if resolution.status != InputResolutionStatus.NEEDS_CLARIFICATION:
+            return resolution, False
+        normalized_question = " ".join(question.strip().split())
+        if not any(term in normalized_question for term in _FOLLOW_UP_REFERENCES):
+            return resolution, False
+
+        medications = [
+            self._catalog.medications[record_id]
+            for record_id in dict.fromkeys(medication_ids)
+            if record_id in self._catalog.medications
+        ]
+        if not medications:
+            return resolution, False
+
+        explicit_context_entities = [
+            entity
+            for entity in resolution.entities
+            if entity.kind == ResolvedEntityKind.CONTEXT
+        ]
+        if explicit_context_entities:
+            context_entities = explicit_context_entities
+        else:
+            context_entities = [
+                ResolvedEntity(
+                    kind=ResolvedEntityKind.CONTEXT,
+                    record_id=record_id,
+                    canonical_name=self._catalog.contexts[record_id].canonical_name,
+                    matched_text="session_context",
+                    match_type=EntityMatchType.SESSION_CONTEXT,
+                )
+                for record_id in dict.fromkeys(context_ids)
+                if record_id in self._catalog.contexts
+            ]
+
+        medication_entities = [
+            ResolvedEntity(
+                kind=ResolvedEntityKind.MEDICATION,
+                record_id=medication.medication_id,
+                canonical_name=medication.canonical_name,
+                matched_text="session_context",
+                match_type=EntityMatchType.SESSION_CONTEXT,
+            )
+            for medication in medications
+        ]
+        return (
+            InputResolution(
+                status=InputResolutionStatus.RESOLVED,
+                medications=[item.canonical_name for item in medications],
+                contexts=[item.canonical_name for item in context_entities],
+                entities=[*medication_entities, *context_entities],
+                safety_flags=resolution.safety_flags,
+            ),
+            True,
+        )
+
     def _build_medication_aliases(self) -> list[_AliasEntry]:
         entries = []
         for medication in self._catalog.medications.values():

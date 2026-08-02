@@ -103,9 +103,34 @@ def test_name_only_prompt_does_not_expose_server_artifact(definitions):
     assert "resolution_status=resolved" in messages[1]["content"]
 
 
+def test_session_routing_prompt_does_not_expose_session_or_context_reference(definitions):
+    session_state = ShadowWorkflowState(
+        stage=ShadowWorkflowStage.SESSION_START,
+        session_id="private-session-marker",
+    )
+    resolution_state = ShadowWorkflowState(
+        stage=ShadowWorkflowStage.START,
+        question="private-question-marker",
+        context_call_id="private-context-marker",
+    )
+
+    session_messages = OllamaToolNamePlanner.build_messages(session_state)
+    resolution_messages = OllamaToolNamePlanner.build_messages(resolution_state)
+
+    assert "private-session-marker" not in str(session_messages)
+    assert "private-question-marker" not in str(resolution_messages)
+    assert "private-context-marker" not in str(resolution_messages)
+    assert "stage=session_start" in session_messages[1]["content"]
+
+
 @pytest.mark.parametrize(
     ("state", "expected_name", "expected_arguments"),
     [
+        (
+            ShadowWorkflowState(stage="session_start", session_id="session-a"),
+            ToolName.RETRIEVE_SESSION_CONTEXT,
+            {"session_id": "session-a"},
+        ),
         (
             ShadowWorkflowState(stage="start", question="  泰诺能吃吗？  "),
             ToolName.RESOLVE_MEDICATIONS,

@@ -118,10 +118,14 @@ def test_clear_session_removes_only_target_namespace():
     store = build_store()
     store.store_conversation("A question", "A answer", "session-a")
     store.store_conversation("B question", "B answer", "session-b")
+    store.redis_client.hset(
+        "v1session:session-a:context",
+        mapping={"schema_version": "stored-session-context-v1"},
+    )
 
     deleted = store.clear_session("session-a")
 
-    assert deleted == 3
+    assert deleted == 4
     assert not any(":session-a:" in key for key in store.redis_client.data)
     assert any(":session-b:" in key for key in store.redis_client.data)
 

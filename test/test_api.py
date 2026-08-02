@@ -86,6 +86,21 @@ class ApiContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             QueryRequest(question="测试", session_id="user:*")
 
+    def test_workflow_session_is_explicit_and_rejects_namespace_metacharacters(self):
+        from pydantic import ValidationError
+        from api import WorkflowSafetyRequest
+
+        stateless = WorkflowSafetyRequest(question="泰诺能吃吗？")
+        explicit = WorkflowSafetyRequest(
+            question="刚才的药还能吃吗？",
+            session_id="session-001",
+        )
+
+        self.assertIsNone(stateless.session_id)
+        self.assertEqual(explicit.session_id, "session-001")
+        with self.assertRaises(ValidationError):
+            WorkflowSafetyRequest(question="测试", session_id="user:*")
+
     def test_clear_session_has_stable_success_and_unavailable_contracts(self):
         from api import clear_conversation_session
 

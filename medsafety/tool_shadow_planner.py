@@ -84,6 +84,11 @@ class OllamaToolShadowPlanner:
     @staticmethod
     def build_messages(state: ShadowWorkflowState) -> list[dict[str, str]]:
         state_payload = state.model_dump(mode="json", exclude_none=True)
+        # Full-argument shadow evaluation never needs caller session identity or
+        # the server-held context artifact. Runtime routing uses the narrower
+        # name-only planner and binds both values on the server.
+        state_payload.pop("session_id", None)
+        state_payload.pop("context_call_id", None)
         return [
             {
                 "role": "system",
@@ -92,8 +97,9 @@ class OllamaToolShadowPlanner:
                     "next-tool proposal and will not execute it. You MUST emit exactly "
                     "one registered tool call and no prose. Choose by the stage field "
                     "only; do not interpret question text when selecting a tool. Apply "
-                    "exactly one rule: (1) stage=start -> resolve_medications with "
-                    "question; (2) stage=after_resolution and "
+                    "exactly one rule: (0) stage=session_start -> "
+                    "retrieve_session_context with no arguments; (1) stage=start -> "
+                    "resolve_medications with question; (2) stage=after_resolution and "
                     "resolution_status=resolved -> query_safety_graph with "
                     "resolution_call_id=artifact_call_id; (3) stage=after_resolution "
                     "and resolution_status=ambiguous, unknown, or rejected -> "
