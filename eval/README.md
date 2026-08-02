@@ -31,6 +31,11 @@ python scripts/evaluate.py \
 
 该开发集用于确定性回归，不是锁定测试集，也不代表临床准确率。
 
+`tool_shadow_v1.jsonl` 冻结 60 条不执行真实工具的 typed-tool 选择样例：40 条开发集和
+20 条锁定测试集。模型只能提出下一工具调用，评测器永远不会执行该 proposal。
+`tool_shadow_v1.sha256` 冻结 JSONL 的逐字节内容。开发阶段只允许运行 `dev`；prompt 和
+adapter 固定后才运行一次 `test`，并保留失败，不得针对锁定结果继续调优。
+
 `explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
 
 ```bash
