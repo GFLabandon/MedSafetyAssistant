@@ -1,0 +1,53 @@
+{
+  "code_commit": "68cb5d9d9caf1b7e7e893333b5e65519e9d4f1f5",
+  "controller_mode": "deterministic",
+  "data_version": "v1.0.0-alpha.4",
+  "generated_at": "2026-07-25",
+  "limitations": [
+    "No model selects or executes tools in this version.",
+    "The targeted checks are engineering contract tests, not an independent model evaluation.",
+    "The medical catalog remains limited to four source-aligned facts without clinician review.",
+    "ReAct, multi-agent, MCP, arbitrary tools, and generated Cypher are out of scope."
+  ],
+  "report_version": "p3-typed-tool-workflow-v1",
+  "security_contracts": {
+    "argument_values_in_trace": false,
+    "generated_cypher_allowed": false,
+    "max_steps": 4,
+    "server_held_artifact_references": true,
+    "additional_properties_allowed": false,
+    "unknown_tool_execution_allowed": false
+  },
+  "tool_count": 4,
+  "tools": [
+    "resolve_medications",
+    "query_safety_graph",
+    "request_clarification",
+    "render_evidence_explanation"
+  ],
+  "validation": {
+    "catalog": {
+      "contexts": 3,
+      "facts": 4,
+      "medications": 5,
+      "sources": 9,
+      "status": "valid"
+    },
+    "checksums": {
+      "passed": 5,
+      "total": 5
+    },
+    "openapi_generated": true,
+    "public_repository_audit": {
+      "maximum_allowed_size_mib": 5,
+      "passed": true,
+      "tracked_files": 153
+    },
+    "pytest": {
+      "passed": 160,
+      "skipped": 5
+    },
+    "targeted_tool_workflow_tests": 12,
+    "working_tree_dirty": false
+  }
+}

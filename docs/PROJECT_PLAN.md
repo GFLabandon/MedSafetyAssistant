@@ -14,6 +14,11 @@
 > 关系遍历、投影完整性审计和公开仓库持续门禁；医学内容扩充在模型验收后单独进行，
 > 详见 [`KNOWLEDGE_GRAPH_P2.md`](KNOWLEDGE_GRAPH_P2.md)。
 
+> 2026-07-25 P3 启动：P2 PR #3—#6 已按依赖顺序合并。P3 先建立固定 typed tool
+> 注册表、严格 schema、服务端 artifact 引用和有限步数，再冻结工具选择评测集；在
+> shadow 评测通过前，不允许模型控制真实工具执行。详见
+> [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)。
+
 ## 1. 计划结论
 
 本项目下一阶段不继续堆叠 Agent、MCP 或多模型框架，而是完成一条可以被独立检验的工程闭环：

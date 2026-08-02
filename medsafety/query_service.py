@@ -83,7 +83,7 @@ class SafetyQueryService:
                     }
                 )
         else:
-            packet = self._packet_for_unresolved_input(resolution)
+            packet = packet_for_unresolved_input(resolution, self._engine)
             stages.append(
                 PipelineStageTrace(
                     name="safety_engine",
@@ -124,33 +124,39 @@ class SafetyQueryService:
     def _elapsed_ms(started: float) -> float:
         return round((perf_counter() - started) * 1000, 3)
 
-    def _packet_for_unresolved_input(self, resolution: InputResolution) -> EvidencePacket:
-        try:
-            data_version = self._engine.repository.data_version
-        except KnowledgeUnavailableError:
-            return EvidencePacket(
-                conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
-                limitations=["用药安全知识库当前不可用，系统未进行风险判断，请稍后重试。"],
-                unresolved_inputs=list(resolution.unresolved_mentions),
-                data_version=None,
-            )
 
-        if resolution.status == InputResolutionStatus.UNKNOWN:
-            return EvidencePacket(
-                conclusion_status=ConclusionStatus.OUT_OF_SCOPE,
-                limitations=["未识别到当前来源对齐目录中的药品，系统未进行风险判断。"],
-                unresolved_inputs=list(resolution.unresolved_mentions),
-                data_version=data_version,
-            )
+def packet_for_unresolved_input(
+    resolution: InputResolution,
+    engine: SafetyEngine,
+) -> EvidencePacket:
+    """Create a deterministic non-risk packet for unresolved input."""
 
+    try:
+        data_version = engine.repository.data_version
+    except KnowledgeUnavailableError:
         return EvidencePacket(
-            conclusion_status=ConclusionStatus.INSUFFICIENT_INFORMATION,
-            limitations=[
-                resolution.clarification_question
-                or "输入信息不足，系统未进行风险判断。"
-            ],
-            resolved_medications=list(resolution.medications),
+            conclusion_status=ConclusionStatus.KNOWLEDGE_UNAVAILABLE,
+            limitations=["用药安全知识库当前不可用，系统未进行风险判断，请稍后重试。"],
             unresolved_inputs=list(resolution.unresolved_mentions),
-            resolved_contexts=list(resolution.contexts),
+            data_version=None,
+        )
+
+    if resolution.status == InputResolutionStatus.UNKNOWN:
+        return EvidencePacket(
+            conclusion_status=ConclusionStatus.OUT_OF_SCOPE,
+            limitations=["未识别到当前来源对齐目录中的药品，系统未进行风险判断。"],
+            unresolved_inputs=list(resolution.unresolved_mentions),
             data_version=data_version,
         )
+
+    return EvidencePacket(
+        conclusion_status=ConclusionStatus.INSUFFICIENT_INFORMATION,
+        limitations=[
+            resolution.clarification_question
+            or "输入信息不足，系统未进行风险判断。"
+        ],
+        resolved_medications=list(resolution.medications),
+        unresolved_inputs=list(resolution.unresolved_mentions),
+        resolved_contexts=list(resolution.contexts),
+        data_version=data_version,
+    )
