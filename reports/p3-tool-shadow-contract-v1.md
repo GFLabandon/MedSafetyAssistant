@@ -31,6 +31,7 @@ artifact ID 篡改、伪造 Evidence Packet 和重复循环请求。标签由确
 ## 已验证边界
 
 - Ollama 请求使用四个注册工具的 Function Calling schema；
+- runner 在发送评测请求前验证已安装模型包含 `tools` capability；
 - 所有参数 schema 都禁止额外字段；
 - 用户问题只作为 JSON 状态值，不得覆盖固定 system 指令；
 - 模型一次只能提出一个工具；多个、零个或错误形状均进入稳定失败分类；
@@ -44,9 +45,9 @@ artifact ID 篡改、伪造 Evidence Packet 和重复循环请求。标签由确
 
 | 检查 | 结果 |
 |---|---:|
-| P3 workflow + dataset + shadow 专项 | `32 passed` |
-| 完整 Python 回归 | `180 passed, 5 skipped` |
-| 非集成 CI 回归 | `180 passed, 5 deselected` |
+| P3 workflow + dataset + shadow 专项 | `34 passed` |
+| 完整 Python 回归 | `182 passed, 5 skipped` |
+| 非集成 CI 回归 | `182 passed, 5 deselected` |
 | V1 catalog 校验 | 9 Source / 5 Medication / 3 Context / 4 Fact，`valid` |
 | 前端生产构建 | 通过 |
 | 公开仓库审计 | 通过，单文件上限 5 MiB |
@@ -56,15 +57,16 @@ artifact ID 篡改、伪造 Evidence Packet 和重复循环请求。标签由确
 
 ## 真实 Ollama 状态
 
-2026-08-02 执行 dev runner 时，Ollama preflight 返回 `ConnectionError`。runner 在任何
-tool proposal 请求前停止，因此：
+2026-08-02 检查本机原有模型 `deepseek-r1:1.5b` 时，发现 capabilities 只有
+`completion` 和 `thinking`，不支持 `tools`。runner 在任何 tool proposal 请求前停止，
+因此：
 
 - 真实模型请求：0；
 - dev 工具名准确率、参数精确匹配率和延迟：`not_run`；
 - locked test：`not_run`；
 - 没有产生可用于简历或 README 的模型指标。
 
-待 Ollama 在线后，先固定当前提交、模型名与 digest，只运行 dev 并保留全部失败记录。
+安装兼容模型后，先固定当前提交、模型名与 digest，只运行 dev 并保留全部失败记录。
 完成失败归因且不再调整当前 prompt/adapter 后，才能显式运行一次 locked test。
 
 ## 停止条件

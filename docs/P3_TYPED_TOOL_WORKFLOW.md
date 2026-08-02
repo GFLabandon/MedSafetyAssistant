@@ -128,11 +128,12 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
 - runner 的输出逐条标记 `executed: false`，汇总固定包含 `executed_tool_calls: 0`；
 - 代码路径不调用 `TypedToolRegistry.execute`，测试用 spy 验证执行次数为 0；
 - locked test 必须显式确认，避免在开发阶段误跑并调优。
+- runner 在发送样例前验证模型 `tools` capability，不兼容模型直接停止。
 
-实现提交 `4130d7a` 上，工具执行、冻结数据和 shadow planner 共 32 项契约通过；完整回归
-为 `180 passed, 5 skipped`。2026-08-02 的真实 dev 运行在 Ollama preflight 阶段因
-`ConnectionError` 停止，没有发出模型请求；因此当前只有适配器/评测器工程证据，没有
-真实工具选择准确率或延迟基线，locked test 也尚未运行。
+当前工具执行、冻结数据和 shadow planner 共 34 项契约通过；完整回归为
+`182 passed, 5 skipped`。2026-08-02 检查发现原有 `deepseek-r1:1.5b` capabilities
+只有 `completion` 和 `thinking`，不支持 `tools`，因此没有发出模型请求；当前只有
+适配器/评测器工程证据，没有真实工具选择准确率或延迟基线，locked test 也尚未运行。
 
 详见 [`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。在真实 dev
 结果完成失败归因前，模型仍不得影响正式控制流；即使 shadow 指标通过，也需要单独设计

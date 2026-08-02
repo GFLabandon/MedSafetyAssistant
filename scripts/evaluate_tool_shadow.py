@@ -27,6 +27,13 @@ from medsafety.tool_shadow_planner import OllamaToolShadowPlanner
 from medsafety.tool_workflow import TypedSafetyWorkflow
 
 
+DEFAULT_TOOL_MODEL = "qwen3:1.7b"
+
+
+class ModelCapabilityError(ValueError):
+    """Raised before evaluation when the model cannot accept tool schemas."""
+
+
 def enforce_split_gate(split: str, allow_locked_test: bool) -> None:
     if split == "test" and not allow_locked_test:
         raise ValueError(
@@ -68,6 +75,17 @@ def installed_model_metadata(planner: OllamaToolShadowPlanner) -> dict[str, obje
         if name != planner.model:
             continue
         details = payload.get("details") or {}
+        show_response = planner.client.show(planner.model)
+        show_payload = (
+            show_response
+            if isinstance(show_response, dict)
+            else show_response.model_dump(mode="json", exclude_none=True)
+        )
+        capabilities = sorted(show_payload.get("capabilities") or [])
+        if "tools" not in capabilities:
+            raise ModelCapabilityError(
+                f"configured model lacks tools capability: {planner.model}"
+            )
         return {
             "name": name,
             "digest": payload.get("digest"),
@@ -77,6 +95,7 @@ def installed_model_metadata(planner: OllamaToolShadowPlanner) -> dict[str, obje
             "quantization_level": details.get("quantization_level"),
             "family": details.get("family"),
             "format": details.get("format"),
+            "capabilities": capabilities,
         }
     raise ValueError(f"configured Ollama model is not installed: {planner.model}")
 
@@ -88,7 +107,7 @@ def main() -> int:
     parser.add_argument("--allow-locked-test", action="store_true")
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
     parser.add_argument("--ollama-url", default=Config.OLLAMA_URL)
-    parser.add_argument("--model", default=Config.OLLAMA_MODEL)
+    parser.add_argument("--model", default=DEFAULT_TOOL_MODEL)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--output")
@@ -122,6 +141,8 @@ def main() -> int:
     # Fail before a long evaluation if the service or configured model is absent.
     try:
         model_metadata = installed_model_metadata(planner)
+    except ModelCapabilityError as exc:
+        parser.error(str(exc))
     except Exception as exc:
         parser.error(
             "Ollama preflight failed "

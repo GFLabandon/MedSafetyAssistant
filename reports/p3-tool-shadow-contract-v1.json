@@ -11,8 +11,8 @@
     "locked_test_cases": 20
   },
   "contract_evidence": {
-    "p3_targeted_tests_passed": 32,
-    "full_tests_passed": 180,
+    "p3_targeted_tests_passed": 34,
+    "full_tests_passed": 182,
     "integration_tests_skipped": 5,
     "executed_tool_calls": 0,
     "data_validation": "valid",
@@ -21,7 +21,7 @@
   },
   "real_ollama_baseline": {
     "status": "not_run",
-    "preflight": "connection_error",
+    "preflight": "unsupported_model_capability",
     "model_requests": 0,
     "dev_split": "not_run",
     "locked_test_split": "not_run"

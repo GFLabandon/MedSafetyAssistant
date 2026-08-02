@@ -25,8 +25,9 @@
 - [x] proposal 经过注册工具与严格参数 schema 校验，未知工具、额外参数、错误 artifact
   引用和多工具调用均归类但不执行；
 - [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
-- [x] P3 相关契约 `32 passed`，完整回归 `180 passed, 5 skipped`；
-- [ ] 真实 Ollama dev baseline：本轮预检因服务未连接而停止，模型请求数为 0；
+- [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
+- [x] P3 相关契约 `34 passed`，完整回归 `182 passed, 5 skipped`；
+- [ ] 真实 Ollama dev baseline：原有 `deepseek-r1:1.5b` 不支持 tools，兼容模型尚待运行；
 - [ ] 真实 Ollama locked test：尚未运行，必须在 prompt/adapter 固定后只运行一次。
 
 规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，首批与 shadow 验收分别见
@@ -185,7 +186,7 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | shadow 实现提交 `4130d7a`，文档验收批次在当前分支继续 | `git log --oneline` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 180 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 182 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -194,7 +195,7 @@ P2 暂停期变更。
 | V1 catalog | 9 Source、5 Medication、3 Context、4 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
-| Ollama tool shadow | 未运行 | 2026-08-02 preflight 为 `ConnectionError`，在任何模型请求前停止；locked test 未触碰 |
+| Ollama tool shadow | 未运行 | `deepseek-r1:1.5b` capabilities 不含 `tools`，在任何模型请求前停止；locked test 未触碰 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 

@@ -19,7 +19,11 @@ from medsafety.tool_shadow_planner import (
     ShadowToolProposal,
 )
 from medsafety.tool_workflow import TypedSafetyWorkflow
-from scripts.evaluate_tool_shadow import enforce_split_gate
+from scripts.evaluate_tool_shadow import (
+    ModelCapabilityError,
+    enforce_split_gate,
+    installed_model_metadata,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -303,3 +307,48 @@ def test_locked_test_split_requires_explicit_acknowledgement():
 
     enforce_split_gate("test", True)
     enforce_split_gate("dev", False)
+
+
+class ModelCatalogClient:
+    def __init__(self, capabilities):
+        self.capabilities = capabilities
+
+    def list(self):
+        return {
+            "models": [
+                {
+                    "model": "test-model",
+                    "digest": "sha256:test",
+                    "size": 123,
+                    "details": {"family": "test-family"},
+                }
+            ]
+        }
+
+    def show(self, model):
+        assert model == "test-model"
+        return {"capabilities": self.capabilities}
+
+
+def test_model_preflight_requires_tools_capability():
+    planner = OllamaToolShadowPlanner(
+        "http://unused",
+        "test-model",
+        client=ModelCatalogClient(["completion", "thinking"]),
+    )
+
+    with pytest.raises(ModelCapabilityError, match="lacks tools capability"):
+        installed_model_metadata(planner)
+
+
+def test_model_preflight_records_tools_capability():
+    planner = OllamaToolShadowPlanner(
+        "http://unused",
+        "test-model",
+        client=ModelCatalogClient(["tools", "completion"]),
+    )
+
+    metadata = installed_model_metadata(planner)
+
+    assert metadata["digest"] == "sha256:test"
+    assert metadata["capabilities"] == ["completion", "tools"]

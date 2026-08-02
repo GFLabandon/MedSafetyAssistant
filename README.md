@@ -26,8 +26,8 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `180 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
-| Typed tool / shadow 契约 | 32/32 | 12 项执行边界 + 20 项数据集/只观察 planner 测试 |
+| Python 回归 | `182 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结；真实 Ollama shadow 基线尚未运行 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
@@ -232,7 +232,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 python scripts/evaluate_tool_shadow.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
-  --model deepseek-r1:1.5b \
+  --model qwen3:1.7b \
   --format markdown
 ```
 
@@ -354,7 +354,8 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
 - P3 正式 controller 仍是确定性的；已冻结工具选择数据集并实现 Function Calling shadow
-  runner，但本轮 Ollama 离线，因此真实模型 dev/test baseline 均未运行。
+  runner。本机原有 `deepseek-r1:1.5b` 不支持 tools，兼容模型的真实 dev/test baseline
+  尚未运行。
 - 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。

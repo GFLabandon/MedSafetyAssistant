@@ -42,7 +42,7 @@ adapter 固定后才运行一次 `test`，并保留失败，不得针对锁定�
 python scripts/evaluate_tool_shadow.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
-  --model deepseek-r1:1.5b \
+  --model qwen3:1.7b \
   --format markdown \
   --output reports/baseline-ollama-tool-shadow-dev-v1.md \
   --records-output reports/raw/ollama-tool-shadow-dev-v1-records.json
