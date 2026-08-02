@@ -36,6 +36,20 @@ python scripts/evaluate.py \
 `tool_shadow_v1.sha256` 冻结 JSONL 的逐字节内容。开发阶段只允许运行 `dev`；prompt 和
 adapter 固定后才运行一次 `test`，并保留失败，不得针对锁定结果继续调优。
 
+开发集真实 Ollama shadow 运行命令：
+
+```bash
+python scripts/evaluate_tool_shadow.py \
+  --dataset eval/tool_shadow_v1.jsonl \
+  --split dev \
+  --model deepseek-r1:1.5b \
+  --format markdown
+```
+
+锁定集还要求显式传入 `--allow-locked-test`，以避免在 prompt/adapter 开发中误用。该
+runner 只记录并严格验证模型 proposal，不会把它传给工具注册表，也不会因模型选择而
+访问 Neo4j、Redis 或 Safety Engine。
+
 `explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
 
 ```bash
