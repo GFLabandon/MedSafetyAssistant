@@ -53,7 +53,11 @@ def _redis_probe() -> dict:
         client.ping()
     finally:
         client.close()
-    return {"role": "optional_session_memory"}
+    return {
+        "role": "optional_session_memory",
+        "vectorizer": Config.SESSION_VECTORIZER_ID,
+        "vector_dimensions": Config.SESSION_VECTOR_DIMENSIONS,
+    }
 
 
 def _neo4j_probe() -> dict:
@@ -86,15 +90,13 @@ def _ollama_probe() -> dict:
     }
     required_models = {
         Config.OLLAMA_MODEL,
-        Config.OLLAMA_EMBEDDING_MODEL,
         Config.OLLAMA_TOOL_MODEL,
     }
     if not required_models.issubset(models):
         raise LookupError("A configured Ollama model is not installed")
     return {
-        "role": "optional_llm_and_embedding",
+        "role": "optional_generation_and_tools",
         "model": Config.OLLAMA_MODEL,
-        "embedding_model": Config.OLLAMA_EMBEDDING_MODEL,
         "tool_model": Config.OLLAMA_TOOL_MODEL,
     }
 

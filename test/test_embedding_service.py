@@ -1,46 +1,57 @@
-from unittest.mock import Mock, patch
+from math import isclose, sqrt
 
 from logic_layer.embedding_service import EmbeddingService
 
 
-def test_embed_text_uses_current_ollama_embed_contract():
-    response = Mock()
-    response.raise_for_status.return_value = None
-    response.json.return_value = {"embeddings": [[0.1, 0.2, 0.3]]}
+def _cosine(left, right):
+    return sum(a * b for a, b in zip(left, right))
+
+
+def test_local_vector_is_deterministic_normalized_and_versioned():
     service = EmbeddingService()
 
-    with patch("logic_layer.embedding_service.requests.post", return_value=response) as post:
-        embedding = service.embed_text("测试文本")
+    first = service.embed_text("泰诺和感康能一起吃吗？")
+    second = service.embed_text("泰诺和感康能一起吃吗？")
 
-    assert embedding == [0.1, 0.2, 0.3]
-    assert post.call_args.args[0].endswith("/api/embed")
-    assert post.call_args.kwargs["json"] == {
-        "model": service.embedding_model,
-        "input": "测试文本",
-    }
+    assert first == second
+    assert len(first) == service.dimensions == 512
+    assert service.vectorizer_id == "local-char-ngram-hashing-v1"
+    assert isclose(sqrt(sum(value * value for value in first)), 1.0)
 
 
-def test_embed_batch_uses_one_request_and_preserves_input_order():
-    response = Mock()
-    response.raise_for_status.return_value = None
-    response.json.return_value = {"embeddings": [[1.0, 0.0], [0.0, 1.0]]}
+def test_nfkc_case_and_whitespace_normalization_are_stable():
     service = EmbeddingService()
 
-    with patch("logic_layer.embedding_service.requests.post", return_value=response) as post:
-        embeddings = service.embed_batch(["第一条", "第二条"])
-
-    assert embeddings == [[1.0, 0.0], [0.0, 1.0]]
-    assert post.call_count == 1
-    assert post.call_args.kwargs["json"]["input"] == ["第一条", "第二条"]
+    assert service.embed_text("  ＴＹＬＥＮＯＬ   500MG ") == service.embed_text(
+        "tylenol 500mg"
+    )
 
 
-def test_embed_batch_returns_shape_safe_empty_vectors_on_bad_response():
-    response = Mock()
-    response.raise_for_status.return_value = None
-    response.json.return_value = {"embeddings": [[1.0]]}
+def test_lexically_related_medication_history_outranks_unrelated_text():
+    service = EmbeddingService()
+    query = service.embed_text("泰诺和感康能一起吃吗")
+    related = service.embed_text("之前问过泰诺和感康一起服用")
+    unrelated = service.embed_text("今天北京天气怎么样")
+
+    assert _cosine(query, related) > _cosine(query, unrelated)
+
+
+def test_empty_and_batch_inputs_are_shape_safe_and_ordered():
     service = EmbeddingService()
 
-    with patch("logic_layer.embedding_service.requests.post", return_value=response):
-        embeddings = service.embed_batch(["第一条", "第二条"])
+    assert service.embed_text("   ") == []
+    assert service.embed_text(None) == []
+    assert service.embed_batch([]) == []
+    assert service.embed_batch(["泰诺", "感康"]) == [
+        service.embed_text("泰诺"),
+        service.embed_text("感康"),
+    ]
 
-    assert embeddings == [[], []]
+
+def test_langchain_demo_reuses_local_vectorizer_and_configured_model():
+    from examples.langchain_rag_demo import LocalHashingEmbeddings
+
+    adapter = LocalHashingEmbeddings()
+
+    assert adapter.embed_query("泰诺") == EmbeddingService().embed_text("泰诺")
+    assert len(adapter.embed_documents(["泰诺", "感康"])) == 2

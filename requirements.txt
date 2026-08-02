@@ -20,7 +20,7 @@ python-dotenv>=1.0.0,<2.0.0
 # === Redis 向量数据库 ===
 redis>=5.0.0,<6.0.0
 
-# === HTTP 请求（用于 Ollama Embedding API）===
+# === HTTP 请求（用于依赖健康探测）===
 requests>=2.31.0,<3.0.0
 
 # === LangChain Demo===

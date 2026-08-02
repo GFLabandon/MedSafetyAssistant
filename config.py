@@ -22,15 +22,18 @@ class Config:
     OLLAMA_EXPLANATION_TIMEOUT_SECONDS = float(
         os.getenv("OLLAMA_EXPLANATION_TIMEOUT_SECONDS", "5")
     )
-    # Generation models are not assumed to support /api/embed. Keep this
-    # independent until a dedicated embedding model is explicitly validated.
-    OLLAMA_EMBEDDING_MODEL = os.getenv(
-        "OLLAMA_EMBEDDING_MODEL",
-        "deepseek-r1:1.5b",
+    # Tool routing is the first model call on the agent path and must include
+    # a bounded cold-load budget on 8 GB development machines.
+    OLLAMA_TOOL_TIMEOUT_SECONDS = float(
+        os.getenv("OLLAMA_TOOL_TIMEOUT_SECONDS", "15")
     )
-    OLLAMA_EMBEDDING_TIMEOUT_SECONDS = float(
-        os.getenv("OLLAMA_EMBEDDING_TIMEOUT_SECONDS", "5")
+    # Session recall uses deterministic local feature hashing, not a second
+    # Ollama model. The identifier versions the Redis vector namespace.
+    SESSION_VECTORIZER_ID = os.getenv(
+        "SESSION_VECTORIZER_ID",
+        "local-char-ngram-hashing-v1",
     )
+    SESSION_VECTOR_DIMENSIONS = int(os.getenv("SESSION_VECTOR_DIMENSIONS", "512"))
     
     # Redis 配置（用于向量数据库）
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
