@@ -1,8 +1,8 @@
 # MedSafetyAssistant 项目状态
 
-更新时间：2026-07-25
+更新时间：2026-08-02
 当前阶段：P3——受约束 typed tool workflow
-状态：P2 PR #3—#6 已合并；P3 首批确定性工具控制面通过本地验收
+状态：P3 shadow dev/locked 真实基线已完成；注入失败证明模型继续保持只观察、不执行
 
 ## 当前目标
 
@@ -20,12 +20,21 @@
 - [x] 新增工具 schema 与 typed workflow 两个 API；
 - [x] 同步调用在线程池执行，不直接阻塞 FastAPI 事件循环；
 - [x] 12 项专项契约覆盖未知工具、参数注入、artifact 伪造、非法输出、提示注入和步数上限；
-- [x] 完整回归 `160 passed, 5 skipped`，数据校验和与 catalog 保持 alpha.4；
-- [ ] 冻结 50—80 条模型工具选择与恶意调用评测集；
-- [ ] 接入只记录、不执行的 Ollama Function Calling shadow planner。
+- [x] 冻结 60 条模型工具选择与恶意调用样例：40 条 dev、20 条 locked test；
+- [x] 接入只记录、不执行的 Ollama Function Calling shadow planner；
+- [x] proposal 经过注册工具与严格参数 schema 校验，未知工具、额外参数、错误 artifact
+  引用和多工具调用均归类但不执行；
+- [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
+- [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
+- [x] P3 相关契约 `34 passed`，完整回归 `182 passed, 5 skipped`；
+- [x] `qwen3:1.7b` dev v3：tool name `1.000`、whole call `0.950`、执行数 0；
+- [x] locked test 首次运行：tool name `0.950`、whole call `0.850`、执行数 0；
+- [x] 锁定失败原样保留：2 项标点复制错误，1 项注入诱导错选 `query_safety_graph`；
+- [x] 停止对 v3 调优，确定性 controller 继续作为唯一正式控制面。
 
-规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，验收见
-[`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md)。
+规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，首批与 shadow 验收分别见
+[`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md) 和
+[`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。
 
 ## P2 alpha.4 泰诺活动限制
 
@@ -177,17 +186,18 @@ P2 暂停期变更。
 
 | 检查 | 结果 | 命令或依据 |
 |---|---|---|
-| Git 状态 | P3 实现基线 `68cb5d9` 上工作树干净 | `git status --short --branch` |
+| Git 状态 | shadow 实现提交 `4130d7a`，文档验收批次在当前分支继续 | `git log --oneline` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 160 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 182 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
 | 前端完整依赖审计 | 0 vulnerability | `npm audit`，Vite 7.3.6 |
 | V1 冻结文件 | 5/5 SHA-256 通过 | `shasum -a 256 -c data/v1/checksums.sha256` |
-| V1 catalog | 8 Source、5 Medication、2 Context、3 Fact，状态有效 | `scripts/validate_v1_data.py` |
+| V1 catalog | 9 Source、5 Medication、3 Context、4 Fact，状态有效 | `scripts/validate_v1_data.py` |
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
+| Ollama tool shadow | 已运行 | `qwen3:1.7b`，digest `8f68893c…30e7`；40 dev + 20 locked 请求，proposal 执行数 0 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 

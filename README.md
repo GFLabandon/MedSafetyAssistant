@@ -26,8 +26,11 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `160 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
-| Typed tool 契约 | 12/12 | 确定性控制面测试；模型尚不选择工具 |
+| Python 回归 | `182 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
+| 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
+| Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
+| Ollama tool shadow locked v1 | tool name `0.950`，whole call `0.850` | 20 条首次锁定测试；1 项注入导致错选已注册工具 |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -50,6 +53,10 @@
 - [P2 alpha.4 泰诺活动限制来源审计](reports/p2-tylenol-activity-alpha4.md)
 - [alpha.4 Neo4j 查询计划证据](reports/neo4j-query-plan-v1-alpha4.json)
 - [P3 typed tool workflow 验收](reports/p3-typed-tool-workflow-acceptance.md)
+- [P3 tool shadow 契约验收](reports/p3-tool-shadow-contract-v1.md)
+- [P3 shadow dev v1 失败基线](reports/baseline-ollama-tool-shadow-dev-v1.md)
+- [P3 shadow dev v3 基线](reports/baseline-ollama-tool-shadow-dev-v3.md)
+- [P3 shadow locked v1 失败报告](reports/baseline-ollama-tool-shadow-test-v1.md)
 
 ## 核心架构
 
@@ -73,7 +80,8 @@ flowchart LR
 ```
 
 P3 controller 只允许注册工具，工具间使用服务端 `call_id` 引用产物；调用方不能把自己
-构造的实体结果或 `EvidencePacket` 交给后续工具。当前控制流仍是确定性的，不是 ReAct。
+构造的实体结果或 `EvidencePacket` 交给后续工具。正式控制流仍是确定性的，不是 ReAct。
+独立 Ollama shadow planner 只能提出并记录下一步工具调用，proposal 不会进入执行注册表。
 
 LLM 可以排列证据，但不能：
 
@@ -221,6 +229,22 @@ curl -X POST http://127.0.0.1:8000/api/v1/safety/explain \
 评测命令、模型 digest、固定参数和数据集校验和见
 [解释生成文档](docs/EXPLANATION_GENERATION.md)。
 
+### 运行工具选择 shadow 评测
+
+冻结数据集含 40 条开发样例和 20 条锁定样例。开发集运行：
+
+```bash
+python scripts/evaluate_tool_shadow.py \
+  --dataset eval/tool_shadow_v1.jsonl \
+  --split dev \
+  --model qwen3:1.7b \
+  --format markdown
+```
+
+runner 会先检查 Ollama 服务和模型，再请求结构化工具 proposal；所有 proposal 都只校验和
+记录，`executed_tool_calls` 固定为 `0`。锁定集还需要显式传入
+`--allow-locked-test`，首次结果必须完整保留，不能用于继续调整当前 prompt 版本。
+
 ## Neo4j 查询投影
 
 `data/v1/` 是唯一权威源。Neo4j 只作为可删除、可重建的读取投影，不允许反向覆盖 JSON。
@@ -334,8 +358,8 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - 只有 4 条来源对齐事实，覆盖范围不能外推到真实世界总体用药安全。
 - 当前医学开发样例与规则共同迭代，尚无按 `fact_id` 分组的独立医学测试集。
 - 没有医生或药师临床审核签名，`source_aligned` 不等于 `clinically_reviewed`。
-- P3 controller 当前是确定性的；尚无冻结的模型工具选择评测集或 Function Calling
-  shadow baseline。
+- P3 正式 controller 仍是确定性的；真实 `qwen3:1.7b` locked test 中有 1 项注入导致
+  模型错选已注册工具，因此 shadow proposal 不具备进入正式执行路径的资格。
 - 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。
