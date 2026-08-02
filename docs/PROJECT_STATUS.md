@@ -2,7 +2,7 @@
 
 更新时间：2026-08-02
 当前阶段：P3——受约束 typed tool workflow
-状态：P3 shadow dev/locked 真实基线已完成；注入失败证明模型继续保持只观察、不执行
+状态：P3 服务端绑定的 name-only 模型路由已进入受控执行验收；参数与事实权限保持在服务端
 
 ## 当前目标
 
@@ -26,11 +26,20 @@
   引用和多工具调用均归类但不执行；
 - [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
 - [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
-- [x] P3 相关契约 `34 passed`，完整回归 `182 passed, 5 skipped`；
+- [x] P3 相关契约与后续 server-bound 契约均通过，完整回归 `197 passed, 5 skipped`；
 - [x] `qwen3:1.7b` dev v3：tool name `1.000`、whole call `0.950`、执行数 0；
 - [x] locked test 首次运行：tool name `0.950`、whole call `0.850`、执行数 0；
 - [x] 锁定失败原样保留：2 项标点复制错误，1 项注入诱导错选 `query_safety_graph`；
 - [x] 停止对 v3 调优，确定性 controller 继续作为唯一正式控制面。
+- [x] 新增 name-only planner；模型看不到问题文本、artifact ID 或任何领域对象；
+- [x] 服务端从可信状态绑定全部工具参数，丢弃模型参数；
+- [x] 未知工具、阶段错选和 planner 故障均确定性回退并记录独立 decision trace；
+- [x] 新增 `/api/v1/workflows/safety/agent-query`，原 typed workflow API 保持不变；
+- [x] Redis 对话向量记录 embedding 模型与维度，自动隔离旧模型和不兼容维度；
+- [x] 新增开发集 runner，分开统计 raw tool-name 与 server-bound call accuracy。
+- [x] 同一 40 条 dev A/B：1.7B raw `0.875`，4B Instruct raw/bound 均 `1.000`；
+- [x] 4B Instruct 解释开发探针 15/15 合法，unsupported claim 与 fallback 均为 0；
+- [x] 默认生成与工具模型改为 `qwen3:4b-instruct`；embedding 暂留独立旧模型，未冒险删除。
 
 规格见 [`P3_TYPED_TOOL_WORKFLOW.md`](P3_TYPED_TOOL_WORKFLOW.md)，首批与 shadow 验收分别见
 [`p3-typed-tool-workflow-acceptance.md`](../reports/p3-typed-tool-workflow-acceptance.md) 和
@@ -188,7 +197,7 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | shadow 实现提交 `4130d7a`，文档验收批次在当前分支继续 | `git log --oneline` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 182 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当前回归 | 197 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |
@@ -198,6 +207,7 @@ P2 暂停期变更。
 | 前端生产依赖审计 | 0 vulnerability | `npm audit --omit=dev`，2026-07-24 |
 | Ollama | 已运行 | `deepseek-r1:1.5b`，digest `e0979632…c2d7`，15 次 v2 请求完成 |
 | Ollama tool shadow | 已运行 | `qwen3:1.7b`，digest `8f68893c…30e7`；40 dev + 20 locked 请求，proposal 执行数 0 |
+| Server-bound tool | 已运行 | `qwen3:4b-instruct`，digest `0edcdef3…ba0`；40 dev raw/bound 均 1.000 |
 | Docker/Redis | Docker 28.0.4 已运行；Redis 未启动 | `docker info` 与容器清单 |
 | Neo4j 集成 | 3 passed，141 deselected；测试后临时实例已移除 | Neo4j 5.26.28，隔离端口 17687，`pytest -m integration` |
 

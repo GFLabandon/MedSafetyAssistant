@@ -2,7 +2,7 @@
 
 日期：2026-07-25
 实现基线：`68cb5d9d9caf1b7e7e893333b5e65519e9d4f1f5`
-状态：确定性执行层与 shadow planner 已实现；模型 proposal 尚未进入正式执行路径
+状态：确定性执行层、shadow planner 与服务端绑定的 name-only 路由已实现
 
 ## 1. 目标
 
@@ -144,3 +144,35 @@ locked test 保留 3 项失败：两项参数删除句末标点，一项问题�
 详见 [`p3-tool-shadow-contract-v1.md`](../reports/p3-tool-shadow-contract-v1.md)。在真实 dev
 结果完成失败归因前，模型仍不得影响正式控制流；即使 shadow 指标通过，也需要单独设计
 可回退的受控执行实验，不能直接升级为开放式 Agent。
+
+## 9. Server-bound name-only 路由（2026-08-02）
+
+锁定测试暴露“模型复制参数”和“问题文本诱导错选”后，新路径收窄了模型权限：
+
+- planner 只看到 `stage` 和必要的 `resolution_status`，看不到问题、药品、artifact ID、
+  Evidence Packet 或 Cypher；
+- 发布给模型的四个工具都使用空参数 schema，模型输出的任何参数都不会被解析或保留；
+- 服务端按阶段计算唯一允许的工具名，并从可信 `ShadowWorkflowState` 构造严格参数；
+- 名称匹配才记为 `proposal_accepted`；未知工具、阶段错选、无调用或请求失败分别进入稳定
+  回退分类；
+- 无论模型是否成功，只有服务端构造的 `ToolCallRequest` 能进入原有 typed registry；
+- `server-bound-tool-decision-trace-v1` 只记录名称、参数键、耗时与回退原因，不记录参数值；
+- 新增 `/api/v1/workflows/safety/agent-query`，原确定性 `/query` 端点和契约保持不变。
+
+这条路径允许验证真实 Function Calling 与完整工具执行链，但模型仍不能决定医学结论、
+创建事实、提交 artifact、生成 Cypher 或开启无界循环。模型错选时执行仍回退到阶段确定的
+调用，因此报告必须同时公开 raw tool-name accuracy 和 server-bound call accuracy，不能只
+展示后者。
+
+同一 40 条开发样例、温度 0、seed 42 的模型选择结果：
+
+| 模型 | Raw name | Bound call | Fallback | P50 / P95 |
+|---|---:|---:|---:|---:|
+| `qwen3:1.7b` | `0.875` | `1.000` | `0.125` | `411 / 462ms` |
+| `qwen3:4b` thinking | `0.000` | `1.000` | `1.000` | `1832 / 2009ms` |
+| `qwen3:4b-instruct` | `1.000` | `1.000` | `0.000` | `779 / 915ms` |
+
+普通 `qwen3:4b` 在当前 Ollama 标签下把输出预算用于 thinking 文本并以 `length` 结束，未
+发出工具调用，因此没有因参数更大而被选中。`qwen3:4b-instruct` 还在 5 个解释开发探针
+上重复 3 次：15 次请求 valid plan、结论保持、事实覆盖和来源追溯均为 `1.000`，
+unsupported claim 与 fallback 均为 `0`；这些仍是开发集结果，不是独立模型泛化证明。
