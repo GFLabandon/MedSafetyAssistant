@@ -95,6 +95,7 @@ class KnowledgeEntityKind(str, Enum):
 class EntityMatchType(str, Enum):
     ALIAS = "alias"
     CONTEXT_RULE = "context_rule"
+    SESSION_CONTEXT = "session_context"
 
 
 class InputSafetyFlag(str, Enum):

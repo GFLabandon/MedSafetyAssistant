@@ -1,0 +1,38 @@
+{
+  "code_commit": "bb419057d7c366d7e718ca53adeffd9c7a0406a1",
+  "configured_model": "qwen3:4b-instruct",
+  "dataset_sha256": "e037caf4a9aa3e2db33c2fb1fbc3cca6ca854a1e47bd16cc5a008cf25f8a3229",
+  "metrics": {
+    "fallback_counts": {},
+    "fallback_rate": 0.0,
+    "planner_latency_ms": {
+      "p50": 687.593,
+      "p95": 752.329
+    },
+    "proposal_acceptance_rate": 1.0,
+    "raw_tool_name_accuracy": 1.0,
+    "server_bound_call_accuracy": 1.0,
+    "total_attempts": 40
+  },
+  "model": {
+    "capabilities": [
+      "completion",
+      "tools"
+    ],
+    "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+    "family": "qwen3",
+    "format": "gguf",
+    "modified_at": "2026-08-02T15:46:07.185126+08:00",
+    "name": "qwen3:4b-instruct",
+    "parameter_size": "4.0B",
+    "quantization_level": "Q4_K_M",
+    "size_bytes": 2497293803
+  },
+  "ollama_package_version": "0.6.2",
+  "ollama_url": "http://localhost:11434",
+  "prompt_version": "server-bound-tool-name-v2",
+  "repetitions": 1,
+  "schema_version": "server-bound-tool-evaluation-v1",
+  "split": "dev",
+  "working_tree_dirty": false
+}

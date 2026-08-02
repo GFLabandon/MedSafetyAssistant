@@ -26,6 +26,7 @@ from logic_layer.health_check import (
 from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import stream_safety_response
 from logic_layer.session import create_session_id, normalize_session_id
+from logic_layer.session_context_store import RedisSessionContextStore
 from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.entity_resolution import V1EntityResolver
@@ -99,6 +100,17 @@ class NaturalLanguageSafetyRequest(BaseModel):
         return value.strip()
 
 
+class WorkflowSafetyRequest(NaturalLanguageSafetyRequest):
+    session_id: str | None = None
+
+    @field_validator("session_id")
+    @classmethod
+    def optional_session_id_must_be_opaque(cls, value):
+        if value is None:
+            return None
+        return normalize_session_id(value, generate_if_blank=False)
+
+
 def build_v1_catalog():
     return KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY)
 
@@ -125,6 +137,7 @@ def build_typed_safety_workflow(request: Request | None = None):
         resolver=get_entity_resolver(request),
         engine=get_safety_engine(request),
         explainer=get_safety_explainer(request),
+        session_context_store=get_session_context_store(request),
     )
 
 
@@ -133,6 +146,7 @@ def build_server_bound_safety_workflow(request: Request | None = None):
         resolver=get_entity_resolver(request),
         engine=get_safety_engine(request),
         explainer=get_safety_explainer(request),
+        session_context_store=get_session_context_store(request),
         planner=OllamaToolNamePlanner(
             host=Config.OLLAMA_URL,
             model=Config.OLLAMA_TOOL_MODEL,
@@ -238,6 +252,16 @@ def get_vector_store(request: Request | None):
     if request is None:
         return None
     return getattr(request.app.state, "vector_store", None)
+
+
+def get_session_context_store(request: Request | None):
+    vector_store = get_vector_store(request)
+    if vector_store is None or not vector_store.available:
+        return None
+    return RedisSessionContextStore(
+        vector_store.redis_client,
+        ttl_seconds=Config.SESSION_TTL_SECONDS,
+    )
 
 
 def get_safety_engine(request: Request | None):
@@ -479,7 +503,7 @@ async def list_v1_safety_workflow_tools(request: Request = None):
 
 @app.post("/api/v1/workflows/safety/query")
 async def query_v1_typed_safety_workflow(
-    payload: NaturalLanguageSafetyRequest,
+    payload: WorkflowSafetyRequest,
     request: Request = None,
 ):
     workflow = build_typed_safety_workflow(request)
@@ -489,6 +513,7 @@ async def query_v1_typed_safety_workflow(
             payload.question,
             use_llm_plan=payload.use_llm_plan,
             request_id=get_request_id(request),
+            session_id=payload.session_id,
         )
     except ToolWorkflowExecutionError as exc:
         logger.warning(
@@ -507,12 +532,32 @@ async def query_v1_typed_safety_workflow(
                 "reason": exc.code,
             },
         )
+    logger.info(
+        structured_event(
+            "typed_tool_workflow_completed",
+            request_id=response.trace.request_id,
+            total_duration_ms=response.trace.total_duration_ms,
+            resolution_status=response.trace.resolution_status.value,
+            conclusion_status=response.trace.conclusion_status.value,
+            session_read_status=response.trace.session_context.read_status.value,
+            session_write_status=response.trace.session_context.write_status.value,
+            context_applied=response.trace.session_context.context_applied,
+            tool_calls=[
+                {
+                    "name": call.tool_name,
+                    "status": call.status.value,
+                    "duration_ms": call.duration_ms,
+                }
+                for call in response.trace.tool_calls
+            ],
+        )
+    )
     return response.model_dump(mode="json")
 
 
 @app.post("/api/v1/workflows/safety/agent-query")
 async def query_v1_server_bound_safety_workflow(
-    payload: NaturalLanguageSafetyRequest,
+    payload: WorkflowSafetyRequest,
     request: Request = None,
 ):
     """Run name-only model routing with server-bound arguments and fallback."""
@@ -524,6 +569,7 @@ async def query_v1_server_bound_safety_workflow(
             payload.question,
             use_llm_plan=payload.use_llm_plan,
             request_id=get_request_id(request),
+            session_id=payload.session_id,
         )
     except ToolWorkflowExecutionError as exc:
         logger.warning(
@@ -542,6 +588,32 @@ async def query_v1_server_bound_safety_workflow(
                 "reason": exc.code,
             },
         )
+    logger.info(
+        structured_event(
+            "server_bound_tool_workflow_completed",
+            request_id=response.trace.request_id,
+            total_duration_ms=response.trace.total_duration_ms,
+            resolution_status=response.trace.resolution_status.value,
+            conclusion_status=response.trace.conclusion_status.value,
+            session_read_status=response.trace.session_context.read_status.value,
+            session_write_status=response.trace.session_context.write_status.value,
+            context_applied=response.trace.session_context.context_applied,
+            accepted_tool_proposals=sum(
+                1 for decision in response.decisions if decision.proposal_accepted
+            ),
+            fallback_tool_proposals=sum(
+                1 for decision in response.decisions if not decision.proposal_accepted
+            ),
+            tool_calls=[
+                {
+                    "name": call.tool_name,
+                    "status": call.status.value,
+                    "duration_ms": call.duration_ms,
+                }
+                for call in response.trace.tool_calls
+            ],
+        )
+    )
     return response.model_dump(mode="json")
 
 
