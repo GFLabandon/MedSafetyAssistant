@@ -43,7 +43,9 @@ python scripts/evaluate_tool_shadow.py \
   --dataset eval/tool_shadow_v1.jsonl \
   --split dev \
   --model deepseek-r1:1.5b \
-  --format markdown
+  --format markdown \
+  --output reports/baseline-ollama-tool-shadow-dev-v1.md \
+  --records-output reports/raw/ollama-tool-shadow-dev-v1-records.json
 ```
 
 锁定集还要求显式传入 `--allow-locked-test`，以避免在 prompt/adapter 开发中误用。该

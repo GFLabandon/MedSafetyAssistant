@@ -91,6 +91,7 @@ def main() -> int:
     parser.add_argument("--model", default=Config.OLLAMA_MODEL)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
+    parser.add_argument("--output")
     parser.add_argument("--records-output")
     args = parser.parse_args()
 
@@ -148,10 +149,15 @@ def main() -> int:
         )
 
     if args.format == "markdown":
-        sys.stdout.write(render_tool_shadow_markdown(report, str(dataset_path)))
+        rendered_output = render_tool_shadow_markdown(report, str(dataset_path))
     else:
-        json.dump(report, sys.stdout, ensure_ascii=False, indent=2, sort_keys=True)
-        sys.stdout.write("\n")
+        rendered_output = (
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        )
+    if args.output:
+        Path(args.output).write_text(rendered_output, encoding="utf-8")
+    else:
+        sys.stdout.write(rendered_output)
     return 0
 
 
