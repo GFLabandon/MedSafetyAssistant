@@ -1,0 +1,71 @@
+{
+  "suite": "query_contract_v1",
+  "scope": "deterministic engineering regression; not independent clinical evaluation",
+  "dataset_sha256": "f402173745a6be0b77ab9266873adfd91be83c53c73958afecda91fb96493144",
+  "data_version": "v1.0.0-alpha.4",
+  "git_head": "a3c53331b58908c9dd531765ad3af74976d49ddb",
+  "total": 12,
+  "passed": 12,
+  "cases": [
+    {
+      "case_id": "duplicate_pair",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "same_session_followup",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "other_session_cannot_inherit",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "explicit_pair_replaces_context",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "followup_uses_replaced_pair",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "conditional_interaction",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "reaction_history",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "driving_restriction",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unknown_medicine",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "known_single_medicine",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unverified_alias",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "stateless_followup",
+      "passed": true,
+      "errors": []
+    }
+  ]
+}
