@@ -4,13 +4,15 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+import sqlite3
 from time import perf_counter
+from typing import Literal
 
 from fastapi import FastAPI, Path as ApiPath, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from neo4j import GraphDatabase
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from config import Config
 from logic_layer.assistant_service import (
@@ -33,6 +35,7 @@ from medsafety.entity_resolution import V1EntityResolver
 from medsafety.document_search import ProjectDocumentSearch
 from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.fact_search import ReviewedFactSearch
+from medsafety.feedback_store import FeedbackStore
 from medsafety.ollama_planner import OllamaExplanationPlanner
 from medsafety.neo4j_repository import Neo4jKnowledgeRepository
 from medsafety.observability import normalize_request_id, structured_event
@@ -127,6 +130,22 @@ class FactSearchRequest(BaseModel):
 
 class DocumentSearchRequest(FactSearchRequest):
     method: str = Field(default="lexical", pattern="^(lexical|hashing_vector)$")
+
+
+class FeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    feedback_id: str = Field(..., pattern=r"^[0-9a-f]{32}$")
+    rating: Literal["useful", "not_useful"]
+    reason: Literal["missing_evidence", "wrong_entity", "unclear_explanation", "other"] | None = None
+
+    @model_validator(mode="after")
+    def reason_matches_rating(self):
+        if self.rating == "not_useful" and self.reason is None:
+            raise ValueError("not_useful feedback requires a reason")
+        if self.rating == "useful" and self.reason is not None:
+            raise ValueError("useful feedback cannot include a reason")
+        return self
 
 
 def build_v1_catalog():
@@ -227,6 +246,14 @@ async def lifespan(app: FastAPI):
     app.state.safety_engine = build_safety_engine(catalog)
     app.state.entity_resolver = build_entity_resolver(catalog)
     app.state.safety_explainer = build_safety_explainer()
+    feedback_path = Path(Config.FEEDBACK_DB_PATH)
+    if not feedback_path.is_absolute():
+        feedback_path = Path(__file__).resolve().parent / feedback_path
+    try:
+        app.state.feedback_store = FeedbackStore(feedback_path)
+    except (OSError, sqlite3.Error):
+        logger.warning("feedback store unavailable", exc_info=True)
+        app.state.feedback_store = None
     app.state.vector_store = VectorStore()
     neo4j_driver, neo4j_repository = build_neo4j_repository()
     app.state.neo4j_driver = neo4j_driver
@@ -560,11 +587,39 @@ async def query_v1_safety(
         request_id=get_request_id(request),
     )
     result = response.model_dump(mode="json")
+    store = getattr(request.app.state, "feedback_store", None) if request else None
+    result["feedback_id"] = None
+    if store is not None:
+        try:
+            result["feedback_id"] = await asyncio.to_thread(
+                store.register, response.explanation.conclusion_status.value
+            )
+        except (OSError, sqlite3.Error):
+            logger.warning("feedback registration unavailable", exc_info=True)
     catalog = getattr(request.app.state, "catalog", None) if request else None
     result["sources"] = source_metadata_for_claims(
         response.explanation.claims, catalog or build_v1_catalog()
     )
     return result
+
+
+@app.post("/api/v1/feedback")
+async def submit_query_feedback(payload: FeedbackRequest, request: Request):
+    store = getattr(request.app.state, "feedback_store", None)
+    if store is None:
+        return JSONResponse(status_code=503, content={"error": "feedback_unavailable"})
+    try:
+        status = await asyncio.to_thread(
+            store.submit, payload.feedback_id, payload.rating, payload.reason
+        )
+    except (OSError, sqlite3.Error):
+        logger.warning("feedback write unavailable", exc_info=True)
+        return JSONResponse(status_code=503, content={"error": "feedback_unavailable"})
+    if status == "not_found":
+        return JSONResponse(status_code=404, content={"error": "feedback_id_not_found"})
+    if status == "conflict":
+        return JSONResponse(status_code=409, content={"error": "feedback_already_submitted"})
+    return {"status": status}
 
 
 @app.post("/api/v1/knowledge/search")

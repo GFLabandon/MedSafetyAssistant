@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 
 function responseFor(question) {
   const base = {
+    feedback_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     resolution: {
       schema_version: 'entity-resolution-v1',
       status: 'resolved',
@@ -169,6 +170,13 @@ test.beforeEach(async ({ page }) => {
       }),
     });
   });
+  await page.route('**/api/v1/feedback', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'recorded' }),
+    });
+  });
   await page.goto('/');
 });
 
@@ -199,6 +207,14 @@ test('searches project documents as a separate experiment', async ({ page }) => 
   await expect(page.getByText('本项目是家庭常见用药风险筛查的工程演示系统。')).toBeVisible();
   await expect(page.getByText('方法：hashing_vector · 命中 1 个片段')).toBeVisible();
   await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('submits structured feedback after a query', async ({ page }) => {
+  await submit(page, '泰诺和感康能一起吃吗？');
+  await page.getByRole('button', { name: '需改进' }).click();
+  await page.getByRole('combobox', { name: '需改进原因' }).selectOption('missing_evidence');
+  await page.getByRole('button', { name: '提交反馈' }).click();
+  await expect(page.getByText('感谢反馈，已记录。')).toBeVisible();
 });
 
 

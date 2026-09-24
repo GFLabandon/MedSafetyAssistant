@@ -1,4 +1,5 @@
 import React from 'react';
+import FeedbackPanel from './FeedbackPanel.jsx';
 
 const STATUS_CONTENT = {
   risk_found: {
@@ -179,6 +180,7 @@ export default function ResultPanel({ result }) {
           </ol>
         </details>
       ) : null}
+      <FeedbackPanel key={result.feedback_id || 'no-feedback'} feedbackId={result.feedback_id} />
     </div>
   );
 }

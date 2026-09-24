@@ -182,6 +182,27 @@ select {
   padding: 10px;
 }
 
+.feedback-panel {
+  border-top: 1px solid #d8e0ea;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+
+.feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.feedback-actions button,
+.feedback-actions select {
+  border: 1px solid #bdc9d6;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
 @media (max-width: 720px) {
   .fact-search-form {
     flex-direction: column;

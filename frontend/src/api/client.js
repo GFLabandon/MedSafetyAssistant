@@ -59,3 +59,16 @@ export async function searchReviewedSourceDocuments(query) {
   }
   return data;
 }
+
+export async function submitQueryFeedback(feedbackId, rating, reason = null) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback_id: feedbackId, rating, reason }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || '反馈提交失败');
+  }
+  return data;
+}
