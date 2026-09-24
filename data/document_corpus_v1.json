@@ -1,5 +1,5 @@
 [
   {"document_id":"project-safety-boundary","title":"项目安全边界","path":"docs/SAFETY_BOUNDARY.md","sha256":"ab99052227110b15f26dbd9de8f7a6b39de9cbef7532c59e2ad0dcae2dfaf2a0","corpus":"project_documentation"},
-  {"document_id":"project-input-resolution","title":"自然语言输入边界","path":"docs/INPUT_RESOLUTION.md","sha256":"08c609cf2628e60e64e15482ea8ff30437139eea087000a49b1d43362ebc7678","corpus":"project_documentation"},
+  {"document_id":"project-input-resolution","title":"自然语言输入边界","path":"docs/INPUT_RESOLUTION.md","sha256":"e8e87d71bacccc87404313b222868bc665de9027c1a40cd3e6a460b0f7fa8a21","corpus":"project_documentation"},
   {"document_id":"project-typed-workflow","title":"受控工具工作流","path":"docs/P3_TYPED_TOOL_WORKFLOW.md","sha256":"577de77287ac349591ca89b531c93b365c24e42d05502cb5064ef8af717e926a","corpus":"project_documentation"}
 ]

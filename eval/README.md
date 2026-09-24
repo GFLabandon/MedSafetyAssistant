@@ -154,3 +154,17 @@ assessing only the catalog-backed product. This is a bounded pattern check for
 Chinese dosage-form names, not general recognition of every unknown drug name.
 Unknown English names and Chinese names without an identifiable dosage-form
 suffix can still evade it.
+
+`query_contract_v3.jsonl` adds four explicit-pair cases for suffix-free Chinese
+names and unknown English tokens, including a session query and a mixed risk
+pair. These return `ambiguous` / `insufficient_information` without claims:
+
+```bash
+conda run -n medsafety python -m evaluation.query_contract \
+  --dataset eval/query_contract_v3.jsonl \
+  --checksum eval/query_contract_v3.sha256
+```
+
+The pair guard covers only recognizable conjunction patterns. It treats an
+unmatched operand as needing clarification, without asserting that the operand
+is a medication. V1 and V2 datasets and reports remain historical baselines.
