@@ -1,8 +1,18 @@
 # MedSafetyAssistant 项目状态
 
-更新时间：2026-08-02
+更新时间：2026-09-24
 当前阶段：P3——受约束 typed tool workflow
-状态：结构化 session typed tool 与 request-level 可观测性已通过真实 Redis/Ollama 验收
+状态：结构化 session typed tool 与 request-level 可观测性已通过真实 Redis/Ollama 验收；正式查询 API 契约已纳入 CI
+
+## 2026-09-24 增量验收
+
+- 非集成 Python 测试：`238 passed, 5 deselected`。5 项 Neo4j 集成测试未在本轮运行；
+  LangChain 示例导入有 1 条第三方弃用警告。
+- 固定正式查询 API 契约 v3：19/19，覆盖结论、证据引用、会话隔离和混合未知输入，
+  已加入 GitHub Actions；这是工程回归，不是临床准确率。
+- 浏览器契约：10/10，前端构建通过。浏览器测试使用模拟 API 响应，不能代替真实服务联调。
+- 评测数据、失败边界和运行方式见
+  [query-contract-v3-baseline.md](../reports/query-contract-v3-baseline.md)。
 
 ## 当前目标
 
@@ -28,7 +38,7 @@
   引用和多工具调用均归类但不执行；
 - [x] locked test 需要显式 `--allow-locked-test`，避免开发期间误用；
 - [x] 模型预检同时验证已安装状态和 `tools` capability，避免向不兼容模型重复请求；
-- [x] P3 相关契约、server-bound、单模型与结构化 session 契约均通过，完整回归 `211 passed, 5 skipped`；
+- [x] P3 相关契约、server-bound、单模型与结构化 session 契约均通过；当时完整回归为 `211 passed, 5 skipped`；
 - [x] `qwen3:1.7b` dev v3：tool name `1.000`、whole call `0.950`、执行数 0；
 - [x] locked test 首次运行：tool name `0.950`、whole call `0.850`、执行数 0；
 - [x] 锁定失败原样保留：2 项标点复制错误，1 项注入诱导错选 `query_safety_graph`；
@@ -214,7 +224,7 @@ P2 暂停期变更。
 |---|---|---|
 | Git 状态 | session 实现 `2ba6272`、新增模型基线 `bb41905`，文档验收批次继续 | `git log --oneline` |
 | Python 初始基线 | 25 passed，1 warning | 第一批任务开始前 |
-| Python 当前回归 | 211 passed，5 integration skipped，0 warning | `python -m pytest -q`（使用 `medsafety` 环境） |
+| Python 当时回归 | 211 passed，5 integration skipped，0 warning | 当时的 `python -m pytest -q` 输出 |
 | pytest 收集 | Redis 手工连接脚本已排除，不再产生返回值 warning | 测试输出 |
 | 前端构建 | 通过，Vite 生成生产 bundle | `npm run build` |
 | 浏览器契约 E2E | 4/4 通过 | `npm run test:e2e` |

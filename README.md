@@ -28,7 +28,9 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `211 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
+| Python 回归 | `238 passed, 5 deselected` | 本地 `medsafety` 环境；5 项 Neo4j 集成测试未运行 |
+| 正式查询 API 契约 v3 | 19/19 | 固定数据集；覆盖证据、会话隔离和混合未知输入，不代表临床准确率 |
+| 浏览器契约 | 10/10 | Playwright 模拟 API 响应，验证页面状态与引用展示 |
 | 单模型本地运行 | 仅 `qwen3:4b-instruct`，两轮 agent 工具决策 8/8 接受 | 生成、name-only routing 与可选 rerank 共用一个模型 |
 | 结构化 session routing dev | raw/bound `1.000`，fallback `0` | 12 条开发样例；不是独立锁定测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
@@ -69,6 +71,7 @@
 - [P3 结构化会话上下文验收](reports/p3-session-context-acceptance.md)
 - [P3 session routing 12 条开发基线](reports/baseline-server-bound-session-tool-qwen3-4b-instruct-dev-v1.json)
 - [P3 server-bound 40 条 prompt v2 回归](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v2.json)
+- [正式查询 API 契约 v3](reports/query-contract-v3-baseline.md)
 
 ## 核心架构
 
@@ -144,6 +147,9 @@ shasum -a 256 -c data/v1/checksums.sha256
 
 python scripts/validate_v1_data.py
 python -m pytest -q -m "not integration"
+python -m evaluation.query_contract \
+  --dataset eval/query_contract_v3.jsonl \
+  --checksum eval/query_contract_v3.sha256
 
 cd frontend
 npm ci
