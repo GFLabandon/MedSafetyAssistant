@@ -11,6 +11,8 @@
 - 固定正式查询 API 契约 v3：19/19，覆盖结论、证据引用、会话隔离和混合未知输入，
   已加入 GitHub Actions；这是工程回归，不是临床准确率。
 - 浏览器契约：10/10，前端构建通过。浏览器测试使用模拟 API 响应，不能代替真实服务联调。
+- 浏览器到 FastAPI 冒烟：1/1，本地无 Redis、Neo4j、Ollama 时验证真实风险引用与澄清切换；
+  已加入 CI，不证明外部依赖运行质量或持久会话。
 - 评测数据、失败边界和运行方式见
   [query-contract-v3-baseline.md](../reports/query-contract-v3-baseline.md)。
 

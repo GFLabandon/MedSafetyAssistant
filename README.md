@@ -31,6 +31,7 @@
 | Python 回归 | `238 passed, 5 deselected` | 本地 `medsafety` 环境；5 项 Neo4j 集成测试未运行 |
 | 正式查询 API 契约 v3 | 19/19 | 固定数据集；覆盖证据、会话隔离和混合未知输入，不代表临床准确率 |
 | 浏览器契约 | 10/10 | Playwright 模拟 API 响应，验证页面状态与引用展示 |
+| 浏览器到真实 API 冒烟 | 1/1 | 本地启动 FastAPI 与 Vite；Redis、Neo4j、Ollama 均不需要 |
 | 单模型本地运行 | 仅 `qwen3:4b-instruct`，两轮 agent 工具决策 8/8 接受 | 生成、name-only routing 与可选 rerank 共用一个模型 |
 | 结构化 session routing dev | raw/bound `1.000`，fallback `0` | 12 条开发样例；不是独立锁定测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
@@ -72,6 +73,7 @@
 - [P3 session routing 12 条开发基线](reports/baseline-server-bound-session-tool-qwen3-4b-instruct-dev-v1.json)
 - [P3 server-bound 40 条 prompt v2 回归](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v2.json)
 - [正式查询 API 契约 v3](reports/query-contract-v3-baseline.md)
+- [浏览器到真实 API 冒烟记录](reports/fullstack-live-smoke-2026-09-24.md)
 
 ## 核心架构
 
@@ -154,10 +156,13 @@ python -m evaluation.query_contract \
 cd frontend
 npm ci
 npm run build
+npx playwright install chromium
+npm run test:e2e:live
 ```
 
 上述命令也是 GitHub Actions 的基础质量门。真实 Neo4j 和 Ollama 验收属于显式运行的
-集成/评测任务，不会在普通离线测试中伪装为端到端通过。
+集成/评测任务；浏览器到 API 冒烟会让模型规划在本地快速失败并走确定性回退，
+不验证真实 Ollama 质量或 Redis 会话持久化。
 
 ## 运行 V1 API
 
