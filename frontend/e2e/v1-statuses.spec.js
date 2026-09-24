@@ -59,6 +59,20 @@ function responseFor(question) {
     return base;
   }
 
+  if (question.includes('XYZ123')) {
+    base.session_context.write_status = 'skipped';
+    base.resolution.status = 'ambiguous';
+    base.resolution.medications = ['泰诺'];
+    base.resolution.unresolved_mentions = ['XYZ123'];
+    base.resolution.clarification_question = '请确认与已识别药品并列的另一项，并提供包装上的具体商品名或成分名。';
+    base.explanation.conclusion_status = 'insufficient_information';
+    base.explanation.summary = '现有信息不足，系统未作完整风险判断。';
+    base.trace.resolution_status = 'ambiguous';
+    base.trace.conclusion_status = 'insufficient_information';
+    base.trace.stages[1].status = 'skipped';
+    return base;
+  }
+
   if (question.includes('泰诺')) {
     base.resolution.medications = ['泰诺', '感康'];
     base.explanation.conclusion_status = 'risk_found';
@@ -272,6 +286,17 @@ test('asks for required context without showing a risk claim', async ({ page }) 
   await expect(page.getByRole('heading', { name: '需要补充信息' })).toBeVisible();
   await expect(page.getByText('请补充以下判断条件：阿司匹林用于心血管保护。')).toBeVisible();
   await expect(page.locator('.evidence-claim')).toHaveCount(0);
+});
+
+
+test('shows unmatched pair operand as clarification without retaining session context', async ({ page }) => {
+  await submit(page, '泰诺能和XYZ123一起吃吗？');
+
+  await expect(page.getByRole('heading', { name: '需要补充信息' })).toBeVisible();
+  await expect(page.getByText('请确认与已识别药品并列的另一项，并提供包装上的具体商品名或成分名。')).toBeVisible();
+  await expect(page.locator('.tag').getByText('XYZ123', { exact: true })).toBeVisible();
+  await expect(page.locator('.evidence-claim')).toHaveCount(0);
+  await expect(page.getByText(/会话上下文：未保存/)).toBeVisible();
 });
 
 
