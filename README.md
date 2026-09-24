@@ -208,10 +208,13 @@ Embedding。这一独立实验区不参与用药风险判断，比较记录见
 正式 `/api/v1/query` 响应在本地反馈库可用时附带一次性的 `feedback_id`。
 前端可提交“有帮助”或“需改进”及固定原因类别到 `POST /api/v1/feedback`。
 示例：`{"feedback_id":"<查询响应中的令牌>","rating":"not_useful","reason":"missing_evidence"}`。
-服务端只保存反馈令牌、结论状态、评价、原因与时间，不保存问题文本、账户或 IP；
+服务端只保存反馈令牌、结论/解析/生成/回退状态、数据版本、会话上下文是否应用、
+评价、原因与时间，不保存问题文本、药名、账户或 IP；
 令牌 30 天后失效，过期记录在后续查询时清理。数据库默认位于忽略提交的
 `data/local/feedback.sqlite3`，可用 `FEEDBACK_DB_PATH` 覆盖。没有认证和跨实例共享，
 该功能仅作为本地原型的反馈闭环。
+运行 `python -m evaluation.feedback_report` 可在本机查看匿名计数和问题归因分组；
+旧数据库会自动补列，解释边界见 [反馈归因说明](docs/FEEDBACK_EVALUATION.md)。
 
 P3 typed workflow 入口：
 

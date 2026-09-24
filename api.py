@@ -386,7 +386,16 @@ async def enrich_query_result(result, explanation, request):
     if store is not None:
         try:
             result["feedback_id"] = await asyncio.to_thread(
-                store.register, explanation.conclusion_status.value
+                store.register,
+                explanation.conclusion_status.value,
+                data_version=explanation.data_version,
+                resolution_status=result["resolution"]["status"],
+                generation_mode=explanation.generation_mode.value,
+                fallback_reason=(
+                    explanation.fallback_reason.value
+                    if explanation.fallback_reason is not None else None
+                ),
+                context_applied=result.get("session_context", {}).get("context_applied"),
             )
         except (OSError, sqlite3.Error):
             logger.warning("feedback registration unavailable", exc_info=True)

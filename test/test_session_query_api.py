@@ -3,6 +3,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from api import app
+from medsafety.feedback_store import FeedbackStore
 from medsafety.session_context import SessionContextReadStatus, SessionContextSnapshot
 
 
@@ -83,3 +84,28 @@ def test_session_query_without_store_requires_full_medication_names():
         json={"question": "泰诺", "session_id": "user:*"},
     )
     assert invalid.status_code == 422
+
+
+def test_follow_up_feedback_attributes_session_context_without_question(tmp_path):
+    store = MemorySessionStore()
+    feedback = FeedbackStore(tmp_path / "feedback.sqlite3")
+    app.state.feedback_store = feedback
+    client = TestClient(app)
+    try:
+        with patch("api.get_session_context_store", return_value=store):
+            client.post(
+                "/api/v1/query/session",
+                json={"question": "泰诺和感康能一起吃吗？", "session_id": "session-one", "use_llm_plan": False},
+            )
+            follow_up = client.post(
+                "/api/v1/query/session",
+                json={"question": "刚才的药还能一起吃吗？", "session_id": "session-one", "use_llm_plan": False},
+            )
+        submitted = client.post(
+            "/api/v1/feedback",
+            json={"feedback_id": follow_up.json()["feedback_id"], "rating": "not_useful", "reason": "unclear_explanation"},
+        )
+        assert submitted.status_code == 200
+        assert feedback.summary()["groups"][0]["context_applied"] == 1
+    finally:
+        app.state.feedback_store = None
