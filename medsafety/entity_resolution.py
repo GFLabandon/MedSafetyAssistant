@@ -44,6 +44,11 @@ _INSTRUCTION_MARKERS = (
     "不要遵守",
     "绕过规则",
 )
+_PRODUCT_NAME_PATTERN = re.compile(
+    r"(?:^|(?<=[和与跟同及、，,吃用买加了]))"
+    r"(?P<name>[\u4e00-\u9fff]{2,12}?(?:片|胶囊|颗粒|口服液|注射液|滴剂|糖浆))"
+    r"(?=能|可以|和|与|跟|同|及|、|，|,|吗|？|\?|的|后|期间|一起|同时|$)"
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +101,17 @@ class V1EntityResolver:
         follow_up_terms = [
             term for term in _FOLLOW_UP_REFERENCES if term in normalized_question
         ]
+        unknown_products = self._unrecognized_product_mentions(normalized_question)
+        if unknown_products:
+            return InputResolution(
+                status=InputResolutionStatus.UNKNOWN,
+                medications=medications,
+                contexts=contexts,
+                entities=entities,
+                unresolved_mentions=unknown_products,
+                clarification_question="部分药品名称不在当前 V1 目录中，请核对包装上的具体商品名或成分名。",
+                safety_flags=safety_flags,
+            )
         if generic_terms and medications:
             return InputResolution(
                 status=InputResolutionStatus.AMBIGUOUS,
@@ -236,6 +252,15 @@ class V1EntityResolver:
                     )
                 )
         return self._unique_aliases(entries)
+
+    def _unrecognized_product_mentions(self, question: str) -> list[str]:
+        known_aliases = {entry.alias.casefold() for entry in self._medication_aliases}
+        candidates = []
+        for match in _PRODUCT_NAME_PATTERN.finditer(question):
+            candidate = re.split(r"[和与跟同及、，,加]", match.group("name"))[-1]
+            if candidate.casefold() not in known_aliases:
+                candidates.append(candidate)
+        return list(dict.fromkeys(candidates))
 
     def _build_context_aliases(self) -> list[_AliasEntry]:
         entries = []

@@ -137,6 +137,20 @@ in-memory implementation. It checks the expected conclusion, input-resolution
 status, fact IDs, session isolation, response trace, catalog version, and claim
 source provenance. This is an **engineering contract suite** using the same four
 reviewed facts as development. Its pass rate is not a clinical accuracy or
-independent fact-generalization result. The current deterministic resolver does
-not reliably flag an unknown named product when it appears beside a known
-product; this remains an open input-boundary gap for the next iteration.
+independent fact-generalization result. V1 is the historical baseline recorded
+before the mixed-name resolver fix.
+
+`query_contract_v2.jsonl` retains the V1 cases and adds three negative cases
+for a non-catalog Chinese dosage-form product beside one or two catalog drugs:
+
+```bash
+conda run -n medsafety python -m evaluation.query_contract \
+  --dataset eval/query_contract_v2.jsonl \
+  --checksum eval/query_contract_v2.sha256
+```
+
+The resolver now rejects these identifiable mixed inputs rather than silently
+assessing only the catalog-backed product. This is a bounded pattern check for
+Chinese dosage-form names, not general recognition of every unknown drug name.
+Unknown English names and Chinese names without an identifiable dosage-form
+suffix can still evade it.
