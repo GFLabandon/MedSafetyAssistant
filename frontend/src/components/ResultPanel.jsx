@@ -86,6 +86,8 @@ export default function ResultPanel({ result }) {
   const claims = explanation.claims || [];
   const sources = result.sources || [];
   const limitations = explanation.limitations || [];
+  const missingContext = explanation.missing_context || [];
+  const sessionContext = result.session_context;
   const safetyFlags = resolution.safety_flags || [];
   const trace = result.trace || {};
   const stages = trace.stages || [];
@@ -106,6 +108,21 @@ export default function ResultPanel({ result }) {
           <strong>需要你确认</strong>
           <p>{resolution.clarification_question}</p>
         </section>
+      ) : null}
+
+      {!resolution.clarification_question && missingContext.length > 0 ? (
+        <section className="clarification-card">
+          <strong>需要补充判断条件</strong>
+          <p>{missingContext.join('、')}</p>
+          <p>如能确认该条件，请在下一次提问中写出具体药名和条件；无法确认时不要猜测。</p>
+        </section>
+      ) : null}
+
+      {sessionContext ? (
+        <p className="session-note">
+          会话上下文：{sessionContext.write_status === 'stored' ? '已保存已识别药品；明确的代词追问可引用。补充判断条件时请重写完整药名。' : '未保存；追问时请重新写出具体药名。'}
+          {sessionContext.context_applied ? ' 本次已使用上一次识别的药品。' : ''}
+        </p>
       ) : null}
 
       <section>

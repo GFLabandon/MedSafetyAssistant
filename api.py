@@ -379,6 +379,24 @@ def source_metadata_for_claims(claims, catalog):
     ]
 
 
+async def enrich_query_result(result, explanation, request):
+    """Attach optional feedback capability and only the response's cited sources."""
+    store = getattr(request.app.state, "feedback_store", None) if request else None
+    result["feedback_id"] = None
+    if store is not None:
+        try:
+            result["feedback_id"] = await asyncio.to_thread(
+                store.register, explanation.conclusion_status.value
+            )
+        except (OSError, sqlite3.Error):
+            logger.warning("feedback registration unavailable", exc_info=True)
+    catalog = getattr(request.app.state, "catalog", None) if request else None
+    result["sources"] = source_metadata_for_claims(
+        explanation.claims, catalog or build_v1_catalog()
+    )
+    return result
+
+
 def get_neo4j_repository(request: Request | None):
     if request is None:
         return None
@@ -587,20 +605,66 @@ async def query_v1_safety(
         request_id=get_request_id(request),
     )
     result = response.model_dump(mode="json")
-    store = getattr(request.app.state, "feedback_store", None) if request else None
-    result["feedback_id"] = None
-    if store is not None:
-        try:
-            result["feedback_id"] = await asyncio.to_thread(
-                store.register, response.explanation.conclusion_status.value
+    return await enrich_query_result(result, response.explanation, request)
+
+
+@app.post("/api/v1/query/session")
+async def query_v1_safety_session(payload: WorkflowSafetyRequest, request: Request):
+    """Page-facing session query; no model-directed tool selection or free-text memory."""
+    workflow = build_typed_safety_workflow(request)
+    try:
+        response = await asyncio.to_thread(
+            workflow.run,
+            payload.question,
+            use_llm_plan=payload.use_llm_plan,
+            request_id=get_request_id(request),
+            session_id=payload.session_id,
+        )
+    except ToolWorkflowExecutionError as exc:
+        logger.warning(
+            structured_event(
+                "session_query_failed",
+                request_id=get_request_id(request),
+                reason=exc.code,
             )
-        except (OSError, sqlite3.Error):
-            logger.warning("feedback registration unavailable", exc_info=True)
-    catalog = getattr(request.app.state, "catalog", None) if request else None
-    result["sources"] = source_metadata_for_claims(
-        response.explanation.claims, catalog or build_v1_catalog()
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"error": "tool_workflow_failed", "detail": "The safety query could not complete."},
+        )
+
+    workflow_trace = response.trace.model_dump(mode="json")
+    result = {
+        "resolution": response.resolution.model_dump(mode="json"),
+        "explanation": response.explanation.model_dump(mode="json"),
+        "trace": {
+            "schema_version": "session-query-trace-v1",
+            "request_id": workflow_trace["request_id"],
+            "total_duration_ms": workflow_trace["total_duration_ms"],
+            "stages": [
+                {
+                    "name": call["tool_name"],
+                    "status": call["status"],
+                    "duration_ms": call["duration_ms"],
+                }
+                for call in workflow_trace["tool_calls"]
+            ],
+            "resolution_status": workflow_trace["resolution_status"],
+            "conclusion_status": workflow_trace["conclusion_status"],
+        },
+        "session_context": workflow_trace["session_context"],
+    }
+    logger.info(
+        structured_event(
+            "session_query_completed",
+            request_id=response.trace.request_id,
+            conclusion_status=response.explanation.conclusion_status.value,
+            session_read_status=response.trace.session_context.read_status.value,
+            session_write_status=response.trace.session_context.write_status.value,
+            context_applied=response.trace.session_context.context_applied,
+        )
     )
-    return result
+    return await enrich_query_result(result, response.explanation, request)
 
 
 @app.post("/api/v1/feedback")

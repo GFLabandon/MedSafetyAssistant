@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
-import { submitMedicationQuery } from '../api/client.js';
+import { useCallback, useRef, useState } from 'react';
+import { submitSessionMedicationQuery } from '../api/client.js';
 
 export function useMedicationQuery() {
+  const sessionId = useRef(globalThis.crypto?.randomUUID?.() || null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,7 +17,7 @@ export function useMedicationQuery() {
     setLoading(true);
 
     try {
-      const data = await submitMedicationQuery(question);
+      const data = await submitSessionMedicationQuery(question, sessionId.current);
       setResult(data);
       return data;
     } catch (err) {

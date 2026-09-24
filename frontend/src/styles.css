@@ -188,6 +188,14 @@ select {
   padding-top: 12px;
 }
 
+.session-note {
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #314255;
+  background: #f8fafc;
+}
+
 .feedback-actions {
   display: flex;
   flex-wrap: wrap;

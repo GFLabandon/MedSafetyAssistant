@@ -4,6 +4,12 @@ import { expect, test } from '@playwright/test';
 function responseFor(question) {
   const base = {
     feedback_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    session_context: {
+      schema_version: 'session-context-trace-v1',
+      read_status: 'empty',
+      write_status: 'stored',
+      context_applied: false,
+    },
     resolution: {
       schema_version: 'entity-resolution-v1',
       status: 'resolved',
@@ -42,6 +48,16 @@ function responseFor(question) {
       conclusion_status: 'no_known_risk_in_scope',
     },
   };
+
+  if (question.includes('刚才的药')) {
+    base.session_context.read_status = 'available';
+    base.session_context.context_applied = true;
+    base.resolution.medications = ['泰诺', '感康'];
+    base.explanation.conclusion_status = 'risk_found';
+    base.explanation.summary = '在当前来源对齐数据范围内发现 1 条需要关注的用药风险。';
+    base.trace.conclusion_status = 'risk_found';
+    return base;
+  }
 
   if (question.includes('泰诺')) {
     base.resolution.medications = ['泰诺', '感康'];
@@ -102,7 +118,7 @@ function responseFor(question) {
 
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/v1/query', async (route) => {
+  await page.route('**/api/v1/query/session', async (route) => {
     const payload = route.request().postDataJSON();
     await route.fulfill({
       status: 200,
@@ -178,6 +194,21 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await page.goto('/');
+});
+
+test('keeps one explicit session for a pronoun follow-up', async ({ page }) => {
+  const sessions = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/query/session')) {
+      sessions.push(request.postDataJSON().session_id);
+    }
+  });
+  await submit(page, '泰诺和感康能一起吃吗？');
+  await expect(page.getByText(/会话上下文：已保存已识别药品/)).toBeVisible();
+  await submit(page, '刚才的药还能一起吃吗？');
+  await expect(page.getByText(/本次已使用上一次识别的药品/)).toBeVisible();
+  expect(sessions).toHaveLength(2);
+  expect(sessions[0]).toBe(sessions[1]);
 });
 
 test('searches reviewed facts without changing the risk response', async ({ page }) => {

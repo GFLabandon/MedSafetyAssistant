@@ -39,6 +39,7 @@ export default function App() {
             本系统是工程验证原型，仅覆盖少量来源对齐事实，不是医疗器械，也不能替代医生或药师。
           </div>
           <QueryForm key={selectedQuestion} initialQuestion={selectedQuestion} loading={loading} onSubmit={handleSubmit} />
+          <p className="contract-note">可在同一页面继续提问“刚才的药……”。只有下方显示会话上下文已保存时，系统才会使用上一次识别的药品；否则请重新写出具体药名。</p>
           {error ? <div className="error">{error}</div> : null}
           <ResultPanel result={result} />
           <FactSearchPanel />

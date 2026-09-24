@@ -21,6 +21,26 @@ export async function submitMedicationQuery(question, { useLlmPlan = true } = {}
   return data;
 }
 
+export async function submitSessionMedicationQuery(question, sessionId, { useLlmPlan = true } = {}) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/query/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      question,
+      session_id: sessionId,
+      use_llm_plan: useLlmPlan,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const detail = Array.isArray(data.detail)
+      ? data.detail.map((item) => item.msg).join('；')
+      : data.detail;
+    throw new Error(data.error || detail || '查询失败');
+  }
+  return data;
+}
+
 export async function searchReviewedFacts(query) {
   const response = await fetch(`${API_BASE_URL}/api/v1/knowledge/search`, {
     method: 'POST',
