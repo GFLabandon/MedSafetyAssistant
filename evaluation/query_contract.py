@@ -53,14 +53,27 @@ def load_cases(dataset: Path = DATASET, checksum: Path = CHECKSUM) -> tuple[list
     if digest != expected:
         raise ValueError(f"dataset checksum mismatch: expected {expected}, got {digest}")
     cases = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
+    if not cases:
+        raise ValueError("empty contract dataset")
     ids = [case["case_id"] for case in cases]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate case_id")
     for case in cases:
+        allowed = {"case_id", "endpoint", "session_id", "question", "expected"}
+        if set(case) - allowed or not isinstance(case.get("question"), str) or not case["question"].strip():
+            raise ValueError(f"invalid case shape: {case.get('case_id')}")
         if case["endpoint"] not in {"query", "session"}:
             raise ValueError(f"invalid endpoint: {case['case_id']}")
         if case["endpoint"] == "session" and not case.get("session_id"):
             raise ValueError(f"missing session_id: {case['case_id']}")
+        required = {"conclusion_status", "resolution_status", "fact_ids"}
+        if case["endpoint"] == "session":
+            required |= {"context_applied", "write_status"}
+        if set(case.get("expected", {})) != required:
+            raise ValueError(f"incomplete expected result: {case['case_id']}")
+        fact_ids = case["expected"]["fact_ids"]
+        if not isinstance(fact_ids, list) or fact_ids != sorted(set(fact_ids)):
+            raise ValueError(f"invalid expected fact_ids: {case['case_id']}")
     return cases, digest
 
 

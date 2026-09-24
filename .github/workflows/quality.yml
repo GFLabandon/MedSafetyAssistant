@@ -68,6 +68,12 @@ jobs:
       - name: Run offline test suite
         run: python -m pytest -q -m "not integration"
 
+      - name: Run frozen query API contract
+        run: |
+          python -m evaluation.query_contract \
+            --dataset eval/query_contract_v3.jsonl \
+            --checksum eval/query_contract_v3.sha256
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
