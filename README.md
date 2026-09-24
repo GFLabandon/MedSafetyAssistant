@@ -173,6 +173,29 @@ curl -X POST http://127.0.0.1:8000/api/v1/query \
 别名和上下文规则；模糊药名、未知药名、缺失适用条件和指令式注入文本不会进入开放域
 医学生成。
 
+命中风险事实时，响应额外返回 `sources`（已审查来源的标题、发布方、版本和原始链接），
+前端可直接打开来源核对。该列表仅来自本次结论引用的事实；当前目录不保存文档全文，
+这不是文档 RAG。后续改造顺序与验收标准见 [AI 应用与后端项目改造计划](docs/AI_APPLICATION_ROADMAP.md)。
+
+已审事实检索基线：`POST /api/v1/knowledge/search`，请求体如
+`{"query":"布洛芬和阿司匹林","limit":5}`。响应包含事实摘要、定位、来源链接和数据版本；
+当前使用确定性的中文二字片段与英文词项重叠排序，只检索四条已审事实，不检索来源全文，
+检索结果不参与风险判断。前端“查找已审事实”可独立试用。
+
+项目文档检索实验区：`POST /api/v1/documents/search`，例如
+`{"query":"知识不可用怎么办","method":"lexical","limit":5}`；`method` 也可设为
+`hashing_vector`。结果含文档、标题、段落、片段 ID 与原文，完整文档可通过
+`GET /api/v1/documents/{document_id}` 查看。索引仅从 `data/document_corpus_v1.json`
+列出的本仓库自编文档重建，并验证 SHA-256；本地哈希向量是词法向量，不是模型语义
+Embedding。这一独立实验区不参与用药风险判断，比较记录见
+[项目文档检索开发基线](reports/project-document-search-dev-v1.md)。
+
+已核对的外部来源试点：`POST /api/v1/source-documents/search` 可检索 FDA
+“Safe Use of Acetaminophen”章节的本地快照，`GET /api/v1/source-documents/{document_id}`
+可查看抽取文本。清单固定原 URL、抓取日期、原 HTML 与抽取文本校验和、关联事实 ID；
+中文检索词只绑定到明确包含重复产品提示的片段。它与正式风险判断完全隔离。
+来源审计与限制见 [FDA 章节入库记录](reports/fda-safe-use-source-ingestion-2026-09-24.md)。
+
 P3 typed workflow 入口：
 
 ```bash

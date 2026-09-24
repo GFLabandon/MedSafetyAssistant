@@ -20,3 +20,42 @@ export async function submitMedicationQuery(question, { useLlmPlan = true } = {}
 
   return data;
 }
+
+export async function searchReviewedFacts(query) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/knowledge/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || data.detail || '检索失败');
+  }
+  return data;
+}
+
+export async function searchProjectDocuments(query, method = 'lexical') {
+  const response = await fetch(`${API_BASE_URL}/api/v1/documents/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, method }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || data.detail || '文档检索失败');
+  }
+  return data;
+}
+
+export async function searchReviewedSourceDocuments(query) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/source-documents/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, method: 'lexical' }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || data.detail || '来源文档检索失败');
+  }
+  return data;
+}

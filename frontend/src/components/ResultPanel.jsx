@@ -83,6 +83,7 @@ export default function ResultPanel({ result }) {
   const contexts = resolution.contexts || [];
   const unresolved = resolution.unresolved_mentions || [];
   const claims = explanation.claims || [];
+  const sources = result.sources || [];
   const limitations = explanation.limitations || [];
   const safetyFlags = resolution.safety_flags || [];
   const trace = result.trace || {};
@@ -129,6 +130,22 @@ export default function ResultPanel({ result }) {
           ? claims.map((claim) => <EvidenceClaim claim={claim} key={claim.fact_id} />)
           : <div className="empty-evidence">本次响应没有风险事实。请结合上方结论状态理解，不能据此推断安全。</div>}
       </section>
+
+      {sources.length > 0 ? (
+        <section>
+          <h3>来源文件</h3>
+          <p className="contract-note">以下为项目已审核目录中的来源信息与原始链接；定位以每条风险事实为准。</p>
+          <ul className="source-list">
+            {sources.map((source) => (
+              <li key={source.source_id}>
+                <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
+                <span>{source.publisher} · {source.version || '未标注版本'}</span>
+                <code>{source.source_id}</code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {limitations.length > 0 ? (
         <section>

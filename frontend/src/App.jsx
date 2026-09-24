@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import QueryForm from './components/QueryForm.jsx';
+import FactSearchPanel from './components/FactSearchPanel.jsx';
+import DocumentSearchPanel from './components/DocumentSearchPanel.jsx';
 import ResultPanel from './components/ResultPanel.jsx';
 import { useMedicationQuery } from './hooks/useMedicationQuery.js';
 
@@ -39,6 +41,8 @@ export default function App() {
           <QueryForm key={selectedQuestion} initialQuestion={selectedQuestion} loading={loading} onSubmit={handleSubmit} />
           {error ? <div className="error">{error}</div> : null}
           <ResultPanel result={result} />
+          <FactSearchPanel />
+          <DocumentSearchPanel />
         </div>
       </main>
     </div>

@@ -1,0 +1,4 @@
+{"query":"对乙酰氨基酚重复成分","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:001"}
+{"query":"more than one acetaminophen-containing product","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:001"}
+{"query":"follow dosing directions on the label","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:002"}
+{"query":"xyzunknown123","expected_chunk_id":null}

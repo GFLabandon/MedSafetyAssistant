@@ -8,9 +8,13 @@ LangChain RAG 对照 Demo
 
 from pathlib import Path
 
-from langchain.chains import RetrievalQA
+try:
+    from langchain.chains import RetrievalQA
+    from langchain.prompts import PromptTemplate
+except ModuleNotFoundError:
+    from langchain_classic.chains import RetrievalQA
+    from langchain_core.prompts import PromptTemplate
 from langchain_core.embeddings import Embeddings
-from langchain.prompts import PromptTemplate
 from langchain_community.document_loaders import TextLoader
 from langchain_community.llms import Ollama
 from langchain_community.vectorstores import FAISS

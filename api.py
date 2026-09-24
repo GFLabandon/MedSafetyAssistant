@@ -8,7 +8,7 @@ from time import perf_counter
 
 from fastapi import FastAPI, Path as ApiPath, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,7 +30,9 @@ from logic_layer.session_context_store import RedisSessionContextStore
 from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.entity_resolution import V1EntityResolver
+from medsafety.document_search import ProjectDocumentSearch
 from medsafety.explanation import EvidenceGroundedExplainer
+from medsafety.fact_search import ReviewedFactSearch
 from medsafety.ollama_planner import OllamaExplanationPlanner
 from medsafety.neo4j_repository import Neo4jKnowledgeRepository
 from medsafety.observability import normalize_request_id, structured_event
@@ -111,8 +113,50 @@ class WorkflowSafetyRequest(NaturalLanguageSafetyRequest):
         return normalize_session_id(value, generate_if_blank=False)
 
 
+class FactSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=300)
+    limit: int = Field(default=5, ge=1, le=10)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_contain_text(cls, value):
+        if not value.strip():
+            raise ValueError("query must not be blank")
+        return value.strip()
+
+
+class DocumentSearchRequest(FactSearchRequest):
+    method: str = Field(default="lexical", pattern="^(lexical|hashing_vector)$")
+
+
 def build_v1_catalog():
     return KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY)
+
+
+def build_reviewed_source_search(catalog=None):
+    root = Path(__file__).resolve().parent
+    catalog = catalog or build_v1_catalog()
+    index = ProjectDocumentSearch(
+        root,
+        root / "data/source_document_corpus_v1.json",
+        corpus="reviewed_source_excerpt",
+    )
+    for entry in index.documents.values():
+        source_id = entry.get("source_id")
+        linked_fact_ids = entry.get("linked_fact_ids", [])
+        if (
+            entry.get("review_status") != "reviewed_for_retrieval"
+            or source_id not in catalog.sources
+            or entry.get("source_url", "").split("#", 1)[0] != catalog.sources[source_id].url
+            or not linked_fact_ids
+            or any(
+                fact_id not in catalog.facts
+                or source_id not in catalog.facts[fact_id].source_ids
+                for fact_id in linked_fact_ids
+            )
+        ):
+            raise ValueError("source document must match a reviewed catalog source and fact")
+    return index
 
 
 def build_safety_engine(catalog=None):
@@ -173,6 +217,13 @@ def build_neo4j_repository():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     catalog = build_v1_catalog()
+    app.state.catalog = catalog
+    app.state.fact_search = ReviewedFactSearch(catalog)
+    app.state.source_document_search = build_reviewed_source_search(catalog)
+    app.state.document_search = ProjectDocumentSearch(
+        Path(__file__).resolve().parent,
+        Path(__file__).resolve().parent / "data/document_corpus_v1.json",
+    )
     app.state.safety_engine = build_safety_engine(catalog)
     app.state.entity_resolver = build_entity_resolver(catalog)
     app.state.safety_explainer = build_safety_explainer()
@@ -280,6 +331,25 @@ def get_entity_resolver(request: Request | None):
     if request is None:
         return build_entity_resolver()
     return getattr(request.app.state, "entity_resolver", None) or build_entity_resolver()
+
+
+def source_metadata_for_claims(claims, catalog):
+    """Return reviewed source metadata used by the actual response claims."""
+    source_ids = dict.fromkeys(
+        source_id for claim in claims for source_id in claim.source_ids
+    )
+    return [
+        {
+            "source_id": source_id,
+            "title": catalog.sources[source_id].title,
+            "publisher": catalog.sources[source_id].publisher,
+            "url": catalog.sources[source_id].url,
+            "version": catalog.sources[source_id].version,
+            "accessed_at": catalog.sources[source_id].accessed_at.isoformat(),
+        }
+        for source_id in source_ids
+        if source_id in catalog.sources
+    ]
 
 
 def get_neo4j_repository(request: Request | None):
@@ -489,7 +559,66 @@ async def query_v1_safety(
         use_llm_plan=payload.use_llm_plan,
         request_id=get_request_id(request),
     )
-    return response.model_dump(mode="json")
+    result = response.model_dump(mode="json")
+    catalog = getattr(request.app.state, "catalog", None) if request else None
+    result["sources"] = source_metadata_for_claims(
+        response.explanation.claims, catalog or build_v1_catalog()
+    )
+    return result
+
+
+@app.post("/api/v1/knowledge/search")
+async def search_reviewed_facts(payload: FactSearchRequest, request: Request):
+    index = getattr(request.app.state, "fact_search", None)
+    if index is None:
+        index = ReviewedFactSearch(build_v1_catalog())
+    return index.search(payload.query, limit=payload.limit)
+
+
+@app.post("/api/v1/documents/search")
+async def search_project_documents(payload: DocumentSearchRequest, request: Request):
+    index = getattr(request.app.state, "document_search", None)
+    if index is None:
+        root = Path(__file__).resolve().parent
+        index = ProjectDocumentSearch(root, root / "data/document_corpus_v1.json")
+    return index.search(payload.query, method=payload.method, limit=payload.limit)
+
+
+@app.get("/api/v1/documents/{document_id}")
+async def get_project_document(
+    document_id: str = ApiPath(..., pattern=r"^project-[a-z0-9-]{2,80}$"),
+    request: Request = None,
+):
+    index = getattr(request.app.state, "document_search", None) if request else None
+    if index is None:
+        root = Path(__file__).resolve().parent
+        index = ProjectDocumentSearch(root, root / "data/document_corpus_v1.json")
+    text = index.document_texts.get(document_id)
+    if text is None:
+        return JSONResponse(status_code=404, content={"error": "document_not_found"})
+    return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
+
+
+@app.post("/api/v1/source-documents/search")
+async def search_reviewed_source_documents(payload: DocumentSearchRequest, request: Request):
+    index = getattr(request.app.state, "source_document_search", None)
+    if index is None:
+        index = build_reviewed_source_search()
+    return index.search(payload.query, method=payload.method, limit=payload.limit)
+
+
+@app.get("/api/v1/source-documents/{document_id}")
+async def get_reviewed_source_document(
+    document_id: str = ApiPath(..., pattern=r"^source-[a-z0-9-]{2,100}$"),
+    request: Request = None,
+):
+    index = getattr(request.app.state, "source_document_search", None) if request else None
+    if index is None:
+        index = build_reviewed_source_search()
+    text = index.document_texts.get(document_id)
+    if text is None:
+        return JSONResponse(status_code=404, content={"error": "document_not_found"})
+    return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/v1/workflows/safety/tools")

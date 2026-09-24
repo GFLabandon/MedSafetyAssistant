@@ -56,6 +56,13 @@ function responseFor(question) {
       source_locator: 'Safe Use of Acetaminophen，第108至116行。',
       label_status: 'source_aligned',
     }];
+    base.sources = [{
+      source_id: 'source-fda-acetaminophen-2025',
+      title: 'Acetaminophen',
+      publisher: 'U.S. Food and Drug Administration',
+      version: 'Content current as of 2025-08-14',
+      url: 'https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen',
+    }];
     base.trace.conclusion_status = 'risk_found';
     return base;
   }
@@ -102,7 +109,96 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(responseFor(payload.question)),
     });
   });
+  await page.route('**/api/v1/knowledge/search', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 'reviewed-fact-search-v1',
+        data_version: 'v1.0.0-alpha.4',
+        retrieval_method: 'character-bigram-over-reviewed-summaries',
+        hits: [{
+          fact_id: 'fact-interaction-ibuprofen-aspirin-cardioprotection-001',
+          summary: '布洛芬可能削弱阿司匹林的抗血小板作用。',
+          source_locator: 'FDA Science Paper 第1页',
+          sources: [{ source_id: 'source-fda-ibuprofen-aspirin-2006', title: 'FDA Science Paper', url: 'https://www.fda.gov/media/76636/download' }],
+          score: 12,
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/v1/source-documents/search', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 'project-document-search-v1',
+        corpus: 'reviewed_source_excerpt',
+        method: 'lexical',
+        hits: [{
+          chunk_id: 'source-fda-acetaminophen-safe-use-2026-09-24:001',
+          document_id: 'source-fda-acetaminophen-safe-use-2026-09-24',
+          title: 'Safe Use of Acetaminophen',
+          heading: 'Safe Use of Acetaminophen',
+          text: 'Do not use more than one acetaminophen-containing product at a time.',
+          source_id: 'source-fda-acetaminophen-2025',
+          source_url: 'https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen#safeuse',
+          linked_fact_ids: ['fact-duplicate-acetaminophen-001'],
+          score: 1,
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/v1/documents/search', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 'project-document-search-v1',
+        corpus: 'project_documentation',
+        method: route.request().postDataJSON().method,
+        vectorizer_id: null,
+        hits: [{
+          chunk_id: 'project-safety-boundary:001',
+          document_id: 'project-safety-boundary',
+          title: '项目安全边界',
+          heading: '系统用途',
+          text: '本项目是家庭常见用药风险筛查的工程演示系统。',
+          score: 3,
+        }],
+      }),
+    });
+  });
   await page.goto('/');
+});
+
+test('searches reviewed facts without changing the risk response', async ({ page }) => {
+  await page.getByRole('textbox', { name: '检索已审事实' }).fill('布洛芬和阿司匹林');
+  await page.getByRole('button', { name: '检索', exact: true }).click();
+
+  await expect(page.getByText('布洛芬可能削弱阿司匹林的抗血小板作用。')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'FDA Science Paper' })).toHaveAttribute('href', /fda\.gov/);
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('shows the reviewed FDA source excerpt separately from the risk response', async ({ page }) => {
+  await page.getByRole('combobox', { name: '检索范围' }).selectOption('sources');
+  await page.getByRole('textbox', { name: '检索已审事实' }).fill('对乙酰氨基酚重复成分');
+  await page.getByRole('button', { name: '检索', exact: true }).click();
+
+  await expect(page.getByText('Do not use more than one acetaminophen-containing product at a time.')).toBeVisible();
+  await expect(page.getByRole('link', { name: '打开 FDA 原页面' })).toHaveAttribute('href', /fda\.gov/);
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('searches project documents as a separate experiment', async ({ page }) => {
+  await page.getByRole('textbox', { name: '检索项目文档' }).fill('系统用途');
+  await page.getByRole('combobox', { name: '文档检索方法' }).selectOption('hashing_vector');
+  await page.getByRole('button', { name: '检索文档' }).click();
+
+  await expect(page.getByText('本项目是家庭常见用药风险筛查的工程演示系统。')).toBeVisible();
+  await expect(page.getByText('方法：hashing_vector · 命中 1 个片段')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
 });
 
 
@@ -117,7 +213,8 @@ test('renders a source-aligned risk with traceable evidence', async ({ page }) =
 
   await expect(page.getByRole('heading', { name: '发现已收录风险' })).toBeVisible();
   await expect(page.getByText('fact-duplicate-acetaminophen-001')).toBeVisible();
-  await expect(page.getByText('source-fda-acetaminophen-2025')).toBeVisible();
+  await expect(page.getByText('source-fda-acetaminophen-2025').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Acetaminophen' })).toHaveAttribute('href', /fda\.gov/);
   await expect(page.getByText('e2e-request-001')).toBeVisible();
 });
 

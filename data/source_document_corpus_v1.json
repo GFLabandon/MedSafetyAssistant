@@ -1,0 +1,23 @@
+[
+  {
+    "document_id": "source-fda-acetaminophen-safe-use-2026-09-24",
+    "title": "Safe Use of Acetaminophen",
+    "path": "data/source_documents/fda_acetaminophen_safe_use_2026-09-24.txt",
+    "sha256": "e0993c1dc983761f281c148b887dab3c3007b8e718cf1662e219296e0d7b0fbc",
+    "corpus": "reviewed_source_excerpt",
+    "source_id": "source-fda-acetaminophen-2025",
+    "source_url": "https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen#safeuse",
+    "source_content_current_as_of": "2025-08-14",
+    "fetched_at": "2026-09-24",
+    "raw_html_sha256": "8d8d45ffed175e90ac99edcf98548e78b0939e5002d39a9df40cf44c4a97d76f",
+    "reuse_policy_url": "https://www.fda.gov/about-fda/about-website/website-policies",
+    "review_status": "reviewed_for_retrieval",
+    "linked_fact_ids": ["fact-duplicate-acetaminophen-001"],
+    "keyword_anchors": [
+      {
+        "contains": "Do not use more than one acetaminophen-containing product at a time.",
+        "keywords": "对乙酰氨基酚 重复成分 多种含相同成分药品"
+      }
+    ]
+  }
+]
