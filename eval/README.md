@@ -123,3 +123,20 @@ python scripts/evaluate.py \
 ```
 
 首次真实运行后，无论结果是否通过，都不得再用该版本调 prompt。任何内容或期望顺序修改必须创建新的数据集版本，并保留 v1 原始报告。
+# Query API engineering contract V1
+
+`query_contract_v1.jsonl` is a frozen, checksum-checked regression suite for the
+public `/api/v1/query` and `/api/v1/query/session` paths. Run:
+
+```bash
+conda run -n medsafety python -m evaluation.query_contract
+```
+
+The runner disables LLM planning and replaces the session store with an
+in-memory implementation. It checks the expected conclusion, input-resolution
+status, fact IDs, session isolation, response trace, catalog version, and claim
+source provenance. This is an **engineering contract suite** using the same four
+reviewed facts as development. Its pass rate is not a clinical accuracy or
+independent fact-generalization result. The current deterministic resolver does
+not reliably flag an unknown named product when it appears beside a known
+product; this remains an open input-boundary gap for the next iteration.
