@@ -1,0 +1,235 @@
+{
+  "dataset": "source_retrieval_dev_v2",
+  "scope": "single-source development audit; not clinical or general retrieval accuracy",
+  "dataset_sha256": "79723fd234904eb673298d3dfb41b6fffb9fc11eb96ef7e349f292e751d7d3d8",
+  "manifest_sha256": "3d057f2628a9f412433773ec49bf586fdacfa79d0663b86684c35e4639bc4095",
+  "data_version": "v1.0.0-alpha.4",
+  "git_head": "a93cba5ffeafc37a463feb7c3f72579b386ebcdf",
+  "source_documents": 1,
+  "chunks": 3,
+  "queries": 9,
+  "runs": 18,
+  "top1_matches": 16,
+  "link_matches": 16,
+  "provenance_failures": 0,
+  "cases": [
+    {
+      "case_id": "duplicate_chinese",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "top1_match": true,
+      "expected_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "actual_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "duplicate_chinese",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "top1_match": true,
+      "expected_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "actual_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "duplicate_english",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "top1_match": true,
+      "expected_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "actual_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "duplicate_english",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "top1_match": true,
+      "expected_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "actual_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "label_directions",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "label_directions",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "alcohol_warning",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "alcohol_warning",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "daily_maximum",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "daily_maximum",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "poison_help",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "poison_help",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:003",
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "chinese_dose_hard_case",
+      "method": "lexical",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "top1_match": false,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "link_match": false,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "chinese_dose_hard_case",
+      "method": "hashing_vector",
+      "expected_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:002",
+      "actual_chunk_id": "source-fda-acetaminophen-safe-use-2026-09-24:001",
+      "top1_match": false,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [
+        "fact-duplicate-acetaminophen-001"
+      ],
+      "link_match": false,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "unrelated_pair",
+      "method": "lexical",
+      "expected_chunk_id": null,
+      "actual_chunk_id": null,
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "unrelated_pair",
+      "method": "hashing_vector",
+      "expected_chunk_id": null,
+      "actual_chunk_id": null,
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "unrelated_token",
+      "method": "lexical",
+      "expected_chunk_id": null,
+      "actual_chunk_id": null,
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    },
+    {
+      "case_id": "unrelated_token",
+      "method": "hashing_vector",
+      "expected_chunk_id": null,
+      "actual_chunk_id": null,
+      "top1_match": true,
+      "expected_linked_fact_ids": [],
+      "actual_linked_fact_ids": [],
+      "link_match": true,
+      "provenance_errors": []
+    }
+  ]
+}
