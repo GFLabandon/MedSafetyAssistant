@@ -13,7 +13,9 @@ from api import (
     search_reviewed_source_documents,
 )
 from scripts.extract_fda_safe_use import extract_section
+from medsafety.catalog import KnowledgeCatalog
 from medsafety.document_search import DocumentCorpusError, ProjectDocumentSearch
+from medsafety.source_document_search import ReviewedSourceDocumentSearch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,12 +44,25 @@ def test_reviewed_source_search_links_only_catalog_fact_and_source():
     assert unrelated["chunk_id"].endswith(":002")
     assert unrelated["linked_fact_ids"] == []
     assert index.search("1-800-222-1222", limit=1)["hits"][0]["linked_fact_ids"] == []
+    assert index.search("布洛芬用量", limit=1)["hits"] == []
+    numeric_hit = index.search("acetaminophen 4000 mg per day", limit=1)["hits"][0]
+    assert numeric_hit["chunk_id"].endswith(":003")
+    assert "4,000 mg" in numeric_hit["text"]
 
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(source_document_search=index)))
     api_result = asyncio.run(search_reviewed_source_documents(DocumentSearchRequest(query="对乙酰氨基酚重复成分"), request))
     assert api_result["hits"]
     source = asyncio.run(get_reviewed_source_document(index.chunks[0]["document_id"], request))
     assert source.status_code == 200
+
+
+def test_reviewed_source_search_rejects_unknown_topic_medication():
+    index = ProjectDocumentSearch(ROOT, ROOT / "data/source_document_corpus_v1.json", corpus="reviewed_source_excerpt")
+    document = next(iter(index.documents.values()))
+    document["topic_medication_ids"] = ["medication-not-in-catalog"]
+    catalog = KnowledgeCatalog.from_directory(ROOT / "data/v1")
+    with pytest.raises(DocumentCorpusError, match="invalid source medication topics"):
+        ReviewedSourceDocumentSearch(index, catalog)
 
 
 def test_source_corpus_rejects_anchor_fact_outside_document_declaration(tmp_path):

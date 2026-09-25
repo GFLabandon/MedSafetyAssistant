@@ -5,6 +5,7 @@ from __future__ import annotations
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 
 from logic_layer.embedding_service import EmbeddingService
 from medsafety.fact_search import _terms
@@ -12,6 +13,11 @@ from medsafety.fact_search import _terms
 
 class DocumentCorpusError(ValueError):
     pass
+
+
+def _normalize_search_text(value: str) -> str:
+    """Index 4,000 and 4000 alike without changing the displayed source text."""
+    return re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", value)
 
 
 def _chunks(text: str, max_chars: int = 700) -> list[tuple[str, str]]:
@@ -89,6 +95,7 @@ class ProjectDocumentSearch:
                     for fact_id in anchor.get("linked_fact_ids", [])
                 ))
                 searchable = f"{entry['title']} {heading} {keywords} {passage}"
+                normalized_searchable = _normalize_search_text(searchable)
                 self.chunks.append({
                     "chunk_id": f"{identifier}:{number:03d}",
                     "document_id": identifier,
@@ -98,19 +105,23 @@ class ProjectDocumentSearch:
                     "source_id": entry.get("source_id"),
                     "source_url": entry.get("source_url"),
                     "linked_fact_ids": chunk_fact_ids,
-                    "terms": _terms(searchable),
-                    "vector": self.vectorizer.embed_text(searchable),
+                    "terms": _terms(normalized_searchable),
+                    "vector": self.vectorizer.embed_text(normalized_searchable),
                 })
 
     def search(self, query: str, *, method: str = "lexical", limit: int = 5) -> dict:
-        terms = _terms(query)
-        query_vector = self.vectorizer.embed_text(query) if method == "hashing_vector" else []
+        normalized_query = _normalize_search_text(query)
+        terms = _terms(normalized_query)
+        query_vector = self.vectorizer.embed_text(normalized_query) if method == "hashing_vector" else []
         ranked = []
         for chunk in self.chunks:
-            overlap = len(terms & chunk["terms"])
-            if overlap == 0:
+            matched_terms = terms & chunk["terms"]
+            if not matched_terms:
                 continue
-            score = overlap if method == "lexical" else sum(
+            score = sum(
+                2 if term.isdigit() and len(term) >= 3 else 1
+                for term in matched_terms
+            ) if method == "lexical" else sum(
                 left * right for left, right in zip(query_vector, chunk["vector"])
             )
             ranked.append((score, chunk["chunk_id"], chunk))

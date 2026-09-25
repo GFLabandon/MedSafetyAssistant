@@ -111,9 +111,11 @@ def evaluate(dataset: Path = DATASET, checksum: Path = CHECKSUM) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=Path, default=DATASET)
+    parser.add_argument("--checksum", type=Path, default=CHECKSUM)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    report = evaluate()
+    report = evaluate(args.dataset, args.checksum)
     rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")

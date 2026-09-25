@@ -183,3 +183,20 @@ provenance, while retrieval ranking errors remain visible development findings.
 One source and nine queries cannot establish general retrieval or clinical
 accuracy; the result does not authorize retrieved text to enter the formal
 safety conclusion.
+
+`source_retrieval_dev_v3.jsonl` retains the v2 cases and adds five development
+queries for Chinese dose paraphrases, daily maximum, and unrelated medication
+topics. The source manifest now contains reviewed topic IDs and dose anchors;
+queries naming a different catalog medication return no source hit. Numeric
+grouping is normalized only for indexing (`4,000` and `4000`), while the
+displayed source text remains unchanged. Run:
+
+```bash
+conda run -n medsafety python -m evaluation.source_retrieval_contract \
+  --dataset eval/source_retrieval_dev_v3.jsonl \
+  --checksum eval/source_retrieval_dev_v3.sha256
+```
+
+Both v2 and v3 are development sets. v2's failure report remains unchanged;
+v3 records the effect of this visible tuning and remaining hashing-vector
+failures. Neither set is independent evidence of retrieval quality.

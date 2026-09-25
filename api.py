@@ -33,6 +33,7 @@ from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.entity_resolution import V1EntityResolver
 from medsafety.document_search import ProjectDocumentSearch
+from medsafety.source_document_search import ReviewedSourceDocumentSearch
 from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.fact_search import ReviewedFactSearch
 from medsafety.feedback_store import FeedbackStore
@@ -181,7 +182,7 @@ def build_reviewed_source_search(catalog=None):
             )
         ):
             raise ValueError("source document must match a reviewed catalog source and fact")
-    return index
+    return ReviewedSourceDocumentSearch(index, catalog)
 
 
 def build_safety_engine(catalog=None):
