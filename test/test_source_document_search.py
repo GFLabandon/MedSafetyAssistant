@@ -1,6 +1,10 @@
 import asyncio
+from hashlib import sha256
+import json
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from api import (
     DocumentSearchRequest,
@@ -9,6 +13,7 @@ from api import (
     search_reviewed_source_documents,
 )
 from scripts.extract_fda_safe_use import extract_section
+from medsafety.document_search import DocumentCorpusError, ProjectDocumentSearch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,8 +38,36 @@ def test_reviewed_source_search_links_only_catalog_fact_and_source():
     assert result["hits"][0]["linked_fact_ids"] == ["fact-duplicate-acetaminophen-001"]
     assert result["hits"][0]["source_url"].startswith("https://www.fda.gov/")
 
+    unrelated = index.search("follow dosing directions on the label", limit=1)["hits"][0]
+    assert unrelated["chunk_id"].endswith(":002")
+    assert unrelated["linked_fact_ids"] == []
+    assert index.search("1-800-222-1222", limit=1)["hits"][0]["linked_fact_ids"] == []
+
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(source_document_search=index)))
     api_result = asyncio.run(search_reviewed_source_documents(DocumentSearchRequest(query="对乙酰氨基酚重复成分"), request))
     assert api_result["hits"]
     source = asyncio.run(get_reviewed_source_document(index.chunks[0]["document_id"], request))
     assert source.status_code == 200
+
+
+def test_source_corpus_rejects_anchor_fact_outside_document_declaration(tmp_path):
+    text = b"# Heading\n\nEvidence anchor.\n"
+    (tmp_path / "source.txt").write_bytes(text)
+    manifest = [{
+        "document_id": "source-test",
+        "title": "Test source",
+        "path": "source.txt",
+        "sha256": sha256(text).hexdigest(),
+        "corpus": "reviewed_source_excerpt",
+        "linked_fact_ids": ["fact-declared"],
+        "keyword_anchors": [{
+            "contains": "Evidence anchor.",
+            "keywords": "anchor",
+            "linked_fact_ids": ["fact-undeclared"],
+        }],
+    }]
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(DocumentCorpusError, match="anchor fact link"):
+        ProjectDocumentSearch(tmp_path, path, corpus="reviewed_source_excerpt")

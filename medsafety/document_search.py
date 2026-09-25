@@ -67,6 +67,11 @@ class ProjectDocumentSearch:
             self.documents[identifier] = entry
             self.document_texts[identifier] = text
             anchors = entry.get("keyword_anchors", [])
+            if any(
+                not set(anchor.get("linked_fact_ids", [])).issubset(entry.get("linked_fact_ids", []))
+                for anchor in anchors
+            ):
+                raise DocumentCorpusError(f"anchor fact link is not declared by document: {identifier}")
             section_chunks = _chunks(text)
             if any(
                 not any(anchor["contains"] in passage for _, passage in section_chunks)
@@ -78,6 +83,11 @@ class ProjectDocumentSearch:
                     anchor["keywords"] for anchor in anchors
                     if anchor["contains"] in passage
                 )
+                chunk_fact_ids = list(dict.fromkeys(
+                    fact_id
+                    for anchor in anchors if anchor["contains"] in passage
+                    for fact_id in anchor.get("linked_fact_ids", [])
+                ))
                 searchable = f"{entry['title']} {heading} {keywords} {passage}"
                 self.chunks.append({
                     "chunk_id": f"{identifier}:{number:03d}",
@@ -87,7 +97,7 @@ class ProjectDocumentSearch:
                     "text": passage,
                     "source_id": entry.get("source_id"),
                     "source_url": entry.get("source_url"),
-                    "linked_fact_ids": entry.get("linked_fact_ids", []),
+                    "linked_fact_ids": chunk_fact_ids,
                     "terms": _terms(searchable),
                     "vector": self.vectorizer.embed_text(searchable),
                 })

@@ -163,11 +163,17 @@ def build_reviewed_source_search(catalog=None):
     for entry in index.documents.values():
         source_id = entry.get("source_id")
         linked_fact_ids = entry.get("linked_fact_ids", [])
+        anchor_fact_ids = {
+            fact_id
+            for anchor in entry.get("keyword_anchors", [])
+            for fact_id in anchor.get("linked_fact_ids", [])
+        }
         if (
             entry.get("review_status") != "reviewed_for_retrieval"
             or source_id not in catalog.sources
             or entry.get("source_url", "").split("#", 1)[0] != catalog.sources[source_id].url
             or not linked_fact_ids
+            or anchor_fact_ids != set(linked_fact_ids)
             or any(
                 fact_id not in catalog.facts
                 or source_id not in catalog.facts[fact_id].source_ids

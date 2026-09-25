@@ -28,8 +28,9 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `238 passed, 5 deselected` | 本地 `medsafety` 环境；5 项 Neo4j 集成测试未运行 |
+| Python 回归 | `240 passed, 5 deselected` | 本地 `medsafety` 环境；5 项 Neo4j 集成测试未运行 |
 | 正式查询 API 契约 v3 | 19/19 | 固定数据集；覆盖证据、会话隔离和混合未知输入，不代表临床准确率 |
+| 来源片段检索开发集 | 16/18 top-1，18/18 来源关联合法 | 单个 FDA 章节；中文剂量问题的两种方法均误命中 |
 | 浏览器契约 | 10/10 | Playwright 模拟 API 响应，验证页面状态与引用展示 |
 | 浏览器到真实 API 冒烟 | 1/1 | 本地启动 FastAPI 与 Vite；Redis、Neo4j、Ollama 均不需要 |
 | 单模型本地运行 | 仅 `qwen3:4b-instruct`，两轮 agent 工具决策 8/8 接受 | 生成、name-only routing 与可选 rerank 共用一个模型 |
@@ -74,6 +75,7 @@
 - [P3 server-bound 40 条 prompt v2 回归](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v2.json)
 - [正式查询 API 契约 v3](reports/query-contract-v3-baseline.md)
 - [浏览器到真实 API 冒烟记录](reports/fullstack-live-smoke-2026-09-24.md)
+- [来源片段检索失败与引用边界](reports/source-retrieval-dev-v2.md)
 
 ## 核心架构
 
@@ -152,6 +154,7 @@ python -m pytest -q -m "not integration"
 python -m evaluation.query_contract \
   --dataset eval/query_contract_v3.jsonl \
   --checksum eval/query_contract_v3.sha256
+python -m evaluation.source_retrieval_contract
 
 cd frontend
 npm ci

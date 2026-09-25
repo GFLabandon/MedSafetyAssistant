@@ -16,7 +16,8 @@
     "keyword_anchors": [
       {
         "contains": "Do not use more than one acetaminophen-containing product at a time.",
-        "keywords": "对乙酰氨基酚 重复成分 多种含相同成分药品"
+        "keywords": "对乙酰氨基酚 重复成分 多种含相同成分药品",
+        "linked_fact_ids": ["fact-duplicate-acetaminophen-001"]
       }
     ]
   }

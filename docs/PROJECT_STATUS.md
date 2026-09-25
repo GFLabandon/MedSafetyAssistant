@@ -1,8 +1,18 @@
 # MedSafetyAssistant 项目状态
 
-更新时间：2026-09-24
+更新时间：2026-09-25
 当前阶段：P3——受约束 typed tool workflow
 状态：结构化 session typed tool 与 request-level 可观测性已通过真实 Redis/Ollama 验收；正式查询 API 契约已纳入 CI
+
+## 2026-09-25 来源检索评测
+
+- 来源事实关联已收紧到包含人工审核锚句的片段；同一 FDA 章节的剂量与求助信息片段
+  不再自动继承“重复成分”事实 ID。
+- 9 个单来源开发查询在词法与本地哈希向量方法下共运行 18 次：16/18 top-1 命中，
+  18/18 来源关联满足目录约束。“对乙酰氨基酚剂量”在两种方法下均错排到重复成分片段。
+  检索仍与正式风险解释隔离。
+- 非集成 Python 测试：`240 passed, 5 deselected`。评测与片段来源约束已纳入 CI；
+  完整失败记录见 [source-retrieval-dev-v2.md](../reports/source-retrieval-dev-v2.md)。
 
 ## 2026-09-24 增量验收
 

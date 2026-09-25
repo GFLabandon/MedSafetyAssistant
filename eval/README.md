@@ -168,3 +168,18 @@ conda run -n medsafety python -m evaluation.query_contract \
 The pair guard covers only recognizable conjunction patterns. It treats an
 unmatched operand as needing clarification, without asserting that the operand
 is a medication. V1 and V2 datasets and reports remain historical baselines.
+
+`source_retrieval_dev_v2.jsonl` is a checksum-pinned **development** audit of
+the single FDA source excerpt. It labels the expected top chunk and whether
+that specific chunk supports the catalog fact. Run both lexical and local
+hashing-vector methods through the public source-search API:
+
+```bash
+conda run -n medsafety python -m evaluation.source_retrieval_contract
+```
+
+The report preserves ranking and link mismatches. CI fails on broken catalog
+provenance, while retrieval ranking errors remain visible development findings.
+One source and nine queries cannot establish general retrieval or clinical
+accuracy; the result does not authorize retrieved text to enter the formal
+safety conclusion.

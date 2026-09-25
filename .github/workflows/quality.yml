@@ -74,6 +74,9 @@ jobs:
             --dataset eval/query_contract_v3.jsonl \
             --checksum eval/query_contract_v3.sha256
 
+      - name: Audit source retrieval provenance
+        run: python -m evaluation.source_retrieval_contract
+
   frontend:
     name: Frontend and live smoke
     runs-on: ubuntu-latest
