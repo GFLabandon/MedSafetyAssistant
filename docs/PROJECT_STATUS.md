@@ -13,6 +13,8 @@
   检索仍与正式风险解释隔离。
 - 非集成 Python 测试：`240 passed, 5 deselected`。评测与片段来源约束已纳入 CI；
   完整失败记录见 [source-retrieval-dev-v2.md](../reports/source-retrieval-dev-v2.md)。
+- 页面区分“关联已审风险事实”和“未关联已审风险事实”的来源片段；模拟 API 浏览器契约
+  `11/11` 通过，前端构建通过。
 
 ## 2026-09-24 增量验收
 

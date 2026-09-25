@@ -56,6 +56,9 @@ export default function FactSearchPanel() {
                 <p>{hit.text}</p>
                 <a href={hit.source_url} target="_blank" rel="noopener noreferrer">打开 FDA 原页面</a>
                 <a href={`${API_BASE_URL}/api/v1/source-documents/${hit.document_id}`} target="_blank" rel="noopener noreferrer">打开本次抽取快照</a>
+                {hit.linked_fact_ids?.length > 0
+                  ? <span>关联已审风险事实：{hit.linked_fact_ids.map((factId) => <code key={factId}>{factId}</code>)}</span>
+                  : <span>此片段未关联已审风险事实。</span>}
                 <code>{hit.chunk_id}</code>
               </li>
             ))}

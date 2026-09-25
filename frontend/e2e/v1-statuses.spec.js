@@ -159,6 +159,7 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await page.route('**/api/v1/source-documents/search', async (route) => {
+    const doseQuery = route.request().postDataJSON().query.includes('dosing directions');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -167,14 +168,16 @@ test.beforeEach(async ({ page }) => {
         corpus: 'reviewed_source_excerpt',
         method: 'lexical',
         hits: [{
-          chunk_id: 'source-fda-acetaminophen-safe-use-2026-09-24:001',
+          chunk_id: `source-fda-acetaminophen-safe-use-2026-09-24:${doseQuery ? '002' : '001'}`,
           document_id: 'source-fda-acetaminophen-safe-use-2026-09-24',
           title: 'Safe Use of Acetaminophen',
           heading: 'Safe Use of Acetaminophen',
-          text: 'Do not use more than one acetaminophen-containing product at a time.',
+          text: doseQuery
+            ? 'Follow dosing directions on the label.'
+            : 'Do not use more than one acetaminophen-containing product at a time.',
           source_id: 'source-fda-acetaminophen-2025',
           source_url: 'https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen#safeuse',
-          linked_fact_ids: ['fact-duplicate-acetaminophen-001'],
+          linked_fact_ids: doseQuery ? [] : ['fact-duplicate-acetaminophen-001'],
           score: 1,
         }],
       }),
@@ -240,7 +243,18 @@ test('shows the reviewed FDA source excerpt separately from the risk response', 
   await page.getByRole('button', { name: '检索', exact: true }).click();
 
   await expect(page.getByText('Do not use more than one acetaminophen-containing product at a time.')).toBeVisible();
+  await expect(page.getByText(/关联已审风险事实：/)).toContainText('fact-duplicate-acetaminophen-001');
   await expect(page.getByRole('link', { name: '打开 FDA 原页面' })).toHaveAttribute('href', /fda\.gov/);
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('marks a retrieved source passage without a reviewed risk-fact link', async ({ page }) => {
+  await page.getByRole('combobox', { name: '检索范围' }).selectOption('sources');
+  await page.getByRole('textbox', { name: '检索已审事实' }).fill('follow dosing directions');
+  await page.getByRole('button', { name: '检索', exact: true }).click();
+
+  await expect(page.getByText('Follow dosing directions on the label.')).toBeVisible();
+  await expect(page.getByText('此片段未关联已审风险事实。')).toBeVisible();
   await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
 });
 

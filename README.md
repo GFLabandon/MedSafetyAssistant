@@ -31,7 +31,7 @@
 | Python 回归 | `240 passed, 5 deselected` | 本地 `medsafety` 环境；5 项 Neo4j 集成测试未运行 |
 | 正式查询 API 契约 v3 | 19/19 | 固定数据集；覆盖证据、会话隔离和混合未知输入，不代表临床准确率 |
 | 来源片段检索开发集 | 16/18 top-1，18/18 来源关联合法 | 单个 FDA 章节；中文剂量问题的两种方法均误命中 |
-| 浏览器契约 | 10/10 | Playwright 模拟 API 响应，验证页面状态与引用展示 |
+| 浏览器契约 | 11/11 | Playwright 模拟 API 响应，验证页面状态与片段级关联展示 |
 | 浏览器到真实 API 冒烟 | 1/1 | 本地启动 FastAPI 与 Vite；Redis、Neo4j、Ollama 均不需要 |
 | 单模型本地运行 | 仅 `qwen3:4b-instruct`，两轮 agent 工具决策 8/8 接受 | 生成、name-only routing 与可选 rerank 共用一个模型 |
 | 结构化 session routing dev | raw/bound `1.000`，fallback `0` | 12 条开发样例；不是独立锁定测试 |
