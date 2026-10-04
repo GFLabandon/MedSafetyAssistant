@@ -114,14 +114,22 @@ def main() -> int:
     parser.add_argument("--dataset", type=Path, default=DATASET)
     parser.add_argument("--checksum", type=Path, default=CHECKSUM)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--min-top1", type=int, default=0)
+    parser.add_argument("--min-link-matches", type=int, default=0)
     args = parser.parse_args()
     report = evaluate(args.dataset, args.checksum)
+    if min(args.min_top1, args.min_link_matches) < 0:
+        parser.error("minimum matches must be nonnegative")
     rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")
     else:
         print(rendered, end="")
-    return 0 if report["provenance_failures"] == 0 else 1
+    return 0 if (
+        report["provenance_failures"] == 0
+        and report["top1_matches"] >= args.min_top1
+        and report["link_matches"] >= args.min_link_matches
+    ) else 1
 
 
 if __name__ == "__main__":

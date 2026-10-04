@@ -194,9 +194,13 @@ displayed source text remains unchanged. Run:
 ```bash
 conda run -n medsafety python -m evaluation.source_retrieval_contract \
   --dataset eval/source_retrieval_dev_v3.jsonl \
-  --checksum eval/source_retrieval_dev_v3.sha256
+  --checksum eval/source_retrieval_dev_v3.sha256 \
+  --min-top1 25 \
+  --min-link-matches 27
 ```
 
 Both v2 and v3 are development sets. v2's failure report remains unchanged;
 v3 records the effect of this visible tuning and remaining hashing-vector
 failures. Neither set is independent evidence of retrieval quality.
+The CI minimums prevent regressions against this development baseline; they
+do not establish general retrieval accuracy.

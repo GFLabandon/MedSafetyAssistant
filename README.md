@@ -157,7 +157,9 @@ python -m evaluation.query_contract \
   --checksum eval/query_contract_v3.sha256
 python -m evaluation.source_retrieval_contract \
   --dataset eval/source_retrieval_dev_v3.jsonl \
-  --checksum eval/source_retrieval_dev_v3.sha256
+  --checksum eval/source_retrieval_dev_v3.sha256 \
+  --min-top1 25 \
+  --min-link-matches 27
 
 cd frontend
 npm ci
