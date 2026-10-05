@@ -72,6 +72,7 @@ Thumbs.db
 .tmp/
 tmp/
 scratch/
+data/local/
 
 # Historical accidental artifact
 2.1.0

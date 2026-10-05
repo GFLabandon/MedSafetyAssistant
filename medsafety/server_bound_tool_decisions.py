@@ -31,7 +31,7 @@ from medsafety.tool_contracts import (
 from medsafety.tool_shadow_contracts import ShadowWorkflowStage, ShadowWorkflowState
 
 
-TOOL_NAME_PROMPT_VERSION = "server-bound-tool-name-v1"
+TOOL_NAME_PROMPT_VERSION = "server-bound-tool-name-v2"
 DEFAULT_TOOL_NAME_OPTIONS = {
     "temperature": 0,
     "seed": 42,
@@ -109,8 +109,8 @@ class ServerBoundToolDecisionTrace(StrictModel):
 
 
 class ServerBoundWorkflowResponse(StrictModel):
-    schema_version: Literal["server-bound-safety-workflow-v1"] = (
-        "server-bound-safety-workflow-v1"
+    schema_version: Literal["server-bound-safety-workflow-v2"] = (
+        "server-bound-safety-workflow-v2"
     )
     resolution: InputResolution
     explanation: SafetyExplanation
@@ -175,7 +175,8 @@ class OllamaToolNamePlanner:
                 "content": (
                     f"Prompt version: {TOOL_NAME_PROMPT_VERSION}. Select exactly one "
                     "registered tool and emit one tool call with an empty arguments "
-                    "object and no prose. Apply exactly one rule: stage=start selects "
+                    "object and no prose. Apply exactly one rule: stage=session_start "
+                    "selects retrieve_session_context; stage=start selects "
                     "resolve_medications; stage=after_resolution with "
                     "resolution_status=resolved selects query_safety_graph; "
                     "stage=after_resolution with resolution_status=ambiguous, unknown, "
@@ -359,8 +360,13 @@ def bind_server_tool_decision(
 
 
 def _expected_call(state: ShadowWorkflowState) -> tuple[ToolName, dict[str, Any]]:
+    if state.stage == ShadowWorkflowStage.SESSION_START:
+        return ToolName.RETRIEVE_SESSION_CONTEXT, {"session_id": state.session_id}
     if state.stage == ShadowWorkflowStage.START:
-        return ToolName.RESOLVE_MEDICATIONS, {"question": state.question.strip()}
+        arguments = {"question": state.question.strip()}
+        if state.context_call_id is not None:
+            arguments["context_call_id"] = state.context_call_id
+        return ToolName.RESOLVE_MEDICATIONS, arguments
     if state.stage == ShadowWorkflowStage.AFTER_RESOLUTION:
         if state.resolution_status == InputResolutionStatus.RESOLVED:
             name = ToolName.QUERY_SAFETY_GRAPH

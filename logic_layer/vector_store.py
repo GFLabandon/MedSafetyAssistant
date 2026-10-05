@@ -441,6 +441,7 @@ class VectorStore:
 
         keys = set(self.redis_client.scan_iter(match=f"conv:{session_id}:*"))
         keys.update(self.redis_client.scan_iter(match=f"conv_pair:{session_id}:*"))
+        keys.update(self.redis_client.scan_iter(match=f"v1session:{session_id}:*"))
         if not keys:
             return 0
         return int(self.redis_client.delete(*sorted(keys)))

@@ -3,6 +3,13 @@ import { expect, test } from '@playwright/test';
 
 function responseFor(question) {
   const base = {
+    feedback_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    session_context: {
+      schema_version: 'session-context-trace-v1',
+      read_status: 'empty',
+      write_status: 'stored',
+      context_applied: false,
+    },
     resolution: {
       schema_version: 'entity-resolution-v1',
       status: 'resolved',
@@ -42,6 +49,30 @@ function responseFor(question) {
     },
   };
 
+  if (question.includes('刚才的药')) {
+    base.session_context.read_status = 'available';
+    base.session_context.context_applied = true;
+    base.resolution.medications = ['泰诺', '感康'];
+    base.explanation.conclusion_status = 'risk_found';
+    base.explanation.summary = '在当前来源对齐数据范围内发现 1 条需要关注的用药风险。';
+    base.trace.conclusion_status = 'risk_found';
+    return base;
+  }
+
+  if (question.includes('XYZ123')) {
+    base.session_context.write_status = 'skipped';
+    base.resolution.status = 'ambiguous';
+    base.resolution.medications = ['泰诺'];
+    base.resolution.unresolved_mentions = ['XYZ123'];
+    base.resolution.clarification_question = '请确认与已识别药品并列的另一项，并提供包装上的具体商品名或成分名。';
+    base.explanation.conclusion_status = 'insufficient_information';
+    base.explanation.summary = '现有信息不足，系统未作完整风险判断。';
+    base.trace.resolution_status = 'ambiguous';
+    base.trace.conclusion_status = 'insufficient_information';
+    base.trace.stages[1].status = 'skipped';
+    return base;
+  }
+
   if (question.includes('泰诺')) {
     base.resolution.medications = ['泰诺', '感康'];
     base.explanation.conclusion_status = 'risk_found';
@@ -55,6 +86,13 @@ function responseFor(question) {
       source_ids: ['source-fda-acetaminophen-2025'],
       source_locator: 'Safe Use of Acetaminophen，第108至116行。',
       label_status: 'source_aligned',
+    }];
+    base.sources = [{
+      source_id: 'source-fda-acetaminophen-2025',
+      title: 'Acetaminophen',
+      publisher: 'U.S. Food and Drug Administration',
+      version: 'Content current as of 2025-08-14',
+      url: 'https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen',
     }];
     base.trace.conclusion_status = 'risk_found';
     return base;
@@ -94,7 +132,7 @@ function responseFor(question) {
 
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/v1/query', async (route) => {
+  await page.route('**/api/v1/query/session', async (route) => {
     const payload = route.request().postDataJSON();
     await route.fulfill({
       status: 200,
@@ -102,7 +140,140 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(responseFor(payload.question)),
     });
   });
+  await page.route('**/api/v1/knowledge/search', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 'reviewed-fact-search-v1',
+        data_version: 'v1.0.0-alpha.4',
+        retrieval_method: 'character-bigram-over-reviewed-summaries',
+        hits: [{
+          fact_id: 'fact-interaction-ibuprofen-aspirin-cardioprotection-001',
+          summary: '布洛芬可能削弱阿司匹林的抗血小板作用。',
+          source_locator: 'FDA Science Paper 第1页',
+          sources: [{ source_id: 'source-fda-ibuprofen-aspirin-2006', title: 'FDA Science Paper', url: 'https://www.fda.gov/media/76636/download' }],
+          score: 12,
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/v1/source-documents/search', async (route) => {
+    const doseQuery = route.request().postDataJSON().query.includes('dosing directions');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 'project-document-search-v1',
+        corpus: 'reviewed_source_excerpt',
+        method: 'lexical',
+        hits: [{
+          chunk_id: `source-fda-acetaminophen-safe-use-2026-09-24:${doseQuery ? '002' : '001'}`,
+          document_id: 'source-fda-acetaminophen-safe-use-2026-09-24',
+          title: 'Safe Use of Acetaminophen',
+          heading: 'Safe Use of Acetaminophen',
+          text: doseQuery
+            ? 'Follow dosing directions on the label.'
+            : 'Do not use more than one acetaminophen-containing product at a time.',
+          source_id: 'source-fda-acetaminophen-2025',
+          source_url: 'https://www.fda.gov/drugs/safe-use-over-counter-pain-relievers-and-fever-reducers/acetaminophen#safeuse',
+          linked_fact_ids: doseQuery ? [] : ['fact-duplicate-acetaminophen-001'],
+          score: 1,
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/v1/documents/search', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 'project-document-search-v1',
+        corpus: 'project_documentation',
+        method: route.request().postDataJSON().method,
+        vectorizer_id: null,
+        hits: [{
+          chunk_id: 'project-safety-boundary:001',
+          document_id: 'project-safety-boundary',
+          title: '项目安全边界',
+          heading: '系统用途',
+          text: '本项目是家庭常见用药风险筛查的工程演示系统。',
+          score: 3,
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/v1/feedback', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'recorded' }),
+    });
+  });
   await page.goto('/');
+});
+
+test('keeps one explicit session for a pronoun follow-up', async ({ page }) => {
+  const sessions = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/query/session')) {
+      sessions.push(request.postDataJSON().session_id);
+    }
+  });
+  await submit(page, '泰诺和感康能一起吃吗？');
+  await expect(page.getByText(/会话上下文：已保存已识别药品/)).toBeVisible();
+  await submit(page, '刚才的药还能一起吃吗？');
+  await expect(page.getByText(/本次已使用上一次识别的药品/)).toBeVisible();
+  expect(sessions).toHaveLength(2);
+  expect(sessions[0]).toBe(sessions[1]);
+});
+
+test('searches reviewed facts without changing the risk response', async ({ page }) => {
+  await page.getByRole('textbox', { name: '检索已审事实' }).fill('布洛芬和阿司匹林');
+  await page.getByRole('button', { name: '检索', exact: true }).click();
+
+  await expect(page.getByText('布洛芬可能削弱阿司匹林的抗血小板作用。')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'FDA Science Paper' })).toHaveAttribute('href', /fda\.gov/);
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('shows the reviewed FDA source excerpt separately from the risk response', async ({ page }) => {
+  await page.getByRole('combobox', { name: '检索范围' }).selectOption('sources');
+  await page.getByRole('textbox', { name: '检索已审事实' }).fill('对乙酰氨基酚重复成分');
+  await page.getByRole('button', { name: '检索', exact: true }).click();
+
+  await expect(page.getByText('Do not use more than one acetaminophen-containing product at a time.')).toBeVisible();
+  await expect(page.getByText(/关联已审风险事实：/)).toContainText('fact-duplicate-acetaminophen-001');
+  await expect(page.getByRole('link', { name: '打开 FDA 原页面' })).toHaveAttribute('href', /fda\.gov/);
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('marks a retrieved source passage without a reviewed risk-fact link', async ({ page }) => {
+  await page.getByRole('combobox', { name: '检索范围' }).selectOption('sources');
+  await page.getByRole('textbox', { name: '检索已审事实' }).fill('follow dosing directions');
+  await page.getByRole('button', { name: '检索', exact: true }).click();
+
+  await expect(page.getByText('Follow dosing directions on the label.')).toBeVisible();
+  await expect(page.getByText('此片段未关联已审风险事实。')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('searches project documents as a separate experiment', async ({ page }) => {
+  await page.getByRole('textbox', { name: '检索项目文档' }).fill('系统用途');
+  await page.getByRole('combobox', { name: '文档检索方法' }).selectOption('hashing_vector');
+  await page.getByRole('button', { name: '检索文档' }).click();
+
+  await expect(page.getByText('本项目是家庭常见用药风险筛查的工程演示系统。')).toBeVisible();
+  await expect(page.getByText('方法：hashing_vector · 命中 1 个片段')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '发现已收录风险' })).toHaveCount(0);
+});
+
+test('submits structured feedback after a query', async ({ page }) => {
+  await submit(page, '泰诺和感康能一起吃吗？');
+  await page.getByRole('button', { name: '需改进' }).click();
+  await page.getByRole('combobox', { name: '需改进原因' }).selectOption('missing_evidence');
+  await page.getByRole('button', { name: '提交反馈' }).click();
+  await expect(page.getByText('感谢反馈，已记录。')).toBeVisible();
 });
 
 
@@ -117,7 +288,8 @@ test('renders a source-aligned risk with traceable evidence', async ({ page }) =
 
   await expect(page.getByRole('heading', { name: '发现已收录风险' })).toBeVisible();
   await expect(page.getByText('fact-duplicate-acetaminophen-001')).toBeVisible();
-  await expect(page.getByText('source-fda-acetaminophen-2025')).toBeVisible();
+  await expect(page.getByText('source-fda-acetaminophen-2025').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Acetaminophen' })).toHaveAttribute('href', /fda\.gov/);
   await expect(page.getByText('e2e-request-001')).toBeVisible();
 });
 
@@ -128,6 +300,17 @@ test('asks for required context without showing a risk claim', async ({ page }) 
   await expect(page.getByRole('heading', { name: '需要补充信息' })).toBeVisible();
   await expect(page.getByText('请补充以下判断条件：阿司匹林用于心血管保护。')).toBeVisible();
   await expect(page.locator('.evidence-claim')).toHaveCount(0);
+});
+
+
+test('shows unmatched pair operand as clarification without retaining session context', async ({ page }) => {
+  await submit(page, '泰诺能和XYZ123一起吃吗？');
+
+  await expect(page.getByRole('heading', { name: '需要补充信息' })).toBeVisible();
+  await expect(page.getByText('请确认与已识别药品并列的另一项，并提供包装上的具体商品名或成分名。')).toBeVisible();
+  await expect(page.locator('.tag').getByText('XYZ123', { exact: true })).toBeVisible();
+  await expect(page.locator('.evidence-claim')).toHaveCount(0);
+  await expect(page.getByText(/会话上下文：未保存/)).toBeVisible();
 });
 
 

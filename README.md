@@ -17,8 +17,10 @@
   不由模型决定。
 - **可追溯证据：**每条正式结论都携带 `fact_id`、`source_id`、来源定位、数据版本和限制。
 - **模型输出不可信：**未知、遗漏、重复事实 ID，结论篡改和严重度错序都会被服务端拒绝。
-- **受限工具执行：**P3 typed workflow 只执行四个注册工具，使用严格 schema、
+- **受限工具执行：**P3 typed workflow 只执行五个注册工具，使用严格 schema、
   服务端 artifact 引用和最多 4 步的执行上限；模型只提议工具名，全部参数由服务端绑定。
+- **结构化会话：**显式 session 只保存 catalog 实体 ID、数据版本和结论状态，不把 legacy
+  问答文本交给 V1 或模型；Redis 故障时回退为无状态流程。
 - **可重建图投影：**版本化 JSON 是权威源，Neo4j 是带唯一约束和幂等导入的查询投影。
 - **失败也是评测结果：**仓库保留真实 Ollama 的 ID 复制与排序失败，而不是只展示成功样例。
 
@@ -26,14 +28,18 @@
 
 | 证据 | 当前结果 | 解释边界 |
 |---|---:|---|
-| Python 回归 | `201 passed, 5 skipped` | 跳过项是需显式启动 Neo4j 的集成测试 |
-| 单模型本地运行 | 仅 `qwen3:4b-instruct`，冷启动工具决策 3/3 接受 | Redis 召回使用 512 维本地词法 hashing，不是语义 embedding |
-| Typed tool / shadow 契约 | 34/34 | 12 项执行边界 + 22 项数据集/planner/capability 测试 |
+| Python 回归 | `240 passed, 5 deselected` | 本地 `medsafety` 环境；5 项 Neo4j 集成测试未运行 |
+| 正式查询 API 契约 v3 | 19/19 | 固定数据集；覆盖证据、会话隔离和混合未知输入，不代表临床准确率 |
+| 来源片段检索开发集 v3 | 25/28 top-1；来源越界 0 | 单个 FDA 章节；词法 14/14，哈希向量仍有 3 次错排 |
+| 浏览器契约 | 11/11 | Playwright 模拟 API 响应，验证页面状态与片段级关联展示 |
+| 浏览器到真实 API 冒烟 | 1/1 | 本地启动 FastAPI 与 Vite；Redis、Neo4j、Ollama 均不需要 |
+| 单模型本地运行 | 仅 `qwen3:4b-instruct`，两轮 agent 工具决策 8/8 接受 | 生成、name-only routing 与可选 rerank 共用一个模型 |
+| 结构化 session routing dev | raw/bound `1.000`，fallback `0` | 12 条开发样例；不是独立锁定测试 |
 | 工具选择数据集 | 60 条（40 dev / 20 locked test） | 已冻结并完成真实 shadow；锁定失败原样保留 |
 | Ollama tool shadow dev v3 | tool name `1.000`，whole call `0.950` | 40 条开发样例，经过 v1→v3 prompt 调优 |
 | Ollama tool shadow locked v1 | tool name `0.950`，whole call `0.850` | 20 条首次锁定测试；1 项注入导致错选已注册工具 |
 | Server-bound 1.7B dev | raw tool name `0.875`，bound call `1.000` | 40 条开发样例；5 次阶段错选均回退 |
-| Server-bound 4B Instruct dev | raw tool name `1.000`，bound call `1.000` | 同一 40 条开发样例；P50/P95 `749/856ms` |
+| Server-bound 4B Instruct dev v2 | raw tool name `1.000`，bound call `1.000` | 原 40 条开发样例回归；P50/P95 `688/752ms` |
 | 实体规则开发集 | micro F1 `0.918`，18 条 | 开发集，不是医学准确率 |
 | Safety Engine 开发集 | 17/17 whole-case match | 仅覆盖 4 条来源对齐事实；开发集共同迭代 |
 | 脚本化输出护栏 v2 | 10/10，unsupported claim rate `0` | 对抗 fixture，不是真实模型质量 |
@@ -64,12 +70,20 @@
 - [P3 server-bound 4B Instruct 开发基线](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v1.json)
 - [P3 server-bound 模型选择与验收](reports/p3-server-bound-tool-acceptance.md)
 - [P3 单模型运行时验收](reports/p3-single-model-runtime-acceptance.md)
+- [P3 结构化会话上下文验收](reports/p3-session-context-acceptance.md)
+- [P3 session routing 12 条开发基线](reports/baseline-server-bound-session-tool-qwen3-4b-instruct-dev-v1.json)
+- [P3 server-bound 40 条 prompt v2 回归](reports/baseline-server-bound-tool-qwen3-4b-instruct-dev-v2.json)
+- [正式查询 API 契约 v3](reports/query-contract-v3-baseline.md)
+- [浏览器到真实 API 冒烟记录](reports/fullstack-live-smoke-2026-09-24.md)
+- [来源片段检索失败与引用边界](reports/source-retrieval-dev-v2.md)
+- [来源检索 v3 方法对比与剩余失败](reports/source-retrieval-dev-v3.md)
 
 ## 核心架构
 
 ```mermaid
 flowchart LR
     A["自然语言问题"] --> W["Bounded Typed Tool Controller"]
+    S["Redis 结构化 session IDs"] --> W
     W --> R["确定性实体解析"]
     R -->|"已解析"| B["Safety Engine"]
     R -->|"歧义或未知"| Q["澄清或范围外状态"]
@@ -88,7 +102,7 @@ flowchart LR
 
 P3 controller 只允许注册工具，工具间使用服务端 `call_id` 引用产物；调用方不能把自己
 构造的实体结果或 `EvidencePacket` 交给后续工具。`agent-query` 的 Ollama planner 看不到
-问题文本和 artifact ID，只能提议工具名；服务端按当前阶段校验名称并重新构造参数。错选、
+问题文本、session ID 和 artifact ID，只能提议工具名；服务端按当前阶段校验名称并重新构造参数。错选、
 未知工具或模型故障都会记录后走确定性回退，因此模型参数永远不会进入注册表。这是受约束
 的工具工作流，不是开放式 ReAct。
 
@@ -138,14 +152,25 @@ shasum -a 256 -c data/v1/checksums.sha256
 
 python scripts/validate_v1_data.py
 python -m pytest -q -m "not integration"
+python -m evaluation.query_contract \
+  --dataset eval/query_contract_v3.jsonl \
+  --checksum eval/query_contract_v3.sha256
+python -m evaluation.source_retrieval_contract \
+  --dataset eval/source_retrieval_dev_v3.jsonl \
+  --checksum eval/source_retrieval_dev_v3.sha256 \
+  --min-top1 25 \
+  --min-link-matches 27
 
 cd frontend
 npm ci
 npm run build
+npx playwright install chromium
+npm run test:e2e:live
 ```
 
 上述命令也是 GitHub Actions 的基础质量门。真实 Neo4j 和 Ollama 验收属于显式运行的
-集成/评测任务，不会在普通离线测试中伪装为端到端通过。
+集成/评测任务；浏览器到 API 冒烟会让模型规划在本地快速失败并走确定性回退，
+不验证真实 Ollama 质量或 Redis 会话持久化。
 
 ## 运行 V1 API
 
@@ -167,6 +192,49 @@ curl -X POST http://127.0.0.1:8000/api/v1/query \
 别名和上下文规则；模糊药名、未知药名、缺失适用条件和指令式注入文本不会进入开放域
 医学生成。
 
+页面使用 `POST /api/v1/query/session`，在同一页面内发送一次性生成的显式
+`session_id`。该入口复用确定性 typed workflow，只在 Redis 可用且目录版本匹配时，
+对“刚才的药”等明确代词追问应用上一轮已解析的药品 ID；本轮写出的具体药名始终优先。
+响应含 `session_context.read_status/write_status/context_applied`，可直接核对是否复用。
+Redis 不可用时会退化为无状态查询，页面要求重新写出具体药名；会话 ID 不是账户认证，
+默认上下文 TTL 为 24 小时。补充缺失判断条件时仍应重写具体药名和条件。
+
+命中风险事实时，响应额外返回 `sources`（已审查来源的标题、发布方、版本和原始链接），
+前端可直接打开来源核对。该列表仅来自本次结论引用的事实；当前目录不保存文档全文，
+这不是文档 RAG。后续改造顺序与验收标准见 [AI 应用与后端项目改造计划](docs/AI_APPLICATION_ROADMAP.md)。
+
+已审事实检索基线：`POST /api/v1/knowledge/search`，请求体如
+`{"query":"布洛芬和阿司匹林","limit":5}`。响应包含事实摘要、定位、来源链接和数据版本；
+当前使用确定性的中文二字片段与英文词项重叠排序，只检索四条已审事实，不检索来源全文，
+检索结果不参与风险判断。前端“查找已审事实”可独立试用。
+
+项目文档检索实验区：`POST /api/v1/documents/search`，例如
+`{"query":"知识不可用怎么办","method":"lexical","limit":5}`；`method` 也可设为
+`hashing_vector`。结果含文档、标题、段落、片段 ID 与原文，完整文档可通过
+`GET /api/v1/documents/{document_id}` 查看。索引仅从 `data/document_corpus_v1.json`
+列出的本仓库自编文档重建，并验证 SHA-256；本地哈希向量是词法向量，不是模型语义
+Embedding。这一独立实验区不参与用药风险判断，比较记录见
+[项目文档检索开发基线](reports/project-document-search-dev-v1.md)。
+
+已核对的外部来源试点：`POST /api/v1/source-documents/search` 可检索 FDA
+“Safe Use of Acetaminophen”章节的本地快照，`GET /api/v1/source-documents/{document_id}`
+可查看抽取文本。清单固定原 URL、抓取日期、原 HTML 与抽取文本校验和、关联事实 ID；
+中文检索词只绑定到明确包含重复产品提示的片段。它与正式风险判断完全隔离。
+来源审计与限制见 [FDA 章节入库记录](reports/fda-safe-use-source-ingestion-2026-09-24.md)。
+
+### 匿名结果反馈
+
+正式 `/api/v1/query` 响应在本地反馈库可用时附带一次性的 `feedback_id`。
+前端可提交“有帮助”或“需改进”及固定原因类别到 `POST /api/v1/feedback`。
+示例：`{"feedback_id":"<查询响应中的令牌>","rating":"not_useful","reason":"missing_evidence"}`。
+服务端只保存反馈令牌、结论/解析/生成/回退状态、数据版本、会话上下文是否应用、
+评价、原因与时间，不保存问题文本、药名、账户或 IP；
+令牌 30 天后失效，过期记录在后续查询时清理。数据库默认位于忽略提交的
+`data/local/feedback.sqlite3`，可用 `FEEDBACK_DB_PATH` 覆盖。没有认证和跨实例共享，
+该功能仅作为本地原型的反馈闭环。
+运行 `python -m evaluation.feedback_report` 可在本机查看匿名计数和问题归因分组；
+旧数据库会自动补列，解释边界见 [反馈归因说明](docs/FEEDBACK_EVALUATION.md)。
+
 P3 typed workflow 入口：
 
 ```bash
@@ -175,15 +243,20 @@ curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/query \
   -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
 ```
 
-工具 schema 可通过 `GET /api/v1/workflows/safety/tools` 查看。响应增加
-`tool-workflow-trace-v1`，只记录工具、参数键、状态、schema 和耗时，不记录参数值。
+工具 schema 可通过 `GET /api/v1/workflows/safety/tools` 查看。响应使用
+`tool-workflow-trace-v2`，只记录工具、参数键、状态、schema、耗时以及 session
+`read/write/applied` 状态，不记录参数值、session ID 或药名。
 
 P3 服务端绑定的模型路由入口：
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/agent-query \
   -H 'Content-Type: application/json' \
-  -d '{"question":"泰诺和感康能一起吃吗？","use_llm_plan":false}'
+  -d '{"question":"泰诺和感康能一起吃吗？","session_id":"demo-session-001"}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/workflows/safety/agent-query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"刚才的药还能一起吃吗？","session_id":"demo-session-001"}'
 ```
 
 响应额外包含 `server-bound-tool-decision-trace-v1`：记录模型提议是否被接受、稳定的回退
@@ -400,7 +473,8 @@ docs/                 安全边界、图模型、数据卡、评测协议和项�
 - P3 正式 controller 仍是确定性的；历史 `qwen3:1.7b` locked test 中有 1 项注入导致
   模型错选已注册工具，因此原始 shadow proposal 不具备进入正式执行路径的资格；当前
   `qwen3:4b-instruct` 只通过服务端绑定的受限决策影响执行。
-- 自然语言解析仅覆盖 `data/v1/` 中的受控别名和少量上下文规则，尚不支持跨轮指代消解。
+- 自然语言解析仅覆盖 `data/v1/` 中的受控别名、少量上下文规则和显式 workflow session
+  内的受控追问指代；不支持任意跨轮共指或长期记忆。
 - 正式 V1 查询当前无持久会话；旧接口会话具有默认 24 小时 TTL 和显式清除接口，但
   没有认证或用户账户绑定，不能作为生产会话系统。
 - P1 已完成 Neo4j、Redis、Ollama 同时在线的 API smoke baseline；它是单机开发验收，

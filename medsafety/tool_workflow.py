@@ -18,9 +18,11 @@ from typing import Callable
 from pydantic import BaseModel, ValidationError
 
 from medsafety.contracts import (
+    EntityMatchType,
     EvidencePacket,
     InputResolution,
     InputResolutionStatus,
+    ResolvedEntityKind,
     SafetyExplanation,
 )
 from medsafety.entity_resolution import V1EntityResolver
@@ -28,11 +30,20 @@ from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.observability import normalize_request_id
 from medsafety.query_service import packet_for_unresolved_input
 from medsafety.safety_engine import SafetyEngine
+from medsafety.session_context import (
+    SessionContextReadStatus,
+    SessionContextSnapshot,
+    SessionContextStore,
+    SessionContextTrace,
+    SessionContextWriteStatus,
+    StoredSessionContext,
+)
 from medsafety.tool_contracts import (
     QuerySafetyGraphArguments,
     RenderEvidenceExplanationArguments,
     RequestClarificationArguments,
     ResolveMedicationsArguments,
+    RetrieveSessionContextArguments,
     ToolCallRequest,
     ToolCallStatus,
     ToolCallTrace,
@@ -206,6 +217,7 @@ class TypedSafetyWorkflow:
         resolver: V1EntityResolver,
         engine: SafetyEngine,
         explainer: EvidenceGroundedExplainer,
+        session_context_store: SessionContextStore | None = None,
         *,
         max_steps: int = DEFAULT_MAX_TOOL_STEPS,
     ):
@@ -214,6 +226,7 @@ class TypedSafetyWorkflow:
         self._resolver = resolver
         self._engine = engine
         self._explainer = explainer
+        self._session_context_store = session_context_store
         self._max_steps = max_steps
         self.registry = TypedToolRegistry(self._tool_specs())
 
@@ -223,16 +236,27 @@ class TypedSafetyWorkflow:
         *,
         use_llm_plan: bool = True,
         request_id: str | None = None,
+        session_id: str | None = None,
     ) -> ToolWorkflowResponse:
         started = perf_counter()
         traces: list[ToolCallTrace] = []
         artifacts: dict[str, BaseModel] = {}
 
+        session_context = self._invoke(
+            traces,
+            artifacts,
+            ToolName.RETRIEVE_SESSION_CONTEXT,
+            {"session_id": session_id},
+            SessionContextSnapshot,
+        )
         resolution = self._invoke(
             traces,
             artifacts,
             ToolName.RESOLVE_MEDICATIONS,
-            {"question": question},
+            {
+                "question": question,
+                "context_call_id": traces[-1].call_id,
+            },
             InputResolution,
         )
         if resolution.status == InputResolutionStatus.RESOLVED:
@@ -264,6 +288,15 @@ class TypedSafetyWorkflow:
             },
             SafetyExplanation,
         )
+        context_applied = any(
+            entity.match_type == EntityMatchType.SESSION_CONTEXT
+            for entity in resolution.entities
+        )
+        write_status = self.persist_session_context(
+            session_id,
+            resolution,
+            explanation,
+        )
         trace = ToolWorkflowTrace(
             request_id=normalize_request_id(request_id),
             max_steps=self._max_steps,
@@ -272,6 +305,11 @@ class TypedSafetyWorkflow:
             tool_calls=traces,
             resolution_status=resolution.status,
             conclusion_status=explanation.conclusion_status,
+            session_context=SessionContextTrace(
+                read_status=session_context.status,
+                write_status=write_status,
+                context_applied=context_applied,
+            ),
         )
         return ToolWorkflowResponse(
             resolution=resolution,
@@ -308,6 +346,16 @@ class TypedSafetyWorkflow:
     def _tool_specs(self) -> list[TypedToolSpec]:
         return [
             TypedToolSpec(
+                name=ToolName.RETRIEVE_SESSION_CONTEXT,
+                description=(
+                    "Load only version-matched catalog entity IDs from the caller's "
+                    "explicit session namespace; never return conversation text."
+                ),
+                arguments_model=RetrieveSessionContextArguments,
+                output_model=SessionContextSnapshot,
+                handler=self._retrieve_session_context,
+            ),
+            TypedToolSpec(
                 name=ToolName.RESOLVE_MEDICATIONS,
                 description=(
                     "Resolve catalog-backed medication and context entities from one "
@@ -315,9 +363,7 @@ class TypedSafetyWorkflow:
                 ),
                 arguments_model=ResolveMedicationsArguments,
                 output_model=InputResolution,
-                handler=lambda arguments, _artifacts: self._resolver.resolve(
-                    arguments.question
-                ),
+                handler=self._resolve_medications,
             ),
             TypedToolSpec(
                 name=ToolName.QUERY_SAFETY_GRAPH,
@@ -350,6 +396,90 @@ class TypedSafetyWorkflow:
                 handler=self._render_evidence_explanation,
             ),
         ]
+
+    def _retrieve_session_context(
+        self,
+        arguments: RetrieveSessionContextArguments,
+        _artifacts: Mapping[str, BaseModel],
+    ) -> SessionContextSnapshot:
+        if arguments.session_id is None:
+            return SessionContextSnapshot(status=SessionContextReadStatus.DISABLED)
+        if self._session_context_store is None:
+            return SessionContextSnapshot(status=SessionContextReadStatus.UNAVAILABLE)
+        try:
+            return self._session_context_store.load(
+                arguments.session_id,
+                expected_data_version=self._engine.repository.data_version,
+            )
+        except Exception:
+            return SessionContextSnapshot(status=SessionContextReadStatus.UNAVAILABLE)
+
+    def _resolve_medications(
+        self,
+        arguments: ResolveMedicationsArguments,
+        artifacts: Mapping[str, BaseModel],
+    ) -> InputResolution:
+        if arguments.context_call_id is None:
+            return self._resolver.resolve(arguments.question)
+        snapshot = self._require_artifact(
+            artifacts,
+            arguments.context_call_id,
+            SessionContextSnapshot,
+        )
+        if snapshot.status != SessionContextReadStatus.AVAILABLE:
+            return self._resolver.resolve(arguments.question)
+        resolution, _applied = self._resolver.resolve_with_session_context(
+            arguments.question,
+            medication_ids=snapshot.medication_ids,
+            context_ids=snapshot.context_ids,
+        )
+        return resolution
+
+    def persist_session_context(
+        self,
+        session_id: str | None,
+        resolution: InputResolution,
+        explanation: SafetyExplanation,
+    ) -> SessionContextWriteStatus:
+        """Save bounded identifiers after a successful workflow, outside model control."""
+
+        if session_id is None:
+            return SessionContextWriteStatus.DISABLED
+        if self._session_context_store is None:
+            return SessionContextWriteStatus.UNAVAILABLE
+        medication_ids = list(
+            dict.fromkeys(
+                entity.record_id
+                for entity in resolution.entities
+                if entity.kind == ResolvedEntityKind.MEDICATION
+            )
+        )
+        context_ids = list(
+            dict.fromkeys(
+                entity.record_id
+                for entity in resolution.entities
+                if entity.kind == ResolvedEntityKind.CONTEXT
+            )
+        )
+        if (
+            resolution.status != InputResolutionStatus.RESOLVED
+            or not medication_ids
+            or explanation.data_version is None
+        ):
+            return SessionContextWriteStatus.SKIPPED
+        try:
+            self._session_context_store.save(
+                session_id,
+                StoredSessionContext(
+                    medication_ids=medication_ids,
+                    context_ids=context_ids,
+                    data_version=explanation.data_version,
+                    prior_conclusion_status=explanation.conclusion_status,
+                ),
+            )
+        except Exception:
+            return SessionContextWriteStatus.UNAVAILABLE
+        return SessionContextWriteStatus.STORED
 
     def _query_safety_graph(
         self,

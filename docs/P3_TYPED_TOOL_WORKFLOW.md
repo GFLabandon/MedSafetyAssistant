@@ -12,7 +12,7 @@ P3 的第一步不是增加自由 ReAct 循环，而是先建立一个能被自�
 - 每个工具的输入和输出都使用严格 Pydantic schema；
 - 未知工具、额外参数、错误产物引用和非法输出不能进入后续阶段；
 - 工具间不传递由调用方提供的 `EvidencePacket`，只传递服务端保存的 `call_id`；
-- 每次请求最多执行 4 步，当前成功路径固定执行 3 步；
+- 每次请求最多执行 4 步，当前成功路径固定执行 4 步；
 - trace 只记录参数键、schema、状态和耗时，不记录问题、药名或医学内容；
 - LLM 仍然只能在现有 Evidence Packet 内排序事实，不能决定医学结论。
 
@@ -23,7 +23,8 @@ P3 的第一步不是增加自由 ReAct 循环，而是先建立一个能被自�
 
 | 工具 | 输入 | 输出 | 边界 |
 |---|---|---|---|
-| `resolve_medications` | 原始问题 | `InputResolution` | 只解析正式 catalog 实体 |
+| `retrieve_session_context` | 可选 session ID | `SessionContextSnapshot` | 只返回版本匹配的 catalog ID，不返回问答文本 |
+| `resolve_medications` | 原始问题 + context `call_id` | `InputResolution` | 只解析正式 catalog 实体或受控追问 |
 | `query_safety_graph` | 已完成解析的 `call_id` | `EvidencePacket` | 不接受药品列表或 Cypher |
 | `request_clarification` | 未解析结果的 `call_id` | 非风险 `EvidencePacket` | 不能用于已解析输入 |
 | `render_evidence_explanation` | Evidence Packet 的 `call_id` | `SafetyExplanation` | 不能由调用方提交事实包 |
@@ -35,15 +36,17 @@ P3 的第一步不是增加自由 ReAct 循环，而是先建立一个能被自�
 
 ```mermaid
 flowchart TD
-    U["用户问题"] --> C["确定性 Workflow Controller"]
-    C -->|"tool-01"| R["resolve_medications"]
+    U["用户问题 + 可选 session ID"] --> C["确定性 Workflow Controller"]
+    C -->|"tool-01"| S["retrieve_session_context"]
+    S --> A0["服务端 artifact: SessionContextSnapshot"]
+    A0 -->|"tool-02"| R["resolve_medications"]
     R --> A1["服务端 artifact: InputResolution"]
-    A1 -->|"resolved"| G["tool-02: query_safety_graph"]
-    A1 -->|"ambiguous / unknown / rejected"| Q["tool-02: request_clarification"]
+    A1 -->|"resolved"| G["tool-03: query_safety_graph"]
+    A1 -->|"ambiguous / unknown / rejected"| Q["tool-03: request_clarification"]
     G --> A2["服务端 artifact: EvidencePacket"]
     Q --> A2
-    A2 --> E["tool-03: render_evidence_explanation"]
-    E --> O["解释 + tool-workflow-trace-v1"]
+    A2 --> E["tool-04: render_evidence_explanation"]
+    E --> O["解释 + tool-workflow-trace-v2"]
 ```
 
 artifact 只存在于单次 `run()` 的局部内存中，不跨请求共享。工具只能用已执行调用的
@@ -192,3 +195,36 @@ provider、缺失 provenance 或维度不一致的记录不会参与比较，并
 Agent 查询的三个工具决策均被模型接受，事实 ID 和解释均通过服务端护栏。详细命令、延迟、
 Redis 隔离结果和自动化质量门见
 [`p3-single-model-runtime-acceptance.md`](../reports/p3-single-model-runtime-acceptance.md)。
+
+## 11. 结构化会话上下文与 trace v2（2026-08-02）
+
+V1 workflow 新增第五个注册工具 `retrieve_session_context`，成功与澄清路径现在固定为四步：
+
+```text
+retrieve_session_context
+-> resolve_medications
+-> query_safety_graph 或 request_clarification
+-> render_evidence_explanation
+```
+
+调用方必须显式提供符合约束的 `session_id` 才启用会话。Redis 使用独立的
+`v1session:{session_id}:context` 命名空间，只保存 catalog medication/context ID、
+`data_version` 和上一轮结论状态；不保存问题、回答、向量、Evidence Packet 或模型正文。
+旧数据版本、损坏记录和依赖故障均不会释放 payload，流程会继续以无状态方式执行。
+
+上下文只在普通解析器识别到“这个药、那个药、刚才的药”等明确追问指代、且当前问题没有
+显式药品时应用。当前轮明确出现的新药始终优先，不与历史药品静默合并。完成一次成功的
+resolved workflow 后，服务端在模型控制流之外更新结构化 context；模型既不能读取 session
+ID，也不能决定保存内容。
+
+响应升级为 `typed-safety-workflow-v2` / `server-bound-safety-workflow-v2` 和
+`tool-workflow-trace-v2`。trace 新增 `session-context-trace-v1`，只公开 read、write 和
+context-applied 状态；结构化日志按 request ID 记录工具名、状态、耗时与模型提议接受/回退
+计数，不记录问题、药名、session ID 或参数值。
+
+`qwen3:4b-instruct` 在新增 12 条 session-routing 开发集和原 40 条开发集上，raw/bound
+tool-name accuracy 均为 `1.000`、fallback 为 `0`。真实 Redis + Ollama 两轮查询共 8 次
+工具名提议全部被接受，第二轮从结构化 context 恢复泰诺/感康并返回
+`fact-duplicate-acetaminophen-001`。这些仍是本机开发验收，不是独立模型泛化、认证隔离或
+生产可用性证明。详见
+[`p3-session-context-acceptance.md`](../reports/p3-session-context-acceptance.md)。

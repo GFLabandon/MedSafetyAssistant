@@ -52,7 +52,7 @@ python scripts/evaluate_tool_shadow.py \
 runner 只记录并严格验证模型 proposal，不会把它传给工具注册表，也不会因模型选择而
 访问 Neo4j、Redis 或 Safety Engine。
 
-`server-bound-tool-name-v1` 是 locked shadow 失败后的独立收窄方案。模型只接收最小
+`server-bound-tool-name-v2` 是 locked shadow 失败后的独立收窄方案。模型只接收最小
 路由状态并提议工具名；参数由服务端从可信状态构造。当前只允许在既有 `dev` split 做
 模型 A/B，不把已经运行过的 locked split 重新包装成新测试集：
 
@@ -66,6 +66,21 @@ python scripts/evaluate_server_bound_tools.py \
 
 报告同时给出原始工具名准确率、确定性回退率和服务端绑定调用正确率；最后一项不能替代
 模型质量指标。runner 不执行任何工具，也不保存问题文本或参数值。
+
+`session_tool_routing_dev_v1.jsonl` 增加 12 条仅用于开发的 `session_start` 与携带服务端
+context artifact 的 `start` 状态。模型仍只看到阶段名，session ID、问题和 artifact ID
+不会进入 name-only prompt：
+
+```bash
+python scripts/evaluate_server_bound_tools.py \
+  --dataset eval/session_tool_routing_dev_v1.jsonl \
+  --split dev \
+  --model qwen3:4b-instruct \
+  --format json
+```
+
+该数据集没有 locked split，结果只能作为新增工具的开发基线。正式报告见
+`reports/baseline-server-bound-session-tool-qwen3-4b-instruct-dev-v1.json`。
 
 `explanation_guardrails_v1.jsonl` 包含 9 个脚本化 planner 场景，验证有效重排、未知/遗漏/重复 fact_id、结论篡改、额外医学字段、错误形状、依赖故障和显式禁用 LLM。运行：
 
@@ -108,3 +123,84 @@ python scripts/evaluate.py \
 ```
 
 首次真实运行后，无论结果是否通过，都不得再用该版本调 prompt。任何内容或期望顺序修改必须创建新的数据集版本，并保留 v1 原始报告。
+# Query API engineering contract V1
+
+`query_contract_v1.jsonl` is a frozen, checksum-checked regression suite for the
+public `/api/v1/query` and `/api/v1/query/session` paths. Run:
+
+```bash
+conda run -n medsafety python -m evaluation.query_contract
+```
+
+The runner disables LLM planning and replaces the session store with an
+in-memory implementation. It checks the expected conclusion, input-resolution
+status, fact IDs, session isolation, response trace, catalog version, and claim
+source provenance. This is an **engineering contract suite** using the same four
+reviewed facts as development. Its pass rate is not a clinical accuracy or
+independent fact-generalization result. V1 is the historical baseline recorded
+before the mixed-name resolver fix.
+
+`query_contract_v2.jsonl` retains the V1 cases and adds three negative cases
+for a non-catalog Chinese dosage-form product beside one or two catalog drugs:
+
+```bash
+conda run -n medsafety python -m evaluation.query_contract \
+  --dataset eval/query_contract_v2.jsonl \
+  --checksum eval/query_contract_v2.sha256
+```
+
+The resolver now rejects these identifiable mixed inputs rather than silently
+assessing only the catalog-backed product. This is a bounded pattern check for
+Chinese dosage-form names, not general recognition of every unknown drug name.
+Unknown English names and Chinese names without an identifiable dosage-form
+suffix can still evade it.
+
+`query_contract_v3.jsonl` adds four explicit-pair cases for suffix-free Chinese
+names and unknown English tokens, including a session query and a mixed risk
+pair. These return `ambiguous` / `insufficient_information` without claims:
+
+```bash
+conda run -n medsafety python -m evaluation.query_contract \
+  --dataset eval/query_contract_v3.jsonl \
+  --checksum eval/query_contract_v3.sha256
+```
+
+The pair guard covers only recognizable conjunction patterns. It treats an
+unmatched operand as needing clarification, without asserting that the operand
+is a medication. V1 and V2 datasets and reports remain historical baselines.
+
+`source_retrieval_dev_v2.jsonl` is a checksum-pinned **development** audit of
+the single FDA source excerpt. It labels the expected top chunk and whether
+that specific chunk supports the catalog fact. Run both lexical and local
+hashing-vector methods through the public source-search API:
+
+```bash
+conda run -n medsafety python -m evaluation.source_retrieval_contract
+```
+
+The report preserves ranking and link mismatches. CI fails on broken catalog
+provenance, while retrieval ranking errors remain visible development findings.
+One source and nine queries cannot establish general retrieval or clinical
+accuracy; the result does not authorize retrieved text to enter the formal
+safety conclusion.
+
+`source_retrieval_dev_v3.jsonl` retains the v2 cases and adds five development
+queries for Chinese dose paraphrases, daily maximum, and unrelated medication
+topics. The source manifest now contains reviewed topic IDs and dose anchors;
+queries naming a different catalog medication return no source hit. Numeric
+grouping is normalized only for indexing (`4,000` and `4000`), while the
+displayed source text remains unchanged. Run:
+
+```bash
+conda run -n medsafety python -m evaluation.source_retrieval_contract \
+  --dataset eval/source_retrieval_dev_v3.jsonl \
+  --checksum eval/source_retrieval_dev_v3.sha256 \
+  --min-top1 25 \
+  --min-link-matches 27
+```
+
+Both v2 and v3 are development sets. v2's failure report remains unchanged;
+v3 records the effect of this visible tuning and remaining hashing-vector
+failures. Neither set is independent evidence of retrieval quality.
+The CI minimums prevent regressions against this development baseline; they
+do not establish general retrieval accuracy.

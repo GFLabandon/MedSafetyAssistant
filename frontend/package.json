@@ -4,7 +4,8 @@
     "dev:e2e": "vite --host 127.0.0.1 --port 4173",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5173",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:live": "playwright test --config playwright.live.config.js"
   },
   "dependencies": {
     "react": "^18.3.1",

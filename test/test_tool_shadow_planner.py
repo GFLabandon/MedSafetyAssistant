@@ -304,6 +304,23 @@ def test_state_contract_rejects_model_supplied_artifact_shape():
         )
 
 
+def test_session_start_state_accepts_only_opaque_server_context():
+    state = ShadowWorkflowState(
+        stage="session_start",
+        session_id="session-001",
+    )
+
+    assert state.stage == ShadowWorkflowStage.SESSION_START
+    messages = OllamaToolShadowPlanner.build_messages(state)
+    assert "session-001" not in str(messages)
+    with pytest.raises(ValueError):
+        ShadowWorkflowState(
+            stage="session_start",
+            session_id="session-001",
+            question="must not be present",
+        )
+
+
 def test_locked_test_split_requires_explicit_acknowledgement():
     with pytest.raises(ValueError, match="allow-locked-test"):
         enforce_split_gate("test", False)

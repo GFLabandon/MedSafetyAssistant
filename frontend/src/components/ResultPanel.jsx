@@ -1,4 +1,5 @@
 import React from 'react';
+import FeedbackPanel from './FeedbackPanel.jsx';
 
 const STATUS_CONTENT = {
   risk_found: {
@@ -83,7 +84,10 @@ export default function ResultPanel({ result }) {
   const contexts = resolution.contexts || [];
   const unresolved = resolution.unresolved_mentions || [];
   const claims = explanation.claims || [];
+  const sources = result.sources || [];
   const limitations = explanation.limitations || [];
+  const missingContext = explanation.missing_context || [];
+  const sessionContext = result.session_context;
   const safetyFlags = resolution.safety_flags || [];
   const trace = result.trace || {};
   const stages = trace.stages || [];
@@ -104,6 +108,21 @@ export default function ResultPanel({ result }) {
           <strong>需要你确认</strong>
           <p>{resolution.clarification_question}</p>
         </section>
+      ) : null}
+
+      {!resolution.clarification_question && missingContext.length > 0 ? (
+        <section className="clarification-card">
+          <strong>需要补充判断条件</strong>
+          <p>{missingContext.join('、')}</p>
+          <p>如能确认该条件，请在下一次提问中写出具体药名和条件；无法确认时不要猜测。</p>
+        </section>
+      ) : null}
+
+      {sessionContext ? (
+        <p className="session-note">
+          会话上下文：{sessionContext.write_status === 'stored' ? '已保存已识别药品；明确的代词追问可引用。补充判断条件时请重写完整药名。' : '未保存；追问时请重新写出具体药名。'}
+          {sessionContext.context_applied ? ' 本次已使用上一次识别的药品。' : ''}
+        </p>
       ) : null}
 
       <section>
@@ -129,6 +148,22 @@ export default function ResultPanel({ result }) {
           ? claims.map((claim) => <EvidenceClaim claim={claim} key={claim.fact_id} />)
           : <div className="empty-evidence">本次响应没有风险事实。请结合上方结论状态理解，不能据此推断安全。</div>}
       </section>
+
+      {sources.length > 0 ? (
+        <section>
+          <h3>来源文件</h3>
+          <p className="contract-note">以下为项目已审核目录中的来源信息与原始链接；定位以每条风险事实为准。</p>
+          <ul className="source-list">
+            {sources.map((source) => (
+              <li key={source.source_id}>
+                <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
+                <span>{source.publisher} · {source.version || '未标注版本'}</span>
+                <code>{source.source_id}</code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {limitations.length > 0 ? (
         <section>
@@ -162,6 +197,7 @@ export default function ResultPanel({ result }) {
           </ol>
         </details>
       ) : null}
+      <FeedbackPanel key={result.feedback_id || 'no-feedback'} feedbackId={result.feedback_id} />
     </div>
   );
 }

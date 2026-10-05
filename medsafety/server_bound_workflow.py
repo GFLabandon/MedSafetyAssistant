@@ -8,6 +8,7 @@ from time import perf_counter
 from pydantic import BaseModel
 
 from medsafety.contracts import (
+    EntityMatchType,
     EvidencePacket,
     InputResolution,
     InputResolutionStatus,
@@ -17,6 +18,11 @@ from medsafety.entity_resolution import V1EntityResolver
 from medsafety.explanation import EvidenceGroundedExplainer
 from medsafety.observability import normalize_request_id
 from medsafety.safety_engine import SafetyEngine
+from medsafety.session_context import (
+    SessionContextSnapshot,
+    SessionContextStore,
+    SessionContextTrace,
+)
 from medsafety.server_bound_tool_decisions import (
     ServerBoundToolDecisionTrace,
     ServerBoundWorkflowResponse,
@@ -56,6 +62,7 @@ class ServerBoundSafetyWorkflow:
         engine: SafetyEngine,
         explainer: EvidenceGroundedExplainer,
         planner: ToolNamePlanner,
+        session_context_store: SessionContextStore | None = None,
         *,
         max_steps: int = DEFAULT_MAX_TOOL_STEPS,
     ):
@@ -67,6 +74,7 @@ class ServerBoundSafetyWorkflow:
             resolver=resolver,
             engine=engine,
             explainer=explainer,
+            session_context_store=session_context_store,
             max_steps=max_steps,
         )
         self.registry = self._workflow.registry
@@ -77,6 +85,7 @@ class ServerBoundSafetyWorkflow:
         *,
         use_llm_plan: bool = True,
         request_id: str | None = None,
+        session_id: str | None = None,
     ) -> ServerBoundWorkflowResponse:
         started = perf_counter()
         traces: list[ToolCallTrace] = []
@@ -84,8 +93,20 @@ class ServerBoundSafetyWorkflow:
         artifacts: dict[str, BaseModel] = {}
         definitions = self.registry.definitions()
 
+        session_context = self._invoke(
+            ShadowWorkflowState(stage="session_start", session_id=session_id),
+            definitions,
+            traces,
+            decisions,
+            artifacts,
+            SessionContextSnapshot,
+        )
         resolution = self._invoke(
-            ShadowWorkflowState(stage="start", question=question),
+            ShadowWorkflowState(
+                stage="start",
+                question=question,
+                context_call_id=traces[-1].call_id,
+            ),
             definitions,
             traces,
             decisions,
@@ -116,6 +137,15 @@ class ServerBoundSafetyWorkflow:
             artifacts,
             SafetyExplanation,
         )
+        context_applied = any(
+            entity.match_type == EntityMatchType.SESSION_CONTEXT
+            for entity in resolution.entities
+        )
+        write_status = self._workflow.persist_session_context(
+            session_id,
+            resolution,
+            explanation,
+        )
         trace = ToolWorkflowTrace(
             request_id=normalize_request_id(request_id),
             max_steps=self._max_steps,
@@ -124,6 +154,11 @@ class ServerBoundSafetyWorkflow:
             tool_calls=traces,
             resolution_status=resolution.status,
             conclusion_status=explanation.conclusion_status,
+            session_context=SessionContextTrace(
+                read_status=session_context.status,
+                write_status=write_status,
+                context_applied=context_applied,
+            ),
         )
         return ServerBoundWorkflowResponse(
             resolution=resolution,

@@ -1,0 +1,14 @@
+{"case_id":"duplicate_chinese","query":"对乙酰氨基酚重复成分","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:001","expected_linked_fact_ids":["fact-duplicate-acetaminophen-001"]}
+{"case_id":"duplicate_english","query":"more than one acetaminophen-containing product","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:001","expected_linked_fact_ids":["fact-duplicate-acetaminophen-001"]}
+{"case_id":"label_directions","query":"follow dosing directions on the label","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:002","expected_linked_fact_ids":[]}
+{"case_id":"alcohol_warning","query":"three or more alcoholic drinks per day","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:002","expected_linked_fact_ids":[]}
+{"case_id":"daily_maximum","query":"maximum total amount of acetaminophen taken in 24 hours","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:003","expected_linked_fact_ids":[]}
+{"case_id":"poison_help","query":"1-800-222-1222","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:003","expected_linked_fact_ids":[]}
+{"case_id":"chinese_dose_hard_case","query":"对乙酰氨基酚剂量","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:002","expected_linked_fact_ids":[]}
+{"case_id":"unrelated_pair","query":"布洛芬阿司匹林相互作用","expected_chunk_id":null,"expected_linked_fact_ids":[]}
+{"case_id":"unrelated_token","query":"xyzunknown123","expected_chunk_id":null,"expected_linked_fact_ids":[]}
+{"case_id":"dose_paraphrase_chinese","query":"对乙酰氨基酚说明书用量","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:002","expected_linked_fact_ids":[]}
+{"case_id":"daily_limit_chinese","query":"对乙酰氨基酚每日最大用量","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:003","expected_linked_fact_ids":[]}
+{"case_id":"daily_limit_english","query":"acetaminophen 4000 mg per day","expected_chunk_id":"source-fda-acetaminophen-safe-use-2026-09-24:003","expected_linked_fact_ids":[]}
+{"case_id":"unrelated_drug_dose","query":"布洛芬用量","expected_chunk_id":null,"expected_linked_fact_ids":[]}
+{"case_id":"unrelated_drug_duplicate","query":"布洛芬重复成分","expected_chunk_id":null,"expected_linked_fact_ids":[]}

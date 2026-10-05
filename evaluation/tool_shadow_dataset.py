@@ -29,9 +29,14 @@ class ShadowToolSelectionCase(StrictModel):
     @model_validator(mode="after")
     def expected_call_matches_deterministic_oracle(self):
         state = self.state
-        if state.stage == ShadowWorkflowStage.START:
+        if state.stage == ShadowWorkflowStage.SESSION_START:
+            expected_name = ToolName.RETRIEVE_SESSION_CONTEXT
+            expected_arguments = {"session_id": state.session_id}
+        elif state.stage == ShadowWorkflowStage.START:
             expected_name = ToolName.RESOLVE_MEDICATIONS
             expected_arguments = {"question": state.question.strip()}
+            if state.context_call_id is not None:
+                expected_arguments["context_call_id"] = state.context_call_id
         elif state.stage == ShadowWorkflowStage.AFTER_RESOLUTION:
             expected_name = (
                 ToolName.QUERY_SAFETY_GRAPH

@@ -44,6 +44,15 @@ _INSTRUCTION_MARKERS = (
     "不要遵守",
     "绕过规则",
 )
+_PRODUCT_NAME_PATTERN = re.compile(
+    r"(?:^|(?<=[和与跟同及、，,吃用买加了]))"
+    r"(?P<name>[\u4e00-\u9fff]{2,12}?(?:片|胶囊|颗粒|口服液|注射液|滴剂|糖浆))"
+    r"(?=能|可以|和|与|跟|同|及|、|，|,|吗|？|\?|的|后|期间|一起|同时|$)"
+)
+_PAIR_OPERAND = r"(?:[A-Za-z][A-Za-z0-9-]{2,29}|[\u4e00-\u9fff]{2,12}?)"
+_PAIR_JOIN = r"(?:和|与|跟|及|、|\+)"
+_PAIR_MODAL = r"(?:能|可以|可否|能否)"
+_PAIR_END = r"(?=能|可以|可否|能否|一起|同时|同服|合用|有|会|吗|？|\?|和|与|跟|及|、|\+|$)"
 
 
 @dataclass(frozen=True)
@@ -96,6 +105,17 @@ class V1EntityResolver:
         follow_up_terms = [
             term for term in _FOLLOW_UP_REFERENCES if term in normalized_question
         ]
+        unknown_products = self._unrecognized_product_mentions(normalized_question)
+        if unknown_products:
+            return InputResolution(
+                status=InputResolutionStatus.UNKNOWN,
+                medications=medications,
+                contexts=contexts,
+                entities=entities,
+                unresolved_mentions=unknown_products,
+                clarification_question="部分药品名称不在当前 V1 目录中，请核对包装上的具体商品名或成分名。",
+                safety_flags=safety_flags,
+            )
         if generic_terms and medications:
             return InputResolution(
                 status=InputResolutionStatus.AMBIGUOUS,
@@ -115,6 +135,18 @@ class V1EntityResolver:
                 entities=entities,
                 unresolved_mentions=follow_up_terms,
                 clarification_question="请补充代词所指的具体药品名称。",
+                safety_flags=safety_flags,
+            )
+
+        unresolved_pair = self._unresolved_pair_operands(normalized_question)
+        if medications and unresolved_pair:
+            return InputResolution(
+                status=InputResolutionStatus.AMBIGUOUS,
+                medications=medications,
+                contexts=contexts,
+                entities=entities,
+                unresolved_mentions=unresolved_pair,
+                clarification_question="请确认与已识别药品并列的另一项，并提供包装上的具体商品名或成分名。",
                 safety_flags=safety_flags,
             )
 
@@ -153,6 +185,76 @@ class V1EntityResolver:
             safety_flags=safety_flags,
         )
 
+    def resolve_with_session_context(
+        self,
+        question: str,
+        *,
+        medication_ids: list[str],
+        context_ids: list[str],
+    ) -> tuple[InputResolution, bool]:
+        """Resolve an explicit follow-up from validated catalog identifiers only.
+
+        Context is applied only when the ordinary resolver found no medication and
+        classified a recognized pronoun as needing clarification. Explicit current
+        medication names always win and never get silently merged with history.
+        """
+
+        resolution = self.resolve(question)
+        if resolution.status != InputResolutionStatus.NEEDS_CLARIFICATION:
+            return resolution, False
+        normalized_question = " ".join(question.strip().split())
+        if not any(term in normalized_question for term in _FOLLOW_UP_REFERENCES):
+            return resolution, False
+
+        medications = [
+            self._catalog.medications[record_id]
+            for record_id in dict.fromkeys(medication_ids)
+            if record_id in self._catalog.medications
+        ]
+        if not medications:
+            return resolution, False
+
+        explicit_context_entities = [
+            entity
+            for entity in resolution.entities
+            if entity.kind == ResolvedEntityKind.CONTEXT
+        ]
+        if explicit_context_entities:
+            context_entities = explicit_context_entities
+        else:
+            context_entities = [
+                ResolvedEntity(
+                    kind=ResolvedEntityKind.CONTEXT,
+                    record_id=record_id,
+                    canonical_name=self._catalog.contexts[record_id].canonical_name,
+                    matched_text="session_context",
+                    match_type=EntityMatchType.SESSION_CONTEXT,
+                )
+                for record_id in dict.fromkeys(context_ids)
+                if record_id in self._catalog.contexts
+            ]
+
+        medication_entities = [
+            ResolvedEntity(
+                kind=ResolvedEntityKind.MEDICATION,
+                record_id=medication.medication_id,
+                canonical_name=medication.canonical_name,
+                matched_text="session_context",
+                match_type=EntityMatchType.SESSION_CONTEXT,
+            )
+            for medication in medications
+        ]
+        return (
+            InputResolution(
+                status=InputResolutionStatus.RESOLVED,
+                medications=[item.canonical_name for item in medications],
+                contexts=[item.canonical_name for item in context_entities],
+                entities=[*medication_entities, *context_entities],
+                safety_flags=resolution.safety_flags,
+            ),
+            True,
+        )
+
     def _build_medication_aliases(self) -> list[_AliasEntry]:
         entries = []
         for medication in self._catalog.medications.values():
@@ -166,6 +268,37 @@ class V1EntityResolver:
                     )
                 )
         return self._unique_aliases(entries)
+
+    def _unrecognized_product_mentions(self, question: str) -> list[str]:
+        known_aliases = {entry.alias.casefold() for entry in self._medication_aliases}
+        candidates = []
+        for match in _PRODUCT_NAME_PATTERN.finditer(question):
+            candidate = re.split(r"[和与跟同及、，,加]", match.group("name"))[-1]
+            if candidate.casefold() not in known_aliases:
+                candidates.append(candidate)
+        return list(dict.fromkeys(candidates))
+
+    def _unresolved_pair_operands(self, question: str) -> list[str]:
+        known_aliases = {entry.alias.casefold() for entry in self._medication_aliases}
+        candidates = []
+        for alias in known_aliases:
+            known = re.escape(alias)
+            if alias.isascii() and alias.replace(" ", "").isalnum():
+                known = rf"(?<![a-z0-9]){known}(?![a-z0-9])"
+            patterns = (
+                rf"{known}\s*{_PAIR_JOIN}\s*(?P<candidate>{_PAIR_OPERAND}){_PAIR_END}",
+                rf"(?P<candidate>{_PAIR_OPERAND})\s*{_PAIR_JOIN}\s*{known}(?=能|可以|一起|同时|同服|合用|有|会|吗|？|\?|$)",
+                rf"{known}\s*{_PAIR_MODAL}\s*{_PAIR_JOIN}\s*(?P<candidate>{_PAIR_OPERAND})(?=一起|同时|同服|合用|吗|？|\?|$)",
+                rf"(?P<candidate>{_PAIR_OPERAND})\s*{_PAIR_MODAL}\s*{_PAIR_JOIN}\s*{known}(?=一起|同时|同服|合用|吗|？|\?|$)",
+            )
+            for pattern in patterns:
+                for match in re.finditer(pattern, question, flags=re.IGNORECASE):
+                    candidate = re.sub(
+                        r"(?:一起吃|同时吃|同服|合用)$", "", match.group("candidate")
+                    )
+                    if len(candidate) >= 2 and candidate.casefold() not in known_aliases:
+                        candidates.append(candidate)
+        return list(dict.fromkeys(candidates))
 
     def _build_context_aliases(self) -> list[_AliasEntry]:
         entries = []

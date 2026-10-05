@@ -1,0 +1,106 @@
+{
+  "suite": "query_contract_v3",
+  "scope": "deterministic engineering regression; not independent clinical evaluation",
+  "dataset_sha256": "362be8880a467911c92bf96a93046b4e2f2e1dcbef8dc6a7f15f76bf235f9e20",
+  "data_version": "v1.0.0-alpha.4",
+  "git_head": "2c7d68389cc33795111573784da04ed9fdeef019",
+  "total": 19,
+  "passed": 19,
+  "cases": [
+    {
+      "case_id": "duplicate_pair",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "same_session_followup",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "other_session_cannot_inherit",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "explicit_pair_replaces_context",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "followup_uses_replaced_pair",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "conditional_interaction",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "reaction_history",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "driving_restriction",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unknown_medicine",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "known_single_medicine",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unverified_alias",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "stateless_followup",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unknown_named_product_left",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unknown_named_product_right",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "unknown_product_blocks_partial_risk",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "suffix_free_unknown_left",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "suffix_free_unknown_right",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "english_unknown_with_session",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "suffix_free_unknown_blocks_partial_risk",
+      "passed": true,
+      "errors": []
+    }
+  ]
+}

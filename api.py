@@ -4,13 +4,15 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+import sqlite3
 from time import perf_counter
+from typing import Literal
 
 from fastapi import FastAPI, Path as ApiPath, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from neo4j import GraphDatabase
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from config import Config
 from logic_layer.assistant_service import (
@@ -26,10 +28,15 @@ from logic_layer.health_check import (
 from logic_layer.kg_service import MedicalKG
 from logic_layer.llm_service import stream_safety_response
 from logic_layer.session import create_session_id, normalize_session_id
+from logic_layer.session_context_store import RedisSessionContextStore
 from logic_layer.vector_store import VectorStore
 from medsafety.catalog import KnowledgeCatalog
 from medsafety.entity_resolution import V1EntityResolver
+from medsafety.document_search import ProjectDocumentSearch
+from medsafety.source_document_search import ReviewedSourceDocumentSearch
 from medsafety.explanation import EvidenceGroundedExplainer
+from medsafety.fact_search import ReviewedFactSearch
+from medsafety.feedback_store import FeedbackStore
 from medsafety.ollama_planner import OllamaExplanationPlanner
 from medsafety.neo4j_repository import Neo4jKnowledgeRepository
 from medsafety.observability import normalize_request_id, structured_event
@@ -99,8 +106,83 @@ class NaturalLanguageSafetyRequest(BaseModel):
         return value.strip()
 
 
+class WorkflowSafetyRequest(NaturalLanguageSafetyRequest):
+    session_id: str | None = None
+
+    @field_validator("session_id")
+    @classmethod
+    def optional_session_id_must_be_opaque(cls, value):
+        if value is None:
+            return None
+        return normalize_session_id(value, generate_if_blank=False)
+
+
+class FactSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=300)
+    limit: int = Field(default=5, ge=1, le=10)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_contain_text(cls, value):
+        if not value.strip():
+            raise ValueError("query must not be blank")
+        return value.strip()
+
+
+class DocumentSearchRequest(FactSearchRequest):
+    method: str = Field(default="lexical", pattern="^(lexical|hashing_vector)$")
+
+
+class FeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    feedback_id: str = Field(..., pattern=r"^[0-9a-f]{32}$")
+    rating: Literal["useful", "not_useful"]
+    reason: Literal["missing_evidence", "wrong_entity", "unclear_explanation", "other"] | None = None
+
+    @model_validator(mode="after")
+    def reason_matches_rating(self):
+        if self.rating == "not_useful" and self.reason is None:
+            raise ValueError("not_useful feedback requires a reason")
+        if self.rating == "useful" and self.reason is not None:
+            raise ValueError("useful feedback cannot include a reason")
+        return self
+
+
 def build_v1_catalog():
     return KnowledgeCatalog.from_directory(V1_DATA_DIRECTORY)
+
+
+def build_reviewed_source_search(catalog=None):
+    root = Path(__file__).resolve().parent
+    catalog = catalog or build_v1_catalog()
+    index = ProjectDocumentSearch(
+        root,
+        root / "data/source_document_corpus_v1.json",
+        corpus="reviewed_source_excerpt",
+    )
+    for entry in index.documents.values():
+        source_id = entry.get("source_id")
+        linked_fact_ids = entry.get("linked_fact_ids", [])
+        anchor_fact_ids = {
+            fact_id
+            for anchor in entry.get("keyword_anchors", [])
+            for fact_id in anchor.get("linked_fact_ids", [])
+        }
+        if (
+            entry.get("review_status") != "reviewed_for_retrieval"
+            or source_id not in catalog.sources
+            or entry.get("source_url", "").split("#", 1)[0] != catalog.sources[source_id].url
+            or not linked_fact_ids
+            or anchor_fact_ids != set(linked_fact_ids)
+            or any(
+                fact_id not in catalog.facts
+                or source_id not in catalog.facts[fact_id].source_ids
+                for fact_id in linked_fact_ids
+            )
+        ):
+            raise ValueError("source document must match a reviewed catalog source and fact")
+    return ReviewedSourceDocumentSearch(index, catalog)
 
 
 def build_safety_engine(catalog=None):
@@ -125,6 +207,7 @@ def build_typed_safety_workflow(request: Request | None = None):
         resolver=get_entity_resolver(request),
         engine=get_safety_engine(request),
         explainer=get_safety_explainer(request),
+        session_context_store=get_session_context_store(request),
     )
 
 
@@ -133,6 +216,7 @@ def build_server_bound_safety_workflow(request: Request | None = None):
         resolver=get_entity_resolver(request),
         engine=get_safety_engine(request),
         explainer=get_safety_explainer(request),
+        session_context_store=get_session_context_store(request),
         planner=OllamaToolNamePlanner(
             host=Config.OLLAMA_URL,
             model=Config.OLLAMA_TOOL_MODEL,
@@ -159,9 +243,24 @@ def build_neo4j_repository():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     catalog = build_v1_catalog()
+    app.state.catalog = catalog
+    app.state.fact_search = ReviewedFactSearch(catalog)
+    app.state.source_document_search = build_reviewed_source_search(catalog)
+    app.state.document_search = ProjectDocumentSearch(
+        Path(__file__).resolve().parent,
+        Path(__file__).resolve().parent / "data/document_corpus_v1.json",
+    )
     app.state.safety_engine = build_safety_engine(catalog)
     app.state.entity_resolver = build_entity_resolver(catalog)
     app.state.safety_explainer = build_safety_explainer()
+    feedback_path = Path(Config.FEEDBACK_DB_PATH)
+    if not feedback_path.is_absolute():
+        feedback_path = Path(__file__).resolve().parent / feedback_path
+    try:
+        app.state.feedback_store = FeedbackStore(feedback_path)
+    except (OSError, sqlite3.Error):
+        logger.warning("feedback store unavailable", exc_info=True)
+        app.state.feedback_store = None
     app.state.vector_store = VectorStore()
     neo4j_driver, neo4j_repository = build_neo4j_repository()
     app.state.neo4j_driver = neo4j_driver
@@ -183,8 +282,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:4173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:4173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -240,6 +341,16 @@ def get_vector_store(request: Request | None):
     return getattr(request.app.state, "vector_store", None)
 
 
+def get_session_context_store(request: Request | None):
+    vector_store = get_vector_store(request)
+    if vector_store is None or not vector_store.available:
+        return None
+    return RedisSessionContextStore(
+        vector_store.redis_client,
+        ttl_seconds=Config.SESSION_TTL_SECONDS,
+    )
+
+
 def get_safety_engine(request: Request | None):
     if request is None:
         return build_safety_engine()
@@ -256,6 +367,52 @@ def get_entity_resolver(request: Request | None):
     if request is None:
         return build_entity_resolver()
     return getattr(request.app.state, "entity_resolver", None) or build_entity_resolver()
+
+
+def source_metadata_for_claims(claims, catalog):
+    """Return reviewed source metadata used by the actual response claims."""
+    source_ids = dict.fromkeys(
+        source_id for claim in claims for source_id in claim.source_ids
+    )
+    return [
+        {
+            "source_id": source_id,
+            "title": catalog.sources[source_id].title,
+            "publisher": catalog.sources[source_id].publisher,
+            "url": catalog.sources[source_id].url,
+            "version": catalog.sources[source_id].version,
+            "accessed_at": catalog.sources[source_id].accessed_at.isoformat(),
+        }
+        for source_id in source_ids
+        if source_id in catalog.sources
+    ]
+
+
+async def enrich_query_result(result, explanation, request):
+    """Attach optional feedback capability and only the response's cited sources."""
+    store = getattr(request.app.state, "feedback_store", None) if request else None
+    result["feedback_id"] = None
+    if store is not None:
+        try:
+            result["feedback_id"] = await asyncio.to_thread(
+                store.register,
+                explanation.conclusion_status.value,
+                data_version=explanation.data_version,
+                resolution_status=result["resolution"]["status"],
+                generation_mode=explanation.generation_mode.value,
+                fallback_reason=(
+                    explanation.fallback_reason.value
+                    if explanation.fallback_reason is not None else None
+                ),
+                context_applied=result.get("session_context", {}).get("context_applied"),
+            )
+        except (OSError, sqlite3.Error):
+            logger.warning("feedback registration unavailable", exc_info=True)
+    catalog = getattr(request.app.state, "catalog", None) if request else None
+    result["sources"] = source_metadata_for_claims(
+        explanation.claims, catalog or build_v1_catalog()
+    )
+    return result
 
 
 def get_neo4j_repository(request: Request | None):
@@ -465,7 +622,140 @@ async def query_v1_safety(
         use_llm_plan=payload.use_llm_plan,
         request_id=get_request_id(request),
     )
-    return response.model_dump(mode="json")
+    result = response.model_dump(mode="json")
+    return await enrich_query_result(result, response.explanation, request)
+
+
+@app.post("/api/v1/query/session")
+async def query_v1_safety_session(payload: WorkflowSafetyRequest, request: Request):
+    """Page-facing session query; no model-directed tool selection or free-text memory."""
+    workflow = build_typed_safety_workflow(request)
+    try:
+        response = await asyncio.to_thread(
+            workflow.run,
+            payload.question,
+            use_llm_plan=payload.use_llm_plan,
+            request_id=get_request_id(request),
+            session_id=payload.session_id,
+        )
+    except ToolWorkflowExecutionError as exc:
+        logger.warning(
+            structured_event(
+                "session_query_failed",
+                request_id=get_request_id(request),
+                reason=exc.code,
+            )
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"error": "tool_workflow_failed", "detail": "The safety query could not complete."},
+        )
+
+    workflow_trace = response.trace.model_dump(mode="json")
+    result = {
+        "resolution": response.resolution.model_dump(mode="json"),
+        "explanation": response.explanation.model_dump(mode="json"),
+        "trace": {
+            "schema_version": "session-query-trace-v1",
+            "request_id": workflow_trace["request_id"],
+            "total_duration_ms": workflow_trace["total_duration_ms"],
+            "stages": [
+                {
+                    "name": call["tool_name"],
+                    "status": call["status"],
+                    "duration_ms": call["duration_ms"],
+                }
+                for call in workflow_trace["tool_calls"]
+            ],
+            "resolution_status": workflow_trace["resolution_status"],
+            "conclusion_status": workflow_trace["conclusion_status"],
+        },
+        "session_context": workflow_trace["session_context"],
+    }
+    logger.info(
+        structured_event(
+            "session_query_completed",
+            request_id=response.trace.request_id,
+            conclusion_status=response.explanation.conclusion_status.value,
+            session_read_status=response.trace.session_context.read_status.value,
+            session_write_status=response.trace.session_context.write_status.value,
+            context_applied=response.trace.session_context.context_applied,
+        )
+    )
+    return await enrich_query_result(result, response.explanation, request)
+
+
+@app.post("/api/v1/feedback")
+async def submit_query_feedback(payload: FeedbackRequest, request: Request):
+    store = getattr(request.app.state, "feedback_store", None)
+    if store is None:
+        return JSONResponse(status_code=503, content={"error": "feedback_unavailable"})
+    try:
+        status = await asyncio.to_thread(
+            store.submit, payload.feedback_id, payload.rating, payload.reason
+        )
+    except (OSError, sqlite3.Error):
+        logger.warning("feedback write unavailable", exc_info=True)
+        return JSONResponse(status_code=503, content={"error": "feedback_unavailable"})
+    if status == "not_found":
+        return JSONResponse(status_code=404, content={"error": "feedback_id_not_found"})
+    if status == "conflict":
+        return JSONResponse(status_code=409, content={"error": "feedback_already_submitted"})
+    return {"status": status}
+
+
+@app.post("/api/v1/knowledge/search")
+async def search_reviewed_facts(payload: FactSearchRequest, request: Request):
+    index = getattr(request.app.state, "fact_search", None)
+    if index is None:
+        index = ReviewedFactSearch(build_v1_catalog())
+    return index.search(payload.query, limit=payload.limit)
+
+
+@app.post("/api/v1/documents/search")
+async def search_project_documents(payload: DocumentSearchRequest, request: Request):
+    index = getattr(request.app.state, "document_search", None)
+    if index is None:
+        root = Path(__file__).resolve().parent
+        index = ProjectDocumentSearch(root, root / "data/document_corpus_v1.json")
+    return index.search(payload.query, method=payload.method, limit=payload.limit)
+
+
+@app.get("/api/v1/documents/{document_id}")
+async def get_project_document(
+    document_id: str = ApiPath(..., pattern=r"^project-[a-z0-9-]{2,80}$"),
+    request: Request = None,
+):
+    index = getattr(request.app.state, "document_search", None) if request else None
+    if index is None:
+        root = Path(__file__).resolve().parent
+        index = ProjectDocumentSearch(root, root / "data/document_corpus_v1.json")
+    text = index.document_texts.get(document_id)
+    if text is None:
+        return JSONResponse(status_code=404, content={"error": "document_not_found"})
+    return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
+
+
+@app.post("/api/v1/source-documents/search")
+async def search_reviewed_source_documents(payload: DocumentSearchRequest, request: Request):
+    index = getattr(request.app.state, "source_document_search", None)
+    if index is None:
+        index = build_reviewed_source_search()
+    return index.search(payload.query, method=payload.method, limit=payload.limit)
+
+
+@app.get("/api/v1/source-documents/{document_id}")
+async def get_reviewed_source_document(
+    document_id: str = ApiPath(..., pattern=r"^source-[a-z0-9-]{2,100}$"),
+    request: Request = None,
+):
+    index = getattr(request.app.state, "source_document_search", None) if request else None
+    if index is None:
+        index = build_reviewed_source_search()
+    text = index.document_texts.get(document_id)
+    if text is None:
+        return JSONResponse(status_code=404, content={"error": "document_not_found"})
+    return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/v1/workflows/safety/tools")
@@ -479,7 +769,7 @@ async def list_v1_safety_workflow_tools(request: Request = None):
 
 @app.post("/api/v1/workflows/safety/query")
 async def query_v1_typed_safety_workflow(
-    payload: NaturalLanguageSafetyRequest,
+    payload: WorkflowSafetyRequest,
     request: Request = None,
 ):
     workflow = build_typed_safety_workflow(request)
@@ -489,6 +779,7 @@ async def query_v1_typed_safety_workflow(
             payload.question,
             use_llm_plan=payload.use_llm_plan,
             request_id=get_request_id(request),
+            session_id=payload.session_id,
         )
     except ToolWorkflowExecutionError as exc:
         logger.warning(
@@ -507,12 +798,32 @@ async def query_v1_typed_safety_workflow(
                 "reason": exc.code,
             },
         )
+    logger.info(
+        structured_event(
+            "typed_tool_workflow_completed",
+            request_id=response.trace.request_id,
+            total_duration_ms=response.trace.total_duration_ms,
+            resolution_status=response.trace.resolution_status.value,
+            conclusion_status=response.trace.conclusion_status.value,
+            session_read_status=response.trace.session_context.read_status.value,
+            session_write_status=response.trace.session_context.write_status.value,
+            context_applied=response.trace.session_context.context_applied,
+            tool_calls=[
+                {
+                    "name": call.tool_name,
+                    "status": call.status.value,
+                    "duration_ms": call.duration_ms,
+                }
+                for call in response.trace.tool_calls
+            ],
+        )
+    )
     return response.model_dump(mode="json")
 
 
 @app.post("/api/v1/workflows/safety/agent-query")
 async def query_v1_server_bound_safety_workflow(
-    payload: NaturalLanguageSafetyRequest,
+    payload: WorkflowSafetyRequest,
     request: Request = None,
 ):
     """Run name-only model routing with server-bound arguments and fallback."""
@@ -524,6 +835,7 @@ async def query_v1_server_bound_safety_workflow(
             payload.question,
             use_llm_plan=payload.use_llm_plan,
             request_id=get_request_id(request),
+            session_id=payload.session_id,
         )
     except ToolWorkflowExecutionError as exc:
         logger.warning(
@@ -542,6 +854,32 @@ async def query_v1_server_bound_safety_workflow(
                 "reason": exc.code,
             },
         )
+    logger.info(
+        structured_event(
+            "server_bound_tool_workflow_completed",
+            request_id=response.trace.request_id,
+            total_duration_ms=response.trace.total_duration_ms,
+            resolution_status=response.trace.resolution_status.value,
+            conclusion_status=response.trace.conclusion_status.value,
+            session_read_status=response.trace.session_context.read_status.value,
+            session_write_status=response.trace.session_context.write_status.value,
+            context_applied=response.trace.session_context.context_applied,
+            accepted_tool_proposals=sum(
+                1 for decision in response.decisions if decision.proposal_accepted
+            ),
+            fallback_tool_proposals=sum(
+                1 for decision in response.decisions if not decision.proposal_accepted
+            ),
+            tool_calls=[
+                {
+                    "name": call.tool_name,
+                    "status": call.status.value,
+                    "duration_ms": call.duration_ms,
+                }
+                for call in response.trace.tool_calls
+            ],
+        )
+    )
     return response.model_dump(mode="json")
 
 

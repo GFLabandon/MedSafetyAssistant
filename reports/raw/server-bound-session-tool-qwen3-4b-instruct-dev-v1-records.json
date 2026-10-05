@@ -1,0 +1,200 @@
+[
+  {
+    "bound_argument_keys": [
+      "session_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "retrieve_session_context",
+    "case_id": "session_route_01",
+    "expected_name": "retrieve_session_context",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 772.363,
+    "proposal_accepted": true,
+    "proposed_name": "retrieve_session_context",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "session_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "retrieve_session_context",
+    "case_id": "session_route_02",
+    "expected_name": "retrieve_session_context",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 612.994,
+    "proposal_accepted": true,
+    "proposed_name": "retrieve_session_context",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "session_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "retrieve_session_context",
+    "case_id": "session_route_03",
+    "expected_name": "retrieve_session_context",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 606.803,
+    "proposal_accepted": true,
+    "proposed_name": "retrieve_session_context",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "session_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "retrieve_session_context",
+    "case_id": "session_route_04",
+    "expected_name": "retrieve_session_context",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 610.69,
+    "proposal_accepted": true,
+    "proposed_name": "retrieve_session_context",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "session_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "retrieve_session_context",
+    "case_id": "session_route_05",
+    "expected_name": "retrieve_session_context",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 613.34,
+    "proposal_accepted": true,
+    "proposed_name": "retrieve_session_context",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "session_id"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "retrieve_session_context",
+    "case_id": "session_route_06",
+    "expected_name": "retrieve_session_context",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 636.198,
+    "proposal_accepted": true,
+    "proposed_name": "retrieve_session_context",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "context_call_id",
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "session_route_07",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 732.938,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "context_call_id",
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "session_route_08",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 644.836,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "context_call_id",
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "session_route_09",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 646.972,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "context_call_id",
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "session_route_10",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 646.828,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "context_call_id",
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "session_route_11",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 672.137,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  },
+  {
+    "bound_argument_keys": [
+      "context_call_id",
+      "question"
+    ],
+    "bound_call_matches_oracle": true,
+    "bound_name": "resolve_medications",
+    "case_id": "session_route_12",
+    "expected_name": "resolve_medications",
+    "fallback_reason": null,
+    "planner_error_category": null,
+    "planner_latency_ms": 695.02,
+    "proposal_accepted": true,
+    "proposed_name": "resolve_medications",
+    "repetition": 1,
+    "split": "dev"
+  }
+]

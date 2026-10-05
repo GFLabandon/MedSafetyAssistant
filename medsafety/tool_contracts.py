@@ -14,9 +14,11 @@ from medsafety.contracts import (
     SafetyExplanation,
     StrictModel,
 )
+from medsafety.session_context import SessionContextTrace
 
 
 class ToolName(str, Enum):
+    RETRIEVE_SESSION_CONTEXT = "retrieve_session_context"
     RESOLVE_MEDICATIONS = "resolve_medications"
     QUERY_SAFETY_GRAPH = "query_safety_graph"
     REQUEST_CLARIFICATION = "request_clarification"
@@ -37,8 +39,19 @@ class ToolFailureReason(str, Enum):
     TOOL_EXECUTION_FAILED = "tool_execution_failed"
 
 
+class RetrieveSessionContextArguments(StrictModel):
+    session_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9_-]{1,128}$",
+    )
+
+
 class ResolveMedicationsArguments(StrictModel):
     question: str = Field(min_length=1, max_length=500)
+    context_call_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9._-]{1,64}$",
+    )
 
     @field_validator("question")
     @classmethod
@@ -98,7 +111,7 @@ class ToolCallTrace(StrictModel):
 
 
 class ToolWorkflowTrace(StrictModel):
-    schema_version: Literal["tool-workflow-trace-v1"] = "tool-workflow-trace-v1"
+    schema_version: Literal["tool-workflow-trace-v2"] = "tool-workflow-trace-v2"
     request_id: str = Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")
     max_steps: int = Field(ge=1, le=8)
     executed_steps: int = Field(ge=1, le=8)
@@ -106,6 +119,7 @@ class ToolWorkflowTrace(StrictModel):
     tool_calls: list[ToolCallTrace] = Field(min_length=1, max_length=8)
     resolution_status: InputResolutionStatus
     conclusion_status: ConclusionStatus
+    session_context: SessionContextTrace
 
     @model_validator(mode="after")
     def steps_match_trace(self):
@@ -120,7 +134,7 @@ class ToolWorkflowTrace(StrictModel):
 
 
 class ToolWorkflowResponse(StrictModel):
-    schema_version: Literal["typed-safety-workflow-v1"] = "typed-safety-workflow-v1"
+    schema_version: Literal["typed-safety-workflow-v2"] = "typed-safety-workflow-v2"
     resolution: InputResolution
     explanation: SafetyExplanation
     trace: ToolWorkflowTrace

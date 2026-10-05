@@ -14,6 +14,7 @@ from medsafety.tool_contracts import (
     RenderEvidenceExplanationArguments,
     RequestClarificationArguments,
     ResolveMedicationsArguments,
+    RetrieveSessionContextArguments,
     ToolDefinition,
     ToolName,
 )
@@ -31,6 +32,7 @@ class ShadowPlanner(Protocol):
 
 
 _ARGUMENT_MODELS: dict[ToolName, type[BaseModel]] = {
+    ToolName.RETRIEVE_SESSION_CONTEXT: RetrieveSessionContextArguments,
     ToolName.RESOLVE_MEDICATIONS: ResolveMedicationsArguments,
     ToolName.QUERY_SAFETY_GRAPH: QuerySafetyGraphArguments,
     ToolName.REQUEST_CLARIFICATION: RequestClarificationArguments,
@@ -58,7 +60,7 @@ def classify_shadow_attempt(
     try:
         normalized_arguments = _ARGUMENT_MODELS[tool_name].model_validate(
             attempt.proposal.arguments
-        ).model_dump(mode="json")
+        ).model_dump(mode="json", exclude_none=True)
     except ValidationError:
         return "invalid_arguments", None
 

@@ -1,0 +1,5 @@
+{"query":"泰诺和感康都有对乙酰氨基酚吗","expected_fact_id":"fact-duplicate-acetaminophen-001"}
+{"query":"布洛芬和阿司匹林一起服用","expected_fact_id":"fact-interaction-ibuprofen-aspirin-cardioprotection-001"}
+{"query":"吃布洛芬后出现荨麻疹","expected_fact_id":"fact-contraindication-ibuprofen-nsaid-allergic-reaction-001"}
+{"query":"吃泰诺后能开车吗","expected_fact_id":"fact-activity-restriction-tyno-driving-machinery-001"}
+{"query":"完全未知的xyzunknown123","expected_fact_id":null}

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
+    FEEDBACK_DB_PATH = os.getenv("FEEDBACK_DB_PATH", "data/local/feedback.sqlite3")
     # Neo4j 配置
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")

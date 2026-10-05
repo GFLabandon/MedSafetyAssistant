@@ -1,0 +1,4 @@
+{"query":"系统不是医疗器械","expected_document_id":"project-safety-boundary"}
+{"query":"未知药品如何处理","expected_document_id":"project-input-resolution"}
+{"query":"工具参数由服务端绑定","expected_document_id":"project-typed-workflow"}
+{"query":"知识不可用怎么办","expected_document_id":"project-safety-boundary"}

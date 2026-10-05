@@ -10,16 +10,25 @@ from medsafety.contracts import InputResolutionStatus, StrictModel
 
 
 class ShadowWorkflowStage(str, Enum):
+    SESSION_START = "session_start"
     START = "start"
     AFTER_RESOLUTION = "after_resolution"
     AFTER_EVIDENCE = "after_evidence"
 
 
 class ShadowWorkflowState(StrictModel):
-    """Trusted server state exposed to the model as a read-only JSON value."""
+    """Trusted state that planner adapters must project to a non-sensitive view."""
 
     stage: ShadowWorkflowStage
     question: str | None = Field(default=None, min_length=1, max_length=500)
+    session_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9_-]{1,128}$",
+    )
+    context_call_id: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z0-9._-]{1,64}$",
+    )
     artifact_call_id: str | None = Field(
         default=None,
         pattern=r"^[A-Za-z0-9._-]{1,64}$",
@@ -29,14 +38,33 @@ class ShadowWorkflowState(StrictModel):
 
     @model_validator(mode="after")
     def stage_matches_state_shape(self):
+        if self.stage == ShadowWorkflowStage.SESSION_START:
+            if (
+                self.question is not None
+                or self.context_call_id is not None
+                or self.artifact_call_id is not None
+                or self.resolution_status is not None
+            ):
+                raise ValueError("session_start accepts only an optional session ID")
+            return self
+
         if self.stage == ShadowWorkflowStage.START:
             if self.question is None:
                 raise ValueError("start state requires a question")
-            if self.artifact_call_id is not None or self.resolution_status is not None:
-                raise ValueError("start state cannot contain a prior artifact")
+            if (
+                self.session_id is not None
+                or self.artifact_call_id is not None
+                or self.resolution_status is not None
+            ):
+                raise ValueError("start state accepts only a session-context artifact")
             return self
 
-        if self.question is not None or self.artifact_call_id is None:
+        if (
+            self.question is not None
+            or self.session_id is not None
+            or self.context_call_id is not None
+            or self.artifact_call_id is None
+        ):
             raise ValueError("post-tool states require only an artifact reference")
         if self.stage == ShadowWorkflowStage.AFTER_RESOLUTION:
             if self.resolution_status is None:

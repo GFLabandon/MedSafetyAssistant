@@ -16,6 +16,8 @@ from scripts.build_tool_shadow_dataset import build_cases, render_cases
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DATASET_PATH = REPOSITORY_ROOT / "eval/tool_shadow_v1.jsonl"
 CHECKSUM_PATH = REPOSITORY_ROOT / "eval/tool_shadow_v1.sha256"
+SESSION_DATASET_PATH = REPOSITORY_ROOT / "eval/session_tool_routing_dev_v1.jsonl"
+SESSION_CHECKSUM_PATH = REPOSITORY_ROOT / "eval/session_tool_routing_dev_v1.sha256"
 
 
 def test_frozen_shadow_dataset_has_expected_size_splits_and_coverage():
@@ -58,6 +60,26 @@ def test_shadow_dataset_loader_can_select_dev_without_reading_test_labels():
         if case.case_id.startswith("shadow_start_")
     ]
     assert max(start_indexes) == 14
+
+
+def test_session_routing_dev_dataset_covers_private_session_stages_and_checksum():
+    cases = load_shadow_tool_cases(SESSION_DATASET_PATH, split="dev")
+    payload = SESSION_DATASET_PATH.read_bytes()
+    expected_digest, relative_path = SESSION_CHECKSUM_PATH.read_text(
+        encoding="utf-8"
+    ).split()
+
+    assert len(cases) == 12
+    assert Counter(case.state.stage for case in cases) == {
+        ShadowWorkflowStage.SESSION_START: 6,
+        ShadowWorkflowStage.START: 6,
+    }
+    assert Counter(case.expected.name.value for case in cases) == {
+        "retrieve_session_context": 6,
+        "resolve_medications": 6,
+    }
+    assert relative_path == "eval/session_tool_routing_dev_v1.jsonl"
+    assert hashlib.sha256(payload).hexdigest() == expected_digest
 
 
 def test_shadow_case_rejects_label_that_disagrees_with_oracle():
